@@ -56,7 +56,7 @@ async function runSync() {
   const registry = await loadRegisteredIntegrations(ctx.family);
 
   const end = new Date();
-  end.setDate(end.getDate() + 30);
+  end.setDate(end.getDate() + 90);
   const startDate = new Date().toISOString();
   const endDate = end.toISOString();
 
