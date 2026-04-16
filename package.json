@@ -12,7 +12,8 @@
     "build": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
     "setup:calendars": "node tools/calendar-setup/setup.js",
-    "setup:portal": "tsx integrations/outputs/github-pages/setup.ts"
+    "setup:portal": "tsx integrations/outputs/github-pages/setup.ts",
+    "build:family-data": "tsx scripts/build-family-data.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.52.0",
