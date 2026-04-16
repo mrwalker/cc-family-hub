@@ -11,7 +11,8 @@
     "check-secrets": "node scripts/check-secrets.js",
     "build": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
-    "auth:google-calendar": "node scripts/auth/google-calendar.js"
+    "auth:google-calendar": "node scripts/auth/google-calendar.js",
+    "setup:calendars": "node tools/calendar-setup/companion-server/index.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.52.0",

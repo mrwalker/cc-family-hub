@@ -11,9 +11,9 @@ const ROOT = process.cwd();
 const FAMILY_CONFIG_PATH = join(ROOT, "workspace", "family.yaml");
 const SECRETS_PATH = join(ROOT, "workspace", "state", "secrets.yaml");
 
-// Required secret keys per integration
+// Required top-level secret keys per integration
 const REQUIRED_SECRETS = {
-  "google-calendar": ["clientId", "clientSecret", "refreshToken"],
+  "google-calendar": ["clientId", "clientSecret"],
   "wall-display": ["deviceUrl", "apiKey"],
   "mobile-app": ["fcmServerKey"],
 };
@@ -49,9 +49,26 @@ function main() {
     }
 
     for (const key of required) {
-      if (!integrationSecrets[key] || integrationSecrets[key].startsWith("YOUR_")) {
+      if (!integrationSecrets[key] || String(integrationSecrets[key]).startsWith("YOUR_")) {
         console.error(`MISSING: secrets.yaml -> ${id}.${key}`);
         allOk = false;
+      }
+    }
+
+    // For google-calendar, also check that at least one member token is present
+    if (id === "google-calendar") {
+      const memberTokens = integrationSecrets.members ?? {};
+      const connected = Object.values(memberTokens).filter((m) => m?.refreshToken).length;
+      const familyMembers = family?.members?.length ?? 0;
+      if (connected === 0) {
+        console.error(`MISSING: No member tokens found under google-calendar.members`);
+        console.error(`         Run: npm run setup:calendars`);
+        allOk = false;
+      } else if (connected < familyMembers) {
+        console.warn(`WARNING: ${connected}/${familyMembers} members connected to Google Calendar`);
+        console.warn(`         Run: npm run setup:calendars  to connect the rest`);
+      } else {
+        console.log(`✓ google-calendar: ${connected}/${familyMembers} members connected`);
       }
     }
   }
