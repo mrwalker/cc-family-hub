@@ -6,15 +6,36 @@
  */
 
 import Anthropic from "@anthropic-ai/sdk";
-import { readFileSync } from "fs";
+import { readFileSync, existsSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
+import yaml from "js-yaml";
 import type { PlanningContext, WeeklyPlan } from "../../integrations/_base/types.js";
 import { renderContextForPrompt } from "../context/builder.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-const client = new Anthropic();
+function loadApiKey(): string {
+  // Prefer environment variable (standard for CI / automated runs)
+  if (process.env.ANTHROPIC_API_KEY) return process.env.ANTHROPIC_API_KEY;
+
+  // Fall back to workspace/state/secrets.yaml
+  const secretsPath = join(process.cwd(), "workspace", "state", "secrets.yaml");
+  if (existsSync(secretsPath)) {
+    const secrets = yaml.load(readFileSync(secretsPath, "utf8")) as Record<string, unknown>;
+    const key = (secrets?.anthropic as Record<string, string>)?.apiKey;
+    if (key) return key;
+  }
+
+  throw new Error(
+    `Anthropic API key not found.\n` +
+    `Add it to workspace/state/secrets.yaml:\n\n` +
+    `  anthropic:\n    apiKey: "sk-ant-..."\n\n` +
+    `Or set the ANTHROPIC_API_KEY environment variable.`
+  );
+}
+
+const client = new Anthropic({ apiKey: loadApiKey() });
 
 function loadPrompt(name: string): string {
   return readFileSync(join(__dirname, "prompts", `${name}.md`), "utf8");

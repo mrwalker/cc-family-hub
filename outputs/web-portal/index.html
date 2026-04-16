@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Walker Family Hub</title>
+  <script src="public/data/plan-data.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #f5f5f7;
+      --card: #ffffff;
+      --border: #e4e4e7;
+      --text: #18181b;
+      --muted: #71717a;
+      --accent: #2563eb;
+      --accent-light: #eff6ff;
+      --urgent: #dc2626;
+      --urgent-light: #fef2f2;
+      --warn: #d97706;
+      --warn-light: #fffbeb;
+      --ok: #16a34a;
+      --ok-light: #f0fdf4;
+      --info: #0891b2;
+      --info-light: #ecfeff;
+      --radius: 10px;
+      --shadow: 0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.05);
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 14px;
+      line-height: 1.5;
+      padding: 24px 16px 64px;
+    }
+
+    .container { max-width: 900px; margin: 0 auto; }
+
+    /* Header */
+    .hub-header {
+      display: flex; align-items: baseline; justify-content: space-between;
+      margin-bottom: 24px; gap: 12px; flex-wrap: wrap;
+    }
+    .hub-header h1 { font-size: 22px; font-weight: 700; }
+    .hub-header .meta { font-size: 12px; color: var(--muted); }
+
+    /* Summary card */
+    .summary-card {
+      background: var(--accent); color: white;
+      border-radius: var(--radius); padding: 16px 20px;
+      margin-bottom: 20px; font-size: 14px; line-height: 1.6;
+    }
+    .summary-card .label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; opacity: .75; margin-bottom: 6px; }
+
+    /* Section headings */
+    .section-title {
+      font-size: 11px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .07em; color: var(--muted);
+      margin: 28px 0 10px;
+    }
+
+    /* Flags */
+    .flags { display: flex; flex-direction: column; gap: 8px; margin-bottom: 4px; }
+    .flag {
+      display: flex; align-items: flex-start; gap: 10px;
+      padding: 10px 14px; border-radius: var(--radius);
+      font-size: 13px; line-height: 1.5; border: 1px solid transparent;
+    }
+    .flag.urgent { background: var(--urgent-light); border-color: #fecaca; }
+    .flag.warning { background: var(--warn-light); border-color: #fde68a; }
+    .flag.info    { background: var(--info-light);  border-color: #a5f3fc; }
+    .flag-icon { flex-shrink: 0; font-size: 15px; margin-top: 1px; }
+
+    /* Action items */
+    .actions { display: flex; flex-direction: column; gap: 6px; }
+    .action-item {
+      display: flex; align-items: center; gap: 10px;
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 10px 14px;
+      font-size: 13px;
+    }
+    .action-item input[type=checkbox] { flex-shrink: 0; width: 16px; height: 16px; cursor: pointer; accent-color: var(--accent); }
+    .action-item .desc { flex: 1; }
+    .action-item.done .desc { text-decoration: line-through; color: var(--muted); }
+    .action-item .due { font-size: 11px; color: var(--muted); white-space: nowrap; }
+    .action-item .badge {
+      font-size: 10px; padding: 2px 7px; border-radius: 20px; font-weight: 600;
+      white-space: nowrap; flex-shrink: 0;
+    }
+    .badge.high   { background: #fecaca; color: #991b1b; }
+    .badge.medium { background: #fde68a; color: #92400e; }
+    .badge.low    { background: #d1fae5; color: #065f46; }
+
+    /* Day cards */
+    .days { display: flex; flex-direction: column; gap: 12px; }
+    .day-card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: var(--radius); box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+    .day-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 16px; border-bottom: 1px solid var(--border);
+      cursor: pointer; user-select: none;
+    }
+    .day-header:hover { background: #fafafa; }
+    .day-title { font-weight: 600; font-size: 14px; }
+    .day-title .day-name { color: var(--muted); font-weight: 400; font-size: 13px; margin-left: 6px; }
+    .day-header .event-count { font-size: 11px; color: var(--muted); }
+    .day-body { padding: 0 16px 4px; }
+
+    .day-notes {
+      font-size: 12px; color: #444; padding: 10px 0 6px;
+      border-bottom: 1px solid var(--border);
+      line-height: 1.6;
+    }
+    .day-logistics {
+      font-size: 11px; color: var(--muted); padding: 6px 0 8px;
+      border-bottom: 1px solid var(--border);
+    }
+    .day-logistics::before { content: "🚗 "; }
+
+    .events { padding: 6px 0; }
+    .event-row {
+      display: flex; align-items: baseline; gap: 10px;
+      padding: 4px 0; font-size: 13px;
+      border-bottom: 1px solid #f4f4f5;
+    }
+    .event-row:last-child { border-bottom: none; }
+    .event-time { color: var(--muted); font-size: 11px; width: 68px; flex-shrink: 0; text-align: right; }
+    .event-title { flex: 1; }
+    .event-who {
+      font-size: 10px; padding: 1px 6px; border-radius: 10px;
+      background: var(--accent-light); color: var(--accent);
+      flex-shrink: 0; font-weight: 500;
+    }
+
+    .today-marker .day-header { background: var(--accent-light); border-bottom-color: #bfdbfe; }
+    .today-marker .day-title { color: var(--accent); }
+
+    /* Member chips */
+    .members-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; }
+    .member-chip {
+      display: flex; align-items: center; gap: 6px;
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 20px; padding: 4px 12px 4px 8px;
+      font-size: 12px; font-weight: 500;
+    }
+    .member-avatar {
+      width: 22px; height: 22px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 10px; font-weight: 700; color: white; flex-shrink: 0;
+    }
+
+    .toggle-icon { font-size: 11px; color: var(--muted); }
+    .day-body.collapsed { display: none; }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <div class="hub-header">
+    <h1>🏠 Walker Family Hub</h1>
+    <span class="meta" id="generated-at"></span>
+  </div>
+
+  <div class="summary-card">
+    <div class="label">Week Overview</div>
+    <div id="summary-text"></div>
+  </div>
+
+  <div class="members-row" id="members-row"></div>
+
+  <div class="section-title">⚑ Flags &amp; Alerts</div>
+  <div class="flags" id="flags-list"></div>
+
+  <div class="section-title">✓ Action Items</div>
+  <div class="actions" id="actions-list"></div>
+
+  <div class="section-title">📅 14-Day View</div>
+  <div class="days" id="days-list"></div>
+
+</div>
+
+<script>
+const plan = window.PLAN_DATA;
+const today = new Date().toISOString().slice(0, 10);
+
+const MEMBER_COLORS = {
+  matt:   "#2563eb", sondra: "#7c3aed", emma:   "#db2777",
+  max:    "#0891b2", oliver: "#16a34a", quinn:  "#d97706"
+};
+const MEMBER_NAMES = {
+  matt: "Matt", sondra: "Sondra", emma: "Emma",
+  max: "Max", oliver: "Oliver", quinn: "Quinn"
+};
+
+function fmt(isoDate) {
+  const d = new Date(isoDate + "T12:00:00");
+  return d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+}
+function fmtFull(isoDate) {
+  const d = new Date(isoDate + "T12:00:00");
+  return d.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
+}
+
+// Header
+document.getElementById("generated-at").textContent =
+  "Updated " + new Date(plan.generatedAt).toLocaleString("en-US", {
+    month: "short", day: "numeric", hour: "numeric", minute: "2-digit"
+  });
+
+// Summary
+document.getElementById("summary-text").textContent = plan.summary;
+
+// Members
+const membersRow = document.getElementById("members-row");
+const memberSet = new Set(plan.actionItems.flatMap(a => a.assignedTo ? [a.assignedTo] : []));
+["matt","sondra","emma","max","oliver","quinn"].forEach(id => {
+  const chip = document.createElement("div");
+  chip.className = "member-chip";
+  chip.innerHTML = `<div class="member-avatar" style="background:${MEMBER_COLORS[id] || '#888'}">${(MEMBER_NAMES[id]||id)[0]}</div>${MEMBER_NAMES[id] || id}`;
+  membersRow.appendChild(chip);
+});
+
+// Flags
+const flagsEl = document.getElementById("flags-list");
+const icons = { urgent: "🚨", warning: "⚠️", info: "ℹ️" };
+plan.flags.forEach(f => {
+  const el = document.createElement("div");
+  el.className = `flag ${f.severity}`;
+  el.innerHTML = `<span class="flag-icon">${icons[f.severity]}</span><span>${f.message}</span>`;
+  flagsEl.appendChild(el);
+});
+if (!plan.flags.length) flagsEl.innerHTML = '<p style="color:var(--muted);font-size:13px">No flags — looking good!</p>';
+
+// Action items
+const actionsEl = document.getElementById("actions-list");
+// Load done state from localStorage
+const doneKey = "hub-actions-done";
+const done = new Set(JSON.parse(localStorage.getItem(doneKey) || "[]"));
+
+plan.actionItems.forEach(a => {
+  const el = document.createElement("div");
+  el.className = "action-item" + (done.has(a.id) ? " done" : "");
+  const assignee = a.assignedTo ? (MEMBER_NAMES[a.assignedTo] || a.assignedTo) : "Family";
+  el.innerHTML = `
+    <input type="checkbox" ${done.has(a.id) ? "checked" : ""} data-id="${a.id}">
+    <span class="desc">${a.description}</span>
+    <span style="font-size:11px;color:var(--muted)">${assignee}</span>
+    ${a.dueDate ? `<span class="due">by ${fmt(a.dueDate)}</span>` : ""}
+    <span class="badge ${a.priority}">${a.priority}</span>
+  `;
+  el.querySelector("input").addEventListener("change", function() {
+    if (this.checked) done.add(a.id); else done.delete(a.id);
+    localStorage.setItem(doneKey, JSON.stringify([...done]));
+    el.classList.toggle("done", this.checked);
+  });
+  actionsEl.appendChild(el);
+});
+
+// Days — load events from plan-data if available, otherwise from days array
+const daysEl = document.getElementById("days-list");
+
+plan.days.forEach(day => {
+  const isToday = day.date === today;
+  const card = document.createElement("div");
+  card.className = "day-card" + (isToday ? " today-marker" : "");
+
+  const events = (plan.events || []).filter(e => e.date === day.date);
+
+  card.innerHTML = `
+    <div class="day-header">
+      <div class="day-title">
+        ${fmt(day.date)}<span class="day-name">${isToday ? " · Today" : ""}</span>
+      </div>
+      <span class="toggle-icon">▾</span>
+    </div>
+    <div class="day-body">
+      ${day.notes ? `<div class="day-notes">${day.notes}</div>` : ""}
+      ${day.logistics ? `<div class="day-logistics">${day.logistics}</div>` : ""}
+    </div>
+  `;
+
+  // Toggle collapse
+  const header = card.querySelector(".day-header");
+  const body = card.querySelector(".day-body");
+  const icon = card.querySelector(".toggle-icon");
+  // Collapse past days by default, expand today and future
+  if (!isToday && day.date < today) {
+    body.classList.add("collapsed");
+    icon.textContent = "▸";
+  }
+  header.addEventListener("click", () => {
+    body.classList.toggle("collapsed");
+    icon.textContent = body.classList.contains("collapsed") ? "▸" : "▾";
+  });
+
+  daysEl.appendChild(card);
+});
+
+// No days message
+if (!plan.days.length) {
+  daysEl.innerHTML = '<p style="color:var(--muted);padding:16px">No day data in plan yet.</p>';
+}
+</script>
+</body>
+</html>

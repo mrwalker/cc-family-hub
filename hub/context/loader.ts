@@ -66,10 +66,15 @@ export function loadContextItems(options?: {
     readdirSync(full)
       .filter((f) => f.endsWith(".yaml"))
       .forEach((filename) => {
-        const raw = yaml.load(readFileSync(join(full, filename), "utf8")) as ContextItem;
-        if (since && new Date(raw.createdAt) < since) return;
-        if (options?.unconsumedOnly && raw.consumed) return;
-        items.push(raw);
+        const raw = yaml.load(readFileSync(join(full, filename), "utf8"));
+        // Files may contain a single item or an array of items
+        const parsed: ContextItem[] = Array.isArray(raw) ? raw : [raw as ContextItem];
+        for (const item of parsed) {
+          if (!item?.createdAt) continue;
+          if (since && new Date(item.createdAt) < since) continue;
+          if (options?.unconsumedOnly && item.consumed) continue;
+          items.push(item);
+        }
       });
   };
 

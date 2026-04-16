@@ -28,7 +28,8 @@ integrations:
   active:
     - google-calendar    # input + output
     - apple-reminders    # input only (macOS)
-    - web-portal         # output only
+    - web-portal         # output only — local file (no server needed)
+    # - github-pages     # output — publishes portal to a private GitHub repo (requires GitHub Pro)
     # - wall-display     # output — uncomment when display app is set up
     # - mobile-app       # output — uncomment when mobile app is set up
 

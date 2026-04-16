@@ -1,6 +1,9 @@
 # Family workspace — contains PII, never commit
 workspace/
 
+# Generated portal output — family-specific, never commit
+outputs/web-portal/public/
+
 # Node
 node_modules/
 dist/

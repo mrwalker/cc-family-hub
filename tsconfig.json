@@ -9,12 +9,7 @@
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "resolveJsonModule": true,
-    "paths": {
-      "@hub/*": ["hub/*"],
-      "@integrations/*": ["integrations/*"],
-      "@workspace/*": ["workspace/*"]
-    }
+    "resolveJsonModule": true
   },
   "include": ["hub/**/*", "integrations/**/*", "scripts/**/*"],
   "exclude": ["node_modules", "dist", "workspace"]

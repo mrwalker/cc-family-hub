@@ -11,7 +11,8 @@
     "check-secrets": "node scripts/check-secrets.js",
     "build": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
-    "setup:calendars": "node tools/calendar-setup/setup.js"
+    "setup:calendars": "node tools/calendar-setup/setup.js",
+    "setup:portal": "tsx integrations/outputs/github-pages/setup.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.52.0",
