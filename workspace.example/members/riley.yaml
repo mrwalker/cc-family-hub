@@ -1,7 +1,10 @@
 # Child family member profile
+# Note: email is optional for all roles but recommended — kids often have their
+# own Google accounts with calendars, school email, etc.
 id: "riley"
 name: "Riley Walker"
 displayName: "Riley"
+email: "riley@example.com"   # optional — include if they have a Google/school account
 role: "child"
 age: 9
 
