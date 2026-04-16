@@ -1,0 +1,45 @@
+# Adult family member profile
+id: "alex"
+name: "Alex Walker"
+displayName: "Alex"
+email: "alex@example.com"
+role: "adult"
+age: 42
+
+work:
+  employer: "Acme Corp"
+  role: "Engineering Manager"
+  schedule: "Mon–Fri, 9–5, hybrid (office Tue/Thu)"
+
+hobbies:
+  - "road cycling"
+  - "cooking"
+  - "woodworking"
+
+primaryFocuses:
+  - "Q2 product launch at work"
+  - "Kitchen renovation project"
+  - "Training for century ride in June"
+
+calendarIds:
+  - "primary"                                       # Google primary calendar
+  - "family-shared@group.calendar.google.com"       # Shared family calendar
+
+notifications:
+  channels:
+    - type: "menu-bar"
+    - type: "mobile-push"
+      deviceToken: "PLACEHOLDER_DEVICE_TOKEN"
+  advanceWarningMinutes: 30
+  quietHoursStart: "22:00"
+  quietHoursEnd: "07:00"
+
+upcomingProjects:
+  - title: "Kitchen Renovation"
+    description: "Replacing cabinets and countertops. Contractor starts May 1."
+    dueDate: "2026-06-15"
+    tags: ["home", "project"]
+  - title: "Century Ride Training"
+    description: "Working up to 100-mile bike ride. Increasing weekly mileage through May."
+    dueDate: "2026-06-20"
+    tags: ["fitness", "cycling"]

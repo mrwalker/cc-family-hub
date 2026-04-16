@@ -1,0 +1,40 @@
+# Family Hub Configuration
+# Copy this file to workspace/family.yaml and customize for your family.
+
+family:
+  name: "The Walkers"
+  timezone: "America/Los_Angeles"
+  locale: "en-US"
+
+# Family members — one entry per person.
+# Each member must have a corresponding file in workspace/members/<id>.yaml
+members:
+  - id: "alex"
+    name: "Alex"
+    role: "adult"
+  - id: "jordan"
+    name: "Jordan"
+    role: "adult"
+  - id: "sam"
+    name: "Sam"
+    role: "child"
+  - id: "riley"
+    name: "Riley"
+    role: "child"
+
+integrations:
+  # IDs of integrations to activate. Each must have a corresponding module
+  # in integrations/inputs/<id>/ or integrations/outputs/<id>/
+  active:
+    - google-calendar    # input + output
+    - apple-reminders    # input only (macOS)
+    - web-portal         # output only
+    # - wall-display     # output — uncomment when display app is set up
+    # - mobile-app       # output — uncomment when mobile app is set up
+
+  schedule:
+    # Run the planning routine every day at 6:00 AM
+    planningCron: "0 6 * * *"
+    # Sync calendars every hour
+    syncCron: "0 * * * *"
+    timezone: "America/Los_Angeles"

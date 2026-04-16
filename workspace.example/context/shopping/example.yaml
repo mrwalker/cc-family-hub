@@ -1,0 +1,24 @@
+# Example shopping list items
+- id: "shop-2026-04-14-001"
+  type: "shopping-item"
+  memberId: "jordan"
+  content: "Baking soda (large box) — for Sam's science fair volcano"
+  tags: ["science-fair"]
+  createdAt: "2026-04-14T10:00:00-07:00"
+  consumed: false
+
+- id: "shop-2026-04-14-002"
+  type: "shopping-item"
+  memberId: "jordan"
+  content: "White vinegar (1 gallon) — for Sam's science fair volcano"
+  tags: ["science-fair"]
+  createdAt: "2026-04-14T10:00:00-07:00"
+  consumed: false
+
+- id: "shop-2026-04-14-003"
+  type: "shopping-item"
+  memberId: "alex"
+  content: "Sports drink mix (bulk) — for cycling training"
+  tags: ["cycling", "grocery"]
+  createdAt: "2026-04-14T19:30:00-07:00"
+  consumed: false

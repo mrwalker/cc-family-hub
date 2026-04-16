@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022"],
+    "outDir": "dist",
+    "rootDir": ".",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "paths": {
+      "@hub/*": ["hub/*"],
+      "@integrations/*": ["integrations/*"],
+      "@workspace/*": ["workspace/*"]
+    }
+  },
+  "include": ["hub/**/*", "integrations/**/*", "scripts/**/*"],
+  "exclude": ["node_modules", "dist", "workspace"]
+}

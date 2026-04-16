@@ -1,0 +1,11 @@
+# Example context note — submitted by a family member
+id: "note-2026-04-14-001"
+type: "note"
+memberId: "alex"
+content: "Sam's science fair is April 28. We still need to buy baking soda and vinegar for the volcano. Jordan volunteered to take Sam to school that day — confirm Jordan's schedule is clear."
+tags:
+  - "school"
+  - "sam"
+  - "action-needed"
+createdAt: "2026-04-14T09:15:00-07:00"
+consumed: false

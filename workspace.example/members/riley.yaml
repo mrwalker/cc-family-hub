@@ -1,0 +1,29 @@
+# Child family member profile
+id: "riley"
+name: "Riley Walker"
+displayName: "Riley"
+role: "child"
+age: 9
+
+school:
+  name: "Lincoln Elementary"
+  grade: "4th"
+  year: "4th grade"
+
+hobbies:
+  - "swimming"
+  - "art"
+  - "reading"
+
+primaryFocuses:
+  - "Swim team spring season"
+  - "Reading challenge (goal: 20 books by June)"
+
+calendarIds:
+  - "riley-activities@gmail.com"
+
+notifications:
+  channels:
+    - type: "mobile-push"
+      deviceToken: "PLACEHOLDER_RILEY_DEVICE_TOKEN"
+  advanceWarningMinutes: 15

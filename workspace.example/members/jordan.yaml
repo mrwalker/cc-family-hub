@@ -1,0 +1,41 @@
+# Adult family member profile
+id: "jordan"
+name: "Jordan Walker"
+displayName: "Jordan"
+email: "jordan@example.com"
+role: "adult"
+age: 40
+
+work:
+  employer: "City Schools"
+  role: "Elementary School Teacher"
+  schedule: "Mon–Fri, 7:30 AM – 3:30 PM, on-site"
+
+hobbies:
+  - "gardening"
+  - "reading"
+  - "yoga"
+
+primaryFocuses:
+  - "End-of-year school events (May–June)"
+  - "Planning summer garden expansion"
+
+calendarIds:
+  - "jordan-personal@gmail.com"
+  - "family-shared@group.calendar.google.com"
+  - "school-calendar@cityschools.edu"
+
+notifications:
+  channels:
+    - type: "menu-bar"
+    - type: "email"
+      address: "jordan@example.com"
+  advanceWarningMinutes: 60
+  quietHoursStart: "21:30"
+  quietHoursEnd: "07:00"
+
+upcomingProjects:
+  - title: "School Year-End Celebration"
+    description: "Coordinating the class party and graduation ceremony for 3rd graders."
+    dueDate: "2026-06-05"
+    tags: ["school", "work"]

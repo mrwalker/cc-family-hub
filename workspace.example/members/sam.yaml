@@ -1,0 +1,35 @@
+# Child family member profile
+id: "sam"
+name: "Sam Walker"
+displayName: "Sam"
+role: "child"
+age: 14
+
+school:
+  name: "Lincoln Middle School"
+  grade: "8th"
+  year: "8th grade"
+
+hobbies:
+  - "soccer"
+  - "gaming"
+  - "drawing"
+
+primaryFocuses:
+  - "Spring soccer season (through May)"
+  - "8th grade science fair project (volcanoes)"
+
+calendarIds:
+  - "sam-school@gmail.com"
+
+notifications:
+  channels:
+    - type: "mobile-push"
+      deviceToken: "PLACEHOLDER_SAM_DEVICE_TOKEN"
+  advanceWarningMinutes: 20
+
+upcomingProjects:
+  - title: "Science Fair"
+    description: "Volcano eruption model demonstrating chemical reactions."
+    dueDate: "2026-04-28"
+    tags: ["school", "science"]
