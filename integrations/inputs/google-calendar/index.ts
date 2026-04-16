@@ -1,88 +1,60 @@
 /**
  * Google Calendar — Input Integration
  *
- * Fetches events from Google Calendar using the Google Calendar API v3.
- * Supports per-member OAuth tokens (set up via `npm run setup:calendars`).
+ * Fetches events using a Google Service Account. Each family member shares
+ * their Google Calendar with the service account email, granting the hub
+ * permanent read access — no OAuth flows or refresh tokens needed.
  *
- * Secrets structure (workspace/state/secrets.yaml):
- *   google-calendar:
- *     clientId: <OAuth2 client ID>
- *     clientSecret: <OAuth2 client secret>
- *     members:
- *       <memberId>:
- *         email: <google account email>
- *         refreshToken: <OAuth2 refresh token>
- *
- * Setup: run `npm run setup:calendars` and use the Chrome extension,
- *        or see integrations/inputs/google-calendar/README.md for manual setup.
+ * Setup: run `npm run setup:calendars` for step-by-step instructions.
  */
 
 import { readFileSync, existsSync, readdirSync } from "fs";
 import { join } from "path";
 import yaml from "js-yaml";
 import { BaseIntegration } from "../../_base/BaseIntegration.js";
+import {
+  loadServiceAccountKey,
+  fetchAccessToken,
+  SCOPES,
+} from "../../_base/google-auth.js";
 import type { InputIntegration, CalendarEvent, MemberProfile } from "../../_base/types.js";
-
-interface MemberTokens {
-  email: string;
-  refreshToken: string;
-}
-
-interface GoogleCalendarSecrets {
-  clientId: string;
-  clientSecret: string;
-  members: Record<string, MemberTokens>;
-}
 
 export default class GoogleCalendarInput extends BaseIntegration implements InputIntegration {
   readonly id = "google-calendar";
   readonly displayName = "Google Calendar (Input)";
 
-  // Per-member access tokens, refreshed lazily
-  private accessTokens: Map<string, string> = new Map();
+  private cachedToken: string | null = null;
+  private tokenExpiresAt = 0;
 
   async healthCheck(): Promise<void> {
-    const secrets = this.loadSecrets<GoogleCalendarSecrets>();
-    this.requireSecretKeys(secrets, ["clientId", "clientSecret"]);
-    if (!secrets.members || Object.keys(secrets.members).length === 0) {
-      throw new Error(
-        `No member tokens found in google-calendar secrets. ` +
-        `Run 'npm run setup:calendars' to connect family members.`
-      );
-    }
-    // Validate at least one member token is present
-    const first = Object.values(secrets.members)[0];
-    if (!first?.refreshToken) {
-      throw new Error("Member tokens found but refreshToken is missing. Re-run setup:calendars.");
-    }
+    const key = loadServiceAccountKey();
+    const { token } = await fetchAccessToken(key, SCOPES.calendarRead);
+    this.cachedToken = token;
+    this.tokenExpiresAt = Date.now() + 55 * 60 * 1000; // 55 min (tokens last 60)
   }
 
   async fetchEvents(startDate: string, endDate: string): Promise<CalendarEvent[]> {
-    const secrets = this.loadSecrets<GoogleCalendarSecrets>();
+    const token = await this.getToken();
     const members = this.loadMemberProfiles();
     const allEvents: CalendarEvent[] = [];
 
     for (const member of members) {
-      const memberTokens = secrets.members?.[member.id];
-      if (!memberTokens?.refreshToken) {
-        console.warn(`  google-calendar: no token for member "${member.id}", skipping`);
-        continue;
-      }
       if (!member.calendarIds?.length) {
-        console.warn(`  google-calendar: no calendarIds for "${member.id}", skipping`);
+        console.warn(`  google-calendar: no calendarIds for "${member.id}" — skipping`);
         continue;
       }
-
-      const accessToken = await this.getAccessToken(member.id, secrets, memberTokens.refreshToken);
 
       for (const calendarId of member.calendarIds) {
         try {
-          const events = await this.fetchCalendarEvents(accessToken, calendarId, startDate, endDate);
-          // Tag each event with the member it belongs to
+          const events = await this.fetchCalendarEvents(token, calendarId, startDate, endDate);
           events.forEach((e) => (e.memberId = member.id));
           allEvents.push(...events);
+          console.log(`  ✓ ${member.name}: ${events.length} events from ${calendarId}`);
         } catch (err) {
-          console.warn(`  google-calendar: failed to fetch ${calendarId} for ${member.id}: ${(err as Error).message}`);
+          console.warn(
+            `  google-calendar: failed to fetch ${calendarId} for ${member.id}: ` +
+            `${(err as Error).message}`
+          );
         }
       }
     }
@@ -90,37 +62,15 @@ export default class GoogleCalendarInput extends BaseIntegration implements Inpu
     return allEvents;
   }
 
-  private async getAccessToken(
-    memberId: string,
-    secrets: GoogleCalendarSecrets,
-    refreshToken: string
-  ): Promise<string> {
-    // Reuse cached access token if available (they last ~1 hour)
-    if (this.accessTokens.has(memberId)) {
-      return this.accessTokens.get(memberId)!;
+  private async getToken(): Promise<string> {
+    if (this.cachedToken && Date.now() < this.tokenExpiresAt) {
+      return this.cachedToken;
     }
-
-    const response = await fetch("https://oauth2.googleapis.com/token", {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        client_id: secrets.clientId,
-        client_secret: secrets.clientSecret,
-        refresh_token: refreshToken,
-        grant_type: "refresh_token",
-      }),
-    });
-
-    if (!response.ok) {
-      throw new Error(
-        `Failed to refresh token for "${memberId}": ${response.statusText}. ` +
-        `Re-run 'npm run setup:calendars' to reconnect.`
-      );
-    }
-
-    const data = (await response.json()) as { access_token: string };
-    this.accessTokens.set(memberId, data.access_token);
-    return data.access_token;
+    const key = loadServiceAccountKey();
+    const { token, expiresAt } = await fetchAccessToken(key, SCOPES.calendarRead);
+    this.cachedToken = token;
+    this.tokenExpiresAt = expiresAt - 60_000; // refresh 1 min early
+    return token;
   }
 
   private async fetchCalendarEvents(
@@ -143,6 +93,12 @@ export default class GoogleCalendarInput extends BaseIntegration implements Inpu
     );
 
     if (!response.ok) {
+      if (response.status === 404) {
+        throw new Error(
+          `Calendar not found: "${calendarId}". ` +
+          `Has the calendar been shared with the service account?`
+        );
+      }
       throw new Error(`Google Calendar API error (${response.status}): ${response.statusText}`);
     }
 
@@ -175,7 +131,6 @@ export default class GoogleCalendarInput extends BaseIntegration implements Inpu
   }
 }
 
-// Minimal Google Calendar API event shape
 interface GoogleCalendarEvent {
   id: string;
   summary?: string;

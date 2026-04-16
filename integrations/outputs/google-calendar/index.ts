@@ -2,81 +2,98 @@
  * Google Calendar — Output Integration
  *
  * Writes enriched event notes back to Google Calendar as event descriptions,
- * and creates new events for action items with due dates.
+ * and creates calendar events for high-priority action items with due dates.
  *
- * Uses the same credentials as the input integration.
- * Required secrets: same as integrations/inputs/google-calendar/
+ * Requires "Make changes to events" sharing permission on each calendar
+ * (vs. read-only for the input integration).
  *
- * Setup: see integrations/inputs/google-calendar/README.md
+ * Setup: run `npm run setup:calendars` for step-by-step instructions.
  */
 
 import { BaseIntegration } from "../../_base/BaseIntegration.js";
+import {
+  loadServiceAccountKey,
+  fetchAccessToken,
+  SCOPES,
+} from "../../_base/google-auth.js";
 import type { OutputIntegration, CalendarEvent, WeeklyPlan } from "../../_base/types.js";
-
-interface GoogleCalendarSecrets {
-  clientId: string;
-  clientSecret: string;
-  refreshToken: string;
-}
 
 export default class GoogleCalendarOutput extends BaseIntegration implements OutputIntegration {
   readonly id = "google-calendar";
   readonly displayName = "Google Calendar (Output)";
 
-  private accessToken: string | null = null;
+  private cachedToken: string | null = null;
+  private tokenExpiresAt = 0;
 
   async healthCheck(): Promise<void> {
-    const secrets = this.loadSecrets<GoogleCalendarSecrets>();
-    this.requireSecretKeys(secrets, ["clientId", "clientSecret", "refreshToken"]);
-    await this.refreshAccessToken(secrets);
+    const key = loadServiceAccountKey();
+    const { token, expiresAt } = await fetchAccessToken(key, SCOPES.calendarWrite);
+    this.cachedToken = token;
+    this.tokenExpiresAt = expiresAt - 60_000;
   }
 
   async publishEvents(events: CalendarEvent[]): Promise<void> {
-    if (!this.accessToken) await this.refreshAccessToken(this.loadSecrets());
+    const token = await this.getToken();
+    const enriched = events.filter(
+      (e) => e.enrichment && e.id.startsWith("google-calendar:")
+    );
 
-    for (const event of events) {
-      if (!event.enrichment) continue;
-
-      // Only update events that originated from Google Calendar
-      if (!event.id.startsWith("google-calendar:")) continue;
+    for (const event of enriched) {
       const googleEventId = event.id.replace("google-calendar:", "");
-
-      const enrichedDescription = this.buildEnrichedDescription(event);
-      await this.patchEvent(event.calendarId, googleEventId, {
-        description: enrichedDescription,
+      await this.patchEvent(token, event.calendarId, googleEventId, {
+        description: this.buildEnrichedDescription(event),
       });
+    }
+
+    if (enriched.length > 0) {
+      console.log(`  google-calendar output: updated ${enriched.length} event(s)`);
     }
   }
 
   async publishPlan(plan: WeeklyPlan): Promise<void> {
-    // Create calendar events for high-priority action items that have due dates
-    if (!this.accessToken) await this.refreshAccessToken(this.loadSecrets());
+    const token = await this.getToken();
+    const highPriority = plan.actionItems.filter(
+      (a) => a.priority === "high" && a.dueDate && a.status === "pending"
+    );
 
-    for (const action of plan.actionItems) {
-      if (action.priority === "high" && action.dueDate && action.status === "pending") {
-        await this.createReminderEvent(action.description, action.dueDate);
-      }
+    for (const action of highPriority) {
+      await this.createAllDayEvent(token, `[Hub] ${action.description}`, action.dueDate!);
+    }
+
+    if (highPriority.length > 0) {
+      console.log(`  google-calendar output: created ${highPriority.length} action item event(s)`);
     }
   }
 
+  private async getToken(): Promise<string> {
+    if (this.cachedToken && Date.now() < this.tokenExpiresAt) {
+      return this.cachedToken;
+    }
+    const key = loadServiceAccountKey();
+    const { token, expiresAt } = await fetchAccessToken(key, SCOPES.calendarWrite);
+    this.cachedToken = token;
+    this.tokenExpiresAt = expiresAt - 60_000;
+    return token;
+  }
+
   private buildEnrichedDescription(event: CalendarEvent): string {
-    if (!event.enrichment) return event.description ?? "";
+    const e = event.enrichment!;
     const parts: string[] = [];
     if (event.description) parts.push(event.description, "");
-    parts.push("── Family Hub Notes ────────────────────────");
-    if (event.enrichment.notes) parts.push(event.enrichment.notes);
-    if (event.enrichment.drivingInfo) parts.push(`🚗 ${event.enrichment.drivingInfo}`);
-    if (event.enrichment.weatherConsiderations)
-      parts.push(`🌤 ${event.enrichment.weatherConsiderations}`);
-    if (event.enrichment.actionItems?.length) {
+    parts.push("── Family Hub ──────────────────────────────");
+    if (e.notes) parts.push(e.notes);
+    if (e.drivingInfo) parts.push(`🚗 ${e.drivingInfo}`);
+    if (e.weatherConsiderations) parts.push(`🌤 ${e.weatherConsiderations}`);
+    if (e.actionItems?.length) {
       parts.push("Action items:");
-      event.enrichment.actionItems.forEach((a) => parts.push(`  • ${a}`));
+      e.actionItems.forEach((a) => parts.push(`  • ${a}`));
     }
-    parts.push(`Updated by Family Hub: ${new Date().toLocaleString()}`);
+    parts.push(`Updated: ${new Date().toLocaleString()}`);
     return parts.join("\n");
   }
 
   private async patchEvent(
+    token: string,
     calendarId: string,
     eventId: string,
     patch: Record<string, unknown>
@@ -86,28 +103,32 @@ export default class GoogleCalendarOutput extends BaseIntegration implements Out
       {
         method: "PATCH",
         headers: {
-          Authorization: `Bearer ${this.accessToken}`,
+          Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify(patch),
       }
     );
     if (!response.ok) {
-      console.warn(`Failed to patch event ${eventId}: ${response.statusText}`);
+      console.warn(`  Failed to patch event ${eventId}: ${response.statusText}`);
     }
   }
 
-  private async createReminderEvent(title: string, date: string): Promise<void> {
+  private async createAllDayEvent(
+    token: string,
+    title: string,
+    date: string
+  ): Promise<void> {
     const response = await fetch(
       `https://www.googleapis.com/calendar/v3/calendars/primary/events`,
       {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${this.accessToken}`,
+          Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          summary: `[Hub] ${title}`,
+          summary: title,
           start: { date },
           end: { date },
           description: "Created by Family Hub planning routine.",
@@ -115,23 +136,7 @@ export default class GoogleCalendarOutput extends BaseIntegration implements Out
       }
     );
     if (!response.ok) {
-      console.warn(`Failed to create reminder event: ${response.statusText}`);
+      console.warn(`  Failed to create action item event: ${response.statusText}`);
     }
-  }
-
-  private async refreshAccessToken(secrets: GoogleCalendarSecrets): Promise<void> {
-    const response = await fetch("https://oauth2.googleapis.com/token", {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        client_id: secrets.clientId,
-        client_secret: secrets.clientSecret,
-        refresh_token: secrets.refreshToken,
-        grant_type: "refresh_token",
-      }),
-    });
-    if (!response.ok) throw new Error(`Failed to refresh token: ${response.statusText}`);
-    const data = (await response.json()) as { access_token: string };
-    this.accessToken = data.access_token;
   }
 }

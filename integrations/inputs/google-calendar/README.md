@@ -1,71 +1,36 @@
 # Google Calendar — Input Integration
 
-Fetches events from one or more Google Calendars for each family member.
+Reads events from each family member's Google Calendar using a service account.
 
 ## Setup
 
-### 1. Create a Google Cloud Project
+See [tools/calendar-setup/README.md](../../../tools/calendar-setup/README.md) for the full setup guide.
 
-1. Go to [Google Cloud Console](https://console.cloud.google.com/)
-2. Create a new project (or reuse an existing one)
-3. Enable the **Google Calendar API**
+**Short version:**
+1. Create a Google Cloud project + service account
+2. Download the service account JSON key → `workspace/state/google-service-account.json`
+3. Run `npm run setup:calendars` — it prints the service account email
+4. Each family member shares their Google Calendar with that email ("Make changes to events")
+5. Add `calendarIds` to each member's profile in `workspace/members/<id>.yaml`
+6. Run `npm run sync`
 
-### 2. Create OAuth2 Credentials
+## No secrets.yaml entry needed
 
-1. Go to **APIs & Services → Credentials**
-2. Click **Create Credentials → OAuth client ID**
-3. Choose **Desktop application**
-4. Download the JSON — note `client_id` and `client_secret`
+Unlike most integrations, Google Calendar uses a standalone key file rather than an entry in `secrets.yaml`. The file lives at `workspace/state/google-service-account.json` (gitignored along with the rest of `workspace/`).
 
-### 3. Get a Refresh Token
+## Calendar IDs
 
-Run the included helper script to complete the OAuth flow:
-
-```bash
-node scripts/auth/google-calendar.js
-```
-
-This will open a browser window, ask you to grant calendar access, and print a `refresh_token`.
-
-### 4. Configure Secrets
-
-Add to `workspace/state/secrets.yaml`:
+Add calendar IDs to each member's profile:
 
 ```yaml
-google-calendar:
-  clientId: "your-client-id.apps.googleusercontent.com"
-  clientSecret: "your-client-secret"
-  refreshToken: "your-refresh-token"
-```
-
-### 5. Add Calendar IDs to Member Profiles
-
-In each member's `workspace/members/<name>.yaml`, add their Google Calendar IDs:
-
-```yaml
+# workspace/members/alex.yaml
 calendarIds:
-  - "primary"                                      # Their primary Gmail calendar
-  - "family-calendar-id@group.calendar.google.com" # A shared family calendar
+  - "primary"                                      # main Google calendar
+  - "family@group.calendar.google.com"             # shared family calendar
 ```
 
-To find a calendar ID: Google Calendar → Settings → click calendar → "Calendar ID" near the bottom.
+To find a calendar ID: Google Calendar → Settings → click the calendar → "Calendar ID".
 
-### 6. Activate the Integration
+## Scopes
 
-In `workspace/family.yaml`:
-
-```yaml
-integrations:
-  active:
-    - google-calendar
-```
-
-## Scopes Required
-
-- `https://www.googleapis.com/auth/calendar.readonly`
-
-## Troubleshooting
-
-**"Failed to refresh Google OAuth token"** — the refresh token may have expired (this happens if you revoke access or don't use it for 6+ months). Re-run the auth script.
-
-**Missing events** — check that the calendarId in the member profile exactly matches the calendar's ID in Google Calendar settings.
+The input integration uses `calendar.readonly`. If you also use the Google Calendar output integration to write enriched notes back, grant "Make changes to events" when sharing (which covers both read and write).
