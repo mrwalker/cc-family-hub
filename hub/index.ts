@@ -70,6 +70,18 @@ async function runSync() {
       writeFileSync(outPath, yaml.dump(events), "utf8");
       console.log(`  ${events.length} events saved from ${id}`);
     }
+
+    // Activity-based integrations (e.g. Strava) expose fetchActivities instead of fetchEvents
+    const asAny = integration as unknown as Record<string, unknown>;
+    if (typeof asAny.fetchActivities === "function") {
+      console.log(`  Syncing activities from ${id}...`);
+      const activities = await (asAny.fetchActivities as () => Promise<Record<string, unknown[]>>)();
+      const outPath = join(STATE_DIR, `${id}-activities.yaml`);
+      const memberCount = Object.keys(activities).length;
+      const total = Object.values(activities).reduce((n, a) => n + a.length, 0);
+      writeFileSync(outPath, yaml.dump({ generatedAt: new Date().toISOString(), members: activities }), "utf8");
+      console.log(`  ${total} activities saved for ${memberCount} member(s) from ${id}`);
+    }
   }
 
   console.log("Sync complete.");
