@@ -9,13 +9,18 @@
  *
  * Required config (workspace/state/secrets.yaml):
  *   strava:
- *     clientId: "12345"
- *     clientSecret: "abc..."
  *     members:
- *       emma:
- *         refreshToken: "..."
  *       matt:
+ *         clientId: "12345"
+ *         clientSecret: "abc..."
  *         refreshToken: "..."
+ *       emma:
+ *         clientId: "67890"
+ *         clientSecret: "xyz..."
+ *         refreshToken: "..."
+ *
+ * Each member needs their own Strava API app (strava.com/settings/api) because
+ * Strava's free tier limits each app to 1 connected athlete.
  *
  * Run `npm run setup:strava` once per member to complete the OAuth flow.
  */
@@ -26,10 +31,14 @@ import yaml from "js-yaml";
 import { BaseIntegration } from "../../_base/BaseIntegration.js";
 import type { InputIntegration } from "../../_base/types.js";
 
-interface StravaSecrets {
+interface StravaMemberSecrets {
   clientId: string;
   clientSecret: string;
-  members: Record<string, { refreshToken: string }>;
+  refreshToken: string;
+}
+
+interface StravaSecrets {
+  members: Record<string, StravaMemberSecrets>;
 }
 
 export interface StravaActivity {
@@ -60,13 +69,13 @@ export default class StravaInput extends BaseIntegration implements InputIntegra
 
   async healthCheck(): Promise<void> {
     const secrets = this.loadSecrets<StravaSecrets>();
-    this.requireSecretKeys(secrets as unknown as Record<string, unknown>, ["clientId", "clientSecret", "members"]);
+    this.requireSecretKeys(secrets as unknown as Record<string, unknown>, ["members"]);
     if (!secrets.members || Object.keys(secrets.members).length === 0) {
       throw new Error("strava: no members configured. Run npm run setup:strava to add a member.");
     }
     // Verify at least one member token refreshes successfully
     const [firstMemberId, firstMember] = Object.entries(secrets.members)[0];
-    await this.refreshAccessToken(secrets, firstMember.refreshToken, firstMemberId);
+    await this.refreshAccessToken(firstMember, firstMemberId);
   }
 
   async fetchActivities(): Promise<Record<string, StravaActivity[]>> {
@@ -76,8 +85,7 @@ export default class StravaInput extends BaseIntegration implements InputIntegra
     for (const [memberId, memberSecrets] of Object.entries(secrets.members)) {
       try {
         const { accessToken, newRefreshToken } = await this.refreshAccessToken(
-          secrets,
-          memberSecrets.refreshToken,
+          memberSecrets,
           memberId
         );
 
@@ -99,18 +107,17 @@ export default class StravaInput extends BaseIntegration implements InputIntegra
   }
 
   private async refreshAccessToken(
-    secrets: StravaSecrets,
-    refreshToken: string,
+    memberSecrets: StravaMemberSecrets,
     memberId: string
   ): Promise<{ accessToken: string; newRefreshToken: string }> {
     const res = await fetch(TOKEN_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        client_id: secrets.clientId,
-        client_secret: secrets.clientSecret,
+        client_id: memberSecrets.clientId,
+        client_secret: memberSecrets.clientSecret,
         grant_type: "refresh_token",
-        refresh_token: refreshToken,
+        refresh_token: memberSecrets.refreshToken,
       }),
     });
 
