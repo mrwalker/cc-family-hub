@@ -23,6 +23,10 @@ Thumbs.db
 .idea/
 *.swp
 
+# Local tool settings — reference private peer repos, never commit
+.claude/settings.json
+opencode.json
+
 # Logs
 *.log
 logs/
