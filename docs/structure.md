@@ -44,7 +44,9 @@
 |---------|--------|-------------|
 | `npm run setup` | [scripts/setup.js](../scripts/setup.js) | Bootstrap `workspace/` from the example template |
 | `npm run sync` | — | Pull all calendar data from active input integrations |
-| `npm run plan` | — | Run the full planning pass and push to output integrations |
+| `npm run render` | — | Render the daily-plan prompt to `workspace/state/pending-prompt.md` |
+| `npm run publish` | — | Validate + publish an assistant-written plan to output integrations |
+| `npm run plan` | — | Run the full planning pass and push to output integrations (requires Anthropic API key) |
 | `npm run summary` | — | Print a human-readable weekly summary |
 | `npm run auth:google-calendar` | [scripts/auth/google-calendar.js](../scripts/auth/google-calendar.js) | Interactive OAuth2 flow for Google Calendar |
 | `npm run check-secrets` | [scripts/check-secrets.js](../scripts/check-secrets.js) | Validate credentials for all active integrations |
