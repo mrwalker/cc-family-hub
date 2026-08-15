@@ -2,21 +2,26 @@
  * Hub entry point — invoked by npm scripts and Claude Code commands.
  *
  * Usage:
- *   tsx hub/index.ts plan        Run a full planning pass
+ *   tsx hub/index.ts plan        Run a full planning pass (requires Anthropic API key)
+ *   tsx hub/index.ts render      Render the daily-plan prompt to workspace/state/pending-prompt.md
+ *   tsx hub/index.ts publish     Validate + publish an assistant-written plan from last-plan.yaml
  *   tsx hub/index.ts sync        Sync calendars from all input integrations
  *   tsx hub/index.ts summary     Generate and print a weekly summary
  */
 
-import { writeFileSync, mkdirSync } from "fs";
+import { writeFileSync, mkdirSync, readFileSync, existsSync } from "fs";
 import { join } from "path";
 import yaml from "js-yaml";
 import { buildPlanningContext } from "./context/builder.js";
-import { generateWeeklyPlan, generateWeeklySummary } from "./planner/engine.js";
+import { renderDailyPlanPrompt, generateWeeklyPlan, generateWeeklySummary } from "./planner/engine.js";
 import { loadRegisteredIntegrations } from "./integrations/registry.js";
-import type { WeeklyPlan } from "../integrations/_base/types.js";
+import { WeeklyPlanSchema } from "../integrations/_base/schemas.js";
+import type { WeeklyPlan, FamilyConfig } from "../integrations/_base/types.js";
 
 const WORKSPACE = join(process.cwd(), "workspace");
 const STATE_DIR = join(WORKSPACE, "state");
+const PLAN_PATH = join(STATE_DIR, "last-plan.yaml");
+const PROMPT_PATH = join(STATE_DIR, "pending-prompt.md");
 
 async function runPlan() {
   console.log("Building planning context...");
@@ -28,12 +33,56 @@ async function runPlan() {
   const plan = await generateWeeklyPlan(ctx);
 
   // Persist the plan
-  mkdirSync(STATE_DIR, { recursive: true });
-  writeFileSync(join(STATE_DIR, "last-plan.yaml"), yaml.dump(plan), "utf8");
-  console.log("Plan saved to workspace/state/last-plan.yaml");
+  writePlan(plan);
 
-  // Push to output integrations
-  const registry = await loadRegisteredIntegrations(ctx.family);
+  await publishPlanToOutputs(plan, ctx.family);
+  printPlanSummary(plan);
+}
+
+async function runRender() {
+  console.log("Building planning context...");
+  const ctx = buildPlanningContext({ daysAhead: 14 });
+
+  console.log(`Context assembled: ${ctx.members.length} members, ${ctx.events.length} events, ${ctx.contextItems.length} context items`);
+  console.log("Rendering daily-plan prompt...");
+
+  const prompt = renderDailyPlanPrompt(ctx);
+  mkdirSync(STATE_DIR, { recursive: true });
+  writeFileSync(PROMPT_PATH, prompt, "utf8");
+  console.log(`Prompt written to workspace/state/pending-prompt.md`);
+  console.log(`\nNext step: have the assistant read that file, generate the weekly plan JSON\n` +
+    `matching the output format in the prompt, and save it to workspace/state/last-plan.yaml.\n` +
+    `Then run: npm run publish`);
+}
+
+async function runPublish() {
+  if (!existsSync(PLAN_PATH)) {
+    throw new Error(
+      `workspace/state/last-plan.yaml not found. Run 'npm run render', have the\n` +
+      `assistant write the plan to that path, then re-run 'npm run publish'.`
+    );
+  }
+
+  console.log("Loading plan from workspace/state/last-plan.yaml...");
+  const raw = yaml.load(readFileSync(PLAN_PATH, "utf8")) as Record<string, unknown>;
+
+  // Normalize and validate the assistant-written plan
+  const plan = normalizeAssistantPlan(raw);
+  const result = WeeklyPlanSchema.safeParse(plan);
+  if (!result.success) {
+    throw new Error(`Assistant plan failed validation:\n${result.error.toString()}`);
+  }
+
+  writePlan(plan);
+  console.log("Plan validated.");
+
+  const ctx = buildPlanningContext();
+  await publishPlanToOutputs(plan, ctx.family);
+  printPlanSummary(plan);
+}
+
+async function publishPlanToOutputs(plan: WeeklyPlan, family: FamilyConfig) {
+  const registry = await loadRegisteredIntegrations(family);
   let pushed = 0;
   for (const [id, integration] of registry.outputs) {
     if (integration.publishPlan) {
@@ -47,7 +96,28 @@ async function runPlan() {
   }
 
   console.log(`Plan published to ${pushed} output integration(s).`);
-  printPlanSummary(plan);
+}
+
+function writePlan(plan: WeeklyPlan): void {
+  mkdirSync(STATE_DIR, { recursive: true });
+  writeFileSync(PLAN_PATH, yaml.dump(plan), "utf8");
+  console.log("Plan saved to workspace/state/last-plan.yaml");
+}
+
+function normalizeAssistantPlan(raw: Record<string, unknown>): WeeklyPlan {
+  return {
+    generatedAt: (raw.generatedAt as string) ?? new Date().toISOString(),
+    weekStarting: raw.weekStarting as string,
+    summary: (raw.summary as string) ?? "",
+    days: (raw.days as WeeklyPlan["days"]) ?? [],
+    shoppingList: (raw.shoppingList as WeeklyPlan["shoppingList"]) ?? [],
+    actionItems: ((raw.actionItems as WeeklyPlan["actionItems"]) ?? []).map((a, i) => ({
+      ...a,
+      id: `action-${Date.now()}-${i}`,
+      status: "pending" as const,
+    })),
+    flags: (raw.flags as WeeklyPlan["flags"]) ?? [],
+  };
 }
 
 async function runSync() {
@@ -120,12 +190,16 @@ function printPlanSummary(plan: WeeklyPlan) {
 const command = process.argv[2];
 if (command === "plan") {
   runPlan().catch(console.error);
+} else if (command === "render") {
+  runRender().catch(console.error);
+} else if (command === "publish") {
+  runPublish().catch(console.error);
 } else if (command === "sync") {
   runSync().catch(console.error);
 } else if (command === "summary") {
   runSummary().catch(console.error);
 } else {
   console.error(`Unknown command: ${command}`);
-  console.error("Usage: tsx hub/index.ts [plan|sync|summary]");
+  console.error("Usage: tsx hub/index.ts [plan|render|publish|sync|summary]");
   process.exit(1);
 }

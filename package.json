@@ -6,6 +6,8 @@
   "scripts": {
     "setup": "node scripts/setup.js",
     "plan": "tsx hub/index.ts plan",
+    "render": "tsx hub/index.ts render",
+    "publish": "tsx hub/index.ts publish",
     "sync": "tsx hub/index.ts sync",
     "summary": "tsx hub/index.ts summary",
     "check-secrets": "node scripts/check-secrets.js",

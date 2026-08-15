@@ -62,6 +62,62 @@ export const MemberProfileSchema = z.object({
     .optional(),
 });
 
+export const WeeklyPlanSchema = z.object({
+  weekStarting: z.string(),
+  summary: z.string(),
+  days: z
+    .array(
+      z.object({
+        date: z.string(),
+        notes: z.string().optional(),
+        logistics: z.string().optional(),
+      })
+    )
+    .optional(),
+  enrichedEvents: z
+    .array(
+      z.object({
+        id: z.string(),
+        notes: z.string().optional(),
+        drivingInfo: z.string().optional(),
+        weatherConsiderations: z.string().optional(),
+        conflicts: z.array(z.string()).optional(),
+        actionItems: z.array(z.string()).optional(),
+      })
+    )
+    .optional(),
+  actionItems: z
+    .array(
+      z.object({
+        description: z.string(),
+        assignedTo: z.string().optional(),
+        dueDate: z.string().optional(),
+        priority: z.enum(["high", "medium", "low"]),
+      })
+    )
+    .optional(),
+  flags: z
+    .array(
+      z.object({
+        severity: z.enum(["info", "warning", "urgent"]),
+        message: z.string(),
+        relatedEventIds: z.array(z.string()).optional(),
+        relatedMemberIds: z.array(z.string()).optional(),
+      })
+    )
+    .optional(),
+  shoppingList: z
+    .array(
+      z.object({
+        name: z.string(),
+        quantity: z.string().optional(),
+        store: z.string().optional(),
+        addedBy: z.string().optional(),
+      })
+    )
+    .optional(),
+});
+
 export const FamilyConfigSchema = z.object({
   family: z.object({
     name: z.string(),

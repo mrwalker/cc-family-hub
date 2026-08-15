@@ -42,14 +42,22 @@ function loadPrompt(name: string): string {
 }
 
 /**
+ * Render the full daily-plan prompt (template + context) without calling
+ * the API. Used both by the API path and by the assistant-render command.
+ */
+export function renderDailyPlanPrompt(ctx: PlanningContext): string {
+  const contextMarkdown = renderContextForPrompt(ctx);
+  const promptTemplate = loadPrompt("daily-plan");
+  return promptTemplate.replace("{{CONTEXT}}", contextMarkdown);
+}
+
+/**
  * Generate a full weekly plan from the given context.
  * The context block is marked for caching — subsequent calls within the
  * same session reuse the cached context, saving tokens.
  */
 export async function generateWeeklyPlan(ctx: PlanningContext): Promise<WeeklyPlan> {
-  const contextMarkdown = renderContextForPrompt(ctx);
-  const promptTemplate = loadPrompt("daily-plan");
-  const systemPrompt = promptTemplate.replace("{{CONTEXT}}", contextMarkdown);
+  const systemPrompt = renderDailyPlanPrompt(ctx);
 
   const response = await client.messages.create({
     model: "claude-opus-4-6",
@@ -119,7 +127,7 @@ export async function generateWeeklySummary(
     .join("");
 }
 
-function normalizePlan(raw: Record<string, unknown>, ctx: PlanningContext): WeeklyPlan {
+export function normalizePlan(raw: Record<string, unknown>, ctx: PlanningContext): WeeklyPlan {
   return {
     generatedAt: new Date().toISOString(),
     weekStarting: raw.weekStarting as string,
