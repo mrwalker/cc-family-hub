@@ -110,6 +110,7 @@ function normalizeAssistantPlan(raw: Record<string, unknown>): WeeklyPlan {
     weekStarting: raw.weekStarting as string,
     summary: (raw.summary as string) ?? "",
     days: (raw.days as WeeklyPlan["days"]) ?? [],
+    enrichedEvents: (raw.enrichedEvents as WeeklyPlan["enrichedEvents"]) ?? [],
     shoppingList: (raw.shoppingList as WeeklyPlan["shoppingList"]) ?? [],
     actionItems: ((raw.actionItems as WeeklyPlan["actionItems"]) ?? []).map((a, i) => ({
       ...a,

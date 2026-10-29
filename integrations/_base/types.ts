@@ -149,6 +149,14 @@ export interface WeeklyPlan {
   weekStarting: string;        // ISO 8601 date (Monday)
   summary: string;             // AI-generated narrative summary
   days: DayPlan[];
+  enrichedEvents?: Array<{
+    id: string;
+    notes?: string;
+    drivingInfo?: string;
+    weatherConsiderations?: string;
+    conflicts?: string[];
+    actionItems?: string[];
+  }>;
   shoppingList: ShoppingItem[];
   actionItems: PlanActionItem[];
   flags: PlanFlag[];           // Items needing human attention
