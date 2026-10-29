@@ -133,6 +133,7 @@ export function normalizePlan(raw: Record<string, unknown>, ctx: PlanningContext
     weekStarting: raw.weekStarting as string,
     summary: raw.summary as string,
     days: (raw.days as WeeklyPlan["days"]) ?? [],
+    enrichedEvents: (raw.enrichedEvents as WeeklyPlan["enrichedEvents"]) ?? [],
     shoppingList: (raw.shoppingList as WeeklyPlan["shoppingList"]) ?? [],
     actionItems: ((raw.actionItems as WeeklyPlan["actionItems"]) ?? []).map((a, i) => ({
       ...a,
