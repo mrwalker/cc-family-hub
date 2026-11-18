@@ -3,7 +3,7 @@
  * Builds a family's hub from its repo (run from that repo's root):
  *
  *   workspace/family.yaml        members (+ color, shortName), hub.title, hub.guests,
- *                                hub.tripApps, hub.groceryEmailUrl
+ *                                hub.tripApps, hub.groceryEmailUrl, hub.photos
  *   workspace/members/<id>.yaml  calendarIds, email
  *     → .generated/hub-config.json   imported by the family's worker.js (never served)
  *
@@ -21,6 +21,7 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync, rmSync, cpSync } fr
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import yaml from "js-yaml";
+import { albumKey } from "./worker/photos.js";
 
 const root = process.cwd();                                        // the family's repo
 const toolkitPublic = join(dirname(fileURLToPath(import.meta.url)), "public");
@@ -69,6 +70,9 @@ if (!members.length) fail("family.yaml", "members", "no members listed");
 if (hub.groceryEmailUrl != null && !/^https:\/\//.test(String(hub.groceryEmailUrl))) {
   fail("family.yaml", "hub.groceryEmailUrl", "expected an https:// URL");
 }
+if (hub.photos?.icloudAlbum != null && !albumKey(hub.photos.icloudAlbum)) {
+  fail("family.yaml", "hub.photos.icloudAlbum", "expected an iCloud shared album link (https://photos.icloud.com/shared/album/…)");
+}
 
 const guests = Object.entries(hub.guests ?? {}).map(([id, g]) => {
   if (!ID_RE.test(id)) fail("family.yaml", `hub.guests.${id}`, "expected a lowercase id");
@@ -110,6 +114,7 @@ const config = {
   guests,
   tripApps,
   groceryEmailUrl: hub.groceryEmailUrl || null,
+  photos: hub.photos?.icloudAlbum ? { icloudAlbum: String(hub.photos.icloudAlbum) } : null,
 };
 mkdirSync(GENERATED, { recursive: true });
 writeFileSync(OUT, JSON.stringify(config, null, 2) + "\n");

@@ -20,7 +20,9 @@ from your hub (see [`../worker/widget.js`](../worker/widget.js)). If the phone i
 a widget shows the last data it fetched, marked "Offline".
 
 The [Mac menu bar app](../macos/README.md) and the [Roku channel](../roku/README.md) read the
-same endpoint, and their tokens go in the same policy.
+same endpoint, and their tokens go in the same policy. The Roku screensaver also reads
+`/api/widget/photos` (the family's iCloud shared album, see [`../worker/photos.js`](../worker/photos.js)).
+The `/api/widget` Access application covers that path too.
 
 ## 1. Give widgets their own key (Cloudflare Access)
 

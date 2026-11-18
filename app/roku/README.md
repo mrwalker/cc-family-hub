@@ -4,6 +4,12 @@ The hub on your TV: a big clock and date, the rest of today and tomorrow with ea
 color, and the next trip's countdown. The same screen works as a Roku **screensaver**, and it
 drifts slowly so nothing burns in.
 
+**Photos.** If your hub has a photo album (`hub.photos.icloudAlbum` in `family.yaml`, an iCloud
+shared album with Public Website turned on), the screensaver becomes a slideshow. It shows the photos
+in random order, one every 12 seconds with a crossfade, over a strip with the clock, the next event,
+and the trip countdown. Every 10 photos it shows the full hub screen for about 30 seconds. Add a
+photo to the album on your phone and it joins the slideshow within 30 minutes.
+
 - **Left and right** on the remote switches between the whole family and each person. The Roku remembers your choice.
 - **OK** refreshes. The channel also refreshes every 5 minutes on its own.
 
@@ -43,15 +49,21 @@ gitignored.
 
 ## 4. Build and install
 
+A Roku holds one sideloaded package at a time, so choose one:
+
 ```bash
 cd app/roku
-./build.sh --install
+./build.sh --screensaver --install   # the screensaver (recommended)
+./build.sh --install                 # the channel: a Home screen tile you open
 ```
 
-The channel opens on the TV and stays under **Home → Streaming channels**. It's the only dev
-channel; installing again replaces it.
+Roku lists a sideloaded screensaver only when the package is screensaver-only, so build the
+screensaver with `--screensaver`. Then go to Settings → Theme → Screensavers, choose **Family
+Hub**, and use **Preview** to check it.
 
-**Screensaver.** Go to Settings → Theme → Screensavers (or Settings → Screensaver) and choose **Family Hub**.
+`./build.sh --preview --install` installs a channel that runs the screensaver, photos included.
+You can launch it from the Home screen, or with `curl -X POST http://<roku-ip>:8060/launch/dev`,
+to check the slideshow without waiting for the screensaver.
 
 ## Troubleshooting
 

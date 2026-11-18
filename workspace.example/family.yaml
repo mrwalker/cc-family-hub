@@ -34,6 +34,8 @@ members:
 hub:
   title: "Rivera Family Hub"
   # groceryEmailUrl: "https://script.google.com/macros/s/.../exec"   # app/extras/grocery-email.gs
+  # photos:                     # an iCloud shared album with Public Website on, for TV screensavers
+  #   icloudAlbum: "https://photos.icloud.com/shared/album/…"   # keep this repo private: anyone with the link can view the album
 
   # People who join trips but aren't family members. An email lets their sign-in
   # pick their player in a trip app; their calendars are never fetched.

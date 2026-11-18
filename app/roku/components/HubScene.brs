@@ -25,6 +25,9 @@ sub init()
     m.data = invalid
     m.error = ""
     m.ticks = 0
+    m.photosStarted = false
+    m.olderPath = ""
+    m.previousPath = ""
 
     m.clockTimer = makeTimer(5, "onClock")
     m.refreshTimer = makeTimer(300, "refresh")
@@ -62,6 +65,7 @@ end function
 
 sub onModeChange()
     m.hint.visible = not m.top.screensaver
+    if m.top.screensaver then startPhotos()
 end sub
 
 ' ─── Data ────────────────────────────────────────────────────────────────────
@@ -139,6 +143,8 @@ sub onClock()
     now.ToLocalTime()
     m.clock.text = timeText(now)
     m.date.text = now.GetWeekday() + ", " + m.MONTHS[now.GetMonth() - 1] + " " + now.GetDayOfMonth().ToStr()
+    m.top.findNode("photoClock").text = m.clock.text
+    m.top.findNode("photoDate").text = m.date.text
 
     ' As a screensaver, drift a little each minute so nothing burns in.
     m.ticks = m.ticks + 1
@@ -210,6 +216,7 @@ sub render()
     if more > 0 then addLabel("+" + more.ToStr() + " more", 36, y, 32, false, m.MUTED, 600)
 
     renderTrip(d.nextTrip)
+    renderPhotoStrip(d)
 
     status = "Updated " + isoTimeText(d.generatedAt)
     if m.error <> "" then status = "Offline since " + isoTimeText(d.generatedAt) + " · " + m.error
@@ -295,3 +302,150 @@ function isoTimeText(iso as string) as string
     dt.ToLocalTime()
     return timeText(dt)
 end function
+
+' ─── Photo slideshow (screensaver) ───────────────────────────────────────────
+' Photos from the hub's iCloud shared album, shuffled, a new one every
+' SLIDE_SECONDS with a crossfade. Every HUB_EVERY photos the hub screen shows
+' for HUB_SLIDES slides. With no album (or no photos) the hub screen stays up.
+
+sub startPhotos()
+    if m.config.url = "" or m.photosStarted then return
+    m.photosStarted = true
+    m.SLIDE_SECONDS = 12
+    m.HUB_EVERY = 10
+    m.HUB_SLIDES = 3
+    m.photos = []
+    m.photoIndex = 0
+    m.slideCount = 0
+    m.hubSlidesLeft = 0
+    m.ready = invalid        ' downloaded photo waiting to be shown { path }
+    m.shownPath = ""
+    m.fileCounter = 0
+    m.frontPoster = m.top.findNode("photoA")
+    m.backPoster = m.top.findNode("photoB")
+    m.slideTimer = makeTimer(m.SLIDE_SECONDS, "onSlide")
+    m.photoListTimer = makeTimer(1800, "loadPhotoList")
+    loadPhotoList()
+end sub
+
+sub loadPhotoList()
+    task = CreateObject("roSGNode", "FetchTask")
+    task.config = photoConfig({ mode: "photos" })
+    task.observeField("result", "onPhotoList")
+    task.control = "RUN"
+    m.photoListTask = task
+end sub
+
+sub onPhotoList(event as object)
+    result = event.getData()
+    if result.photos = invalid or result.photos.count() = 0 then return
+    ' Shuffle (Fisher-Yates).
+    photos = result.photos
+    for i = photos.count() - 1 to 1 step -1
+        j = Rnd(i + 1) - 1
+        t = photos[i]
+        photos[i] = photos[j]
+        photos[j] = t
+    end for
+    first = m.photos.count() = 0
+    m.photos = photos
+    m.photoIndex = 0
+    if first then downloadNext()
+end sub
+
+function photoConfig(extra as object) as object
+    cfg = { url: m.config.url, clientId: m.config.clientId, clientSecret: m.config.clientSecret }
+    cfg.Append(extra)
+    return cfg
+end function
+
+sub downloadNext()
+    if m.photos.count() = 0 then return
+    photo = m.photos[m.photoIndex mod m.photos.count()]
+    m.photoIndex = m.photoIndex + 1
+    m.fileCounter = m.fileCounter + 1
+    task = CreateObject("roSGNode", "FetchTask")
+    task.config = photoConfig({ mode: "download", id: photo.id, path: "tmp:/photo-" + m.fileCounter.ToStr() + ".jpg" })
+    task.observeField("result", "onPhotoDownloaded")
+    task.control = "RUN"
+    m.downloadTask = task
+end sub
+
+sub onPhotoDownloaded(event as object)
+    result = event.getData()
+    if result.path = invalid then return
+    m.ready = result
+    ' The first photo shows as soon as it's here.
+    if m.shownPath = "" then onSlide()
+end sub
+
+sub onSlide()
+    if m.hubSlidesLeft > 0 then
+        m.hubSlidesLeft = m.hubSlidesLeft - 1
+        if m.hubSlidesLeft > 0 then return
+        m.top.findNode("photoLayer").visible = true
+        m.layout.visible = false
+        return
+    end if
+    if m.ready = invalid then return
+
+    m.slideCount = m.slideCount + 1
+    if m.slideCount mod m.HUB_EVERY = 0 then
+        m.hubSlidesLeft = m.HUB_SLIDES
+        m.top.findNode("photoLayer").visible = false
+        m.layout.visible = true
+        return
+    end if
+
+    ' Load into the back poster, then crossfade once it's decoded.
+    m.backPoster.unobserveField("loadStatus")
+    m.backPoster.observeField("loadStatus", "onPosterLoaded")
+    m.backPoster.uri = m.ready.path
+    m.previousPath = m.shownPath
+    m.shownPath = m.ready.path
+    m.ready = invalid
+    downloadNext()
+end sub
+
+sub onPosterLoaded()
+    status = m.backPoster.loadStatus
+    if status <> "ready" and status <> "failed" then return
+    m.backPoster.unobserveField("loadStatus")
+    if status = "failed" then return
+    m.top.findNode("photoLayer").visible = true
+    m.layout.visible = false
+    m.top.findNode("fadeIn").fieldToInterp = m.backPoster.id + ".opacity"
+    m.top.findNode("fadeOut").fieldToInterp = m.frontPoster.id + ".opacity"
+    m.top.findNode("fade").control = "start"
+    t = m.frontPoster
+    m.frontPoster = m.backPoster
+    m.backPoster = t
+    ' The photo before the one now fading out is no longer on screen.
+    if m.olderPath <> "" then DeleteFile(m.olderPath)
+    m.olderPath = m.previousPath
+end sub
+
+sub renderPhotoStrip(d as object)
+    nextText = ""
+    for each e in d.events
+        if not e.allDay then
+            prefix = ""
+            if e.day <> "Today" then prefix = e.day + " "
+            nextText = "Next: " + prefix + e.time + "   " + e.title
+            exit for
+        end if
+    end for
+    m.top.findNode("photoNext").text = nextText
+    tripText = ""
+    t = d.nextTrip
+    if t <> invalid then
+        if t.status = "active" then
+            tripText = t.name + " · day " + t.day.ToStr() + " of " + t.days.ToStr()
+        else if t.daysUntil = 1 then
+            tripText = t.name + " tomorrow"
+        else
+            tripText = t.name + " in " + t.daysUntil.ToStr() + " days"
+        end if
+    end if
+    m.top.findNode("photoTrip").text = tripText
+end sub

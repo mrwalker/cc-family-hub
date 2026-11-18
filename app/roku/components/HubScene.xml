@@ -48,5 +48,31 @@
         <Font role="font" uri="font:SystemFontFile" size="26"/>
       </Label>
     </Group>
+
+    <!-- Screensaver photo slideshow (iCloud shared album via /api/widget/photos). -->
+    <Group id="photoLayer" visible="false">
+      <Rectangle width="1920" height="1080" color="0x000000FF"/>
+      <Poster id="photoA" width="1920" height="1080" loadWidth="1920" loadHeight="1080"
+              loadDisplayMode="scaleToFit" opacity="0"/>
+      <Poster id="photoB" width="1920" height="1080" loadWidth="1920" loadHeight="1080"
+              loadDisplayMode="scaleToFit" opacity="0"/>
+      <Rectangle translation="[0,930]" width="1920" height="150" color="0x000000A6"/>
+      <Label id="photoClock" translation="[80,958]" width="360" color="0xf3f5f7FF">
+        <Font role="font" uri="font:BoldSystemFontFile" size="64"/>
+      </Label>
+      <Label id="photoDate" translation="[440,962]" width="360" color="0xf3f5f7B3">
+        <Font role="font" uri="font:SystemFontFile" size="30"/>
+      </Label>
+      <Label id="photoNext" translation="[440,1006]" width="900" color="0xf3f5f7FF">
+        <Font role="font" uri="font:SystemFontFile" size="34"/>
+      </Label>
+      <Label id="photoTrip" translation="[1340,980]" width="500" horizAlign="right" color="0x7dd3fcFF">
+        <Font role="font" uri="font:BoldSystemFontFile" size="40"/>
+      </Label>
+    </Group>
+    <Animation id="fade" duration="1.5" easeFunction="linear">
+      <FloatFieldInterpolator id="fadeIn" key="[0.0, 1.0]" keyValue="[0.0, 1.0]" fieldToInterp="photoB.opacity"/>
+      <FloatFieldInterpolator id="fadeOut" key="[0.0, 1.0]" keyValue="[1.0, 0.0]" fieldToInterp="photoA.opacity"/>
+    </Animation>
   </children>
 </component>
