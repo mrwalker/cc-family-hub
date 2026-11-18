@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The hub on a TV (1920×1080): clock and next trip on the left, today and tomorrow on the right. -->
+<component name="HubScene" extends="Scene">
+  <interface>
+    <field id="screensaver" type="boolean" value="false" onChange="onModeChange"/>
+  </interface>
+  <script type="text/brightscript" uri="pkg:/components/HubScene.brs"/>
+  <children>
+    <Rectangle id="bg" width="1920" height="1080" color="0x08090cFF"/>
+    <Group id="layout">
+      <Label id="viewLabel" translation="[100,92]" width="620" color="0x7dd3fcFF">
+        <Font role="font" uri="font:BoldSystemFontFile" size="34"/>
+      </Label>
+      <Label id="clock" translation="[94,140]" width="680" color="0xf3f5f7FF">
+        <Font role="font" uri="font:BoldSystemFontFile" size="128"/>
+      </Label>
+      <Label id="date" translation="[100,310]" width="620" color="0xf3f5f78C">
+        <Font role="font" uri="font:SystemFontFile" size="42"/>
+      </Label>
+
+      <Group id="trip" translation="[100,520]" visible="false">
+        <Rectangle width="620" height="400" color="0xffffff14"/>
+        <Rectangle id="tripAccent" width="8" height="400" color="0x7dd3fcFF"/>
+        <Label id="tripCaption" translation="[48,40]" width="540" color="0x7dd3fcFF">
+          <Font role="font" uri="font:BoldSystemFontFile" size="28"/>
+        </Label>
+        <Label id="tripNumber" translation="[42,78]" width="540" color="0xf3f5f7FF">
+          <Font role="font" uri="font:BoldSystemFontFile" size="150"/>
+        </Label>
+        <Label id="tripName" translation="[48,266]" width="540" color="0xf3f5f7FF">
+          <Font role="font" uri="font:BoldSystemFontFile" size="44"/>
+        </Label>
+        <Label id="tripDates" translation="[48,326]" width="540" color="0xf3f5f78C">
+          <Font role="font" uri="font:SystemFontFile" size="32"/>
+        </Label>
+      </Group>
+
+      <Group id="events" translation="[840,96]"/>
+      <Label id="message" translation="[840,96]" width="980" wrap="true" color="0xf3f5f78C">
+        <Font role="font" uri="font:SystemFontFile" size="40"/>
+      </Label>
+
+      <Label id="hint" translation="[100,990]" width="700" color="0xf3f5f75A"
+             text="◀ ▶ whose events   OK refresh">
+        <Font role="font" uri="font:SystemFontFile" size="26"/>
+      </Label>
+      <Label id="status" translation="[840,990]" width="980" horizAlign="right" color="0xf3f5f75A">
+        <Font role="font" uri="font:SystemFontFile" size="26"/>
+      </Label>
+    </Group>
+  </children>
+</component>

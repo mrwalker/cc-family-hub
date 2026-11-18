@@ -124,6 +124,7 @@ cc-family-hub/
 │   ├── template/               # Starting point for your family's hub repo
 │   ├── widgets/                # iPhone home/lock screen widgets (Scriptable)
 │   ├── macos/                  # Mac menu bar app (SwiftUI)
+│   ├── roku/                   # Roku channel + screensaver (SceneGraph)
 │   └── extras/                 # Optional add-ons (grocery email)
 ├── docs/                       # Architecture, trip apps, wall tablet
 ├── scripts/                    # Utility scripts
