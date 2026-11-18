@@ -18,6 +18,7 @@ import {
   SCOPES,
 } from "../../_base/google-auth.js";
 import type { InputIntegration, CalendarEvent, MemberProfile } from "../../_base/types.js";
+import { ws } from "../../../hub/paths.js";
 
 export default class GoogleCalendarInput extends BaseIntegration implements InputIntegration {
   readonly id = "google-calendar";
@@ -135,7 +136,7 @@ export default class GoogleCalendarInput extends BaseIntegration implements Inpu
   }
 
   private loadMemberProfiles(): MemberProfile[] {
-    const dir = join(process.cwd(), "workspace", "members");
+    const dir = ws("members");
     if (!existsSync(dir)) return [];
     return readdirSync(dir)
       .filter((f) => f.endsWith(".yaml") && !f.startsWith("_"))

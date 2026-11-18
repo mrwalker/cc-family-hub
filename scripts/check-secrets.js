@@ -6,11 +6,12 @@
 import { existsSync, readFileSync } from "fs";
 import { join } from "path";
 import yaml from "js-yaml";
+import { WORKSPACE } from "./workspace-path.js";
 
 const ROOT = process.cwd();
-const FAMILY_CONFIG_PATH = join(ROOT, "workspace", "family.yaml");
-const SECRETS_PATH = join(ROOT, "workspace", "state", "secrets.yaml");
-const GOOGLE_KEY_PATH = join(ROOT, "workspace", "state", "google-service-account.json");
+const FAMILY_CONFIG_PATH = join(WORKSPACE, "family.yaml");
+const SECRETS_PATH = join(WORKSPACE, "state", "secrets.yaml");
+const GOOGLE_KEY_PATH = join(WORKSPACE, "state", "google-service-account.json");
 
 // Required secrets.yaml keys per integration (google-calendar uses a separate key file)
 const REQUIRED_SECRETS = {
@@ -43,7 +44,7 @@ function main() {
         } else {
           // Count members with calendarIds configured
           const members = family?.members ?? [];
-          const membersDir = join(ROOT, "workspace", "members");
+          const membersDir = join(WORKSPACE, "members");
           let withCalendars = 0;
           for (const ref of members) {
             const profilePath = join(membersDir, `${ref.id}.yaml`);

@@ -30,6 +30,7 @@ import { join } from "path";
 import yaml from "js-yaml";
 import { BaseIntegration } from "../../_base/BaseIntegration.js";
 import type { InputIntegration } from "../../_base/types.js";
+import { SECRETS_PATH } from "../../../hub/paths.js";
 
 interface StravaMemberSecrets {
   clientId: string;
@@ -165,7 +166,7 @@ export default class StravaInput extends BaseIntegration implements InputIntegra
   }
 
   private saveRefreshToken(memberId: string, newToken: string): void {
-    const secretsPath = join(process.cwd(), "workspace", "state", "secrets.yaml");
+    const secretsPath = SECRETS_PATH;
     if (!existsSync(secretsPath)) return;
     const all = yaml.load(readFileSync(secretsPath, "utf8")) as Record<string, unknown>;
     const strava = all["strava"] as StravaSecrets;

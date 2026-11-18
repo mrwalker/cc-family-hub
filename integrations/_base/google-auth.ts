@@ -10,13 +10,9 @@
 import { createSign } from "crypto";
 import { readFileSync, existsSync } from "fs";
 import { join } from "path";
+import { STATE_DIR } from "../../hub/paths.js";
 
-const SERVICE_ACCOUNT_PATH = join(
-  process.cwd(),
-  "workspace",
-  "state",
-  "google-service-account.json"
-);
+const SERVICE_ACCOUNT_PATH = join(STATE_DIR, "google-service-account.json");
 
 export interface ServiceAccountKey {
   type: string;

@@ -12,6 +12,7 @@ import { fileURLToPath } from "url";
 import yaml from "js-yaml";
 import type { PlanningContext, WeeklyPlan } from "../../integrations/_base/types.js";
 import { renderContextForPrompt } from "../context/builder.js";
+import { SECRETS_PATH } from "../paths.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -20,7 +21,7 @@ function loadApiKey(): string {
   if (process.env.ANTHROPIC_API_KEY) return process.env.ANTHROPIC_API_KEY;
 
   // Fall back to workspace/state/secrets.yaml
-  const secretsPath = join(process.cwd(), "workspace", "state", "secrets.yaml");
+  const secretsPath = SECRETS_PATH;
   if (existsSync(secretsPath)) {
     const secrets = yaml.load(readFileSync(secretsPath, "utf8")) as Record<string, unknown>;
     const key = (secrets?.anthropic as Record<string, string>)?.apiKey;
