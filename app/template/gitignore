@@ -1,0 +1,9 @@
+node_modules/
+.wrangler/
+.dev.vars*
+.env*
+# Built by cc-family-hub/app/build.mjs
+.generated/
+# Pipeline runtime state and caches (secrets live outside the repo: HUB_SECRETS_DIR)
+workspace/state/
+workspace/calendars/

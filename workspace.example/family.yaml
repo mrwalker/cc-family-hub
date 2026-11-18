@@ -2,25 +2,51 @@
 # Copy this file to workspace/family.yaml and customize for your family.
 
 family:
-  name: "The Walkers"
+  name: "The Riveras"
   timezone: "America/Los_Angeles"
   locale: "en-US"
 
-# Family members — one entry per person.
-# Each member must have a corresponding file in workspace/members/<id>.yaml
+# Family members — one entry per person, in the order the hub displays them.
+# Each member must have a corresponding file in workspace/members/<id>.yaml,
+# whose calendarIds the hub shows and whose email(s) identify them at sign-in.
+#   color      — the member's color on the hub page (required if you run the hub app)
+#   shortName  — what the hub calls them, if different from name
 members:
   - id: "alex"
     name: "Alex"
     role: "adult"
+    color: "#2563eb"
   - id: "jordan"
     name: "Jordan"
     role: "adult"
+    color: "#7c3aed"
   - id: "sam"
-    name: "Sam"
+    name: "Samantha"
+    shortName: "Sam"
     role: "child"
+    color: "#db2777"
   - id: "riley"
     name: "Riley"
     role: "child"
+    color: "#16a34a"
+
+# Hub app settings (read by app/build.mjs; the planner ignores them). See app/README.md.
+hub:
+  title: "Rivera Family Hub"
+  # groceryEmailUrl: "https://script.google.com/macros/s/.../exec"   # app/extras/grocery-email.gs
+
+  # People who join trips but aren't family members. An email lets their sign-in
+  # pick their player in a trip app; their calendars are never fetched.
+  guests:
+    grandma: { email: "grandma@example.com" }
+    cousin-lee: {}
+
+  # Trips with a phone app (a folder in your hub repo; see docs/trip-apps.md).
+  tripApps: []
+  #  - trip: "beach-jul-2027"      # the trip's id in trips.yaml
+  #    path: "/beach/"             # the folder, served at this path
+  #    appId: "beach-2027"         # window.TRIP.id in its trip-data.js
+  #    guests: [grandma]           # who can score besides the family
 
 integrations:
   # IDs of integrations to activate. Each must have a corresponding module
@@ -29,6 +55,7 @@ integrations:
     - google-calendar    # input + output
     - apple-reminders    # input only (macOS)
     - web-portal         # output only — local file (no server needed)
+    # - hub-api          # output — publishes to your hub app's data API (see app/README.md)
     # - github-pages     # output — publishes portal to a private GitHub repo (requires GitHub Pro)
     # - wall-display     # output — uncomment when display app is set up
     # - mobile-app       # output — uncomment when mobile app is set up
