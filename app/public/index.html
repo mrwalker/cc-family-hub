@@ -215,6 +215,19 @@
       opacity: 0;
     }
 
+    /* ── Photos module (iCloud shared album via /api/photos) ─────── */
+    /* No CSS inset or flex gap: the wall tablet's WebView is old. */
+    .photo-frame {
+      position: relative; height: calc(100vh - 230px); min-height: 360px;
+      background: #000; border-radius: 14px; overflow: hidden; margin-top: 8px;
+    }
+    .photo-frame img {
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+      object-fit: contain; opacity: 0; transition: opacity 1.2s ease;
+    }
+    .photo-frame img.shown { opacity: 1; }
+    .photo-empty { color: var(--muted); font-size: 14px; padding: 20px 0; }
+
     /* ── Shared: member highlight/dim ────────────────────────────── */
     .member-lit {
       border-color: var(--lit-color) !important;
@@ -1258,6 +1271,7 @@ plan.actionItems.forEach(a => {
 // Add future modules here (photos, weather, chores, etc.)
 const MODULES = [
   { id: "today",        category: "calendar", icon: "📆",  label: "Today",        build: buildTodayView,       onActivate: renderTodayView, dwell: 60_000  },
+  { id: "photos",       category: "calendar", icon: "🖼️",  label: "Photos",       build: buildPhotos,          onActivate: nextPhoto,       dwell: 60_000  },
   { id: "week",         category: "calendar", icon: "🗓️",  label: "3-Day",        build: buildThreeDayCalendar, onActivate: resetDayView,   dwell: 300_000 },
   { id: "calendar",     category: "calendar", icon: "📅", label: "Calendar",     build: buildCalendar     },
   { id: "plan",         category: "calendar", icon: "📋", label: "Weekly Plan",  build: buildPlan         },
@@ -1275,6 +1289,9 @@ let activeRow     = "calendar"; // "calendar" | "info"
 
 // ── Module-level constants (must precede bootstrap's buildModules() call) ──
 const STATUS_LABEL = { planning:'Planning', upcoming:'Coming Up', active:'Happening Now', past:'Past' };
+// Photos module: a new photo every PHOTO_MS while its tab is showing.
+const PHOTO_MS = 10_000;
+const photoState = { list: [], i: 0, imgs: [], front: 0, loadedAt: 0, timer: null };
 
 // ── Calendar state (must precede buildModules()) ─────────────────
 const HOURS_START  = 0;   // 12am
@@ -2117,6 +2134,59 @@ function buildEscapeRooms(container) {
 }
 
 // ── Movies module ──────────────────────────────────────────────────
+// ── Photos module ──────────────────────────────────────────────────
+// The family's iCloud shared album (hub.photos.icloudAlbum), shuffled; see PHOTO_MS.
+
+function buildPhotos(container) {
+  container.innerHTML = '<div class="photo-frame"><img alt=""><img alt=""></div>' +
+    '<p class="photo-empty" style="display:none"></p>';
+  photoState.imgs = [...container.querySelectorAll(".photo-frame img")];
+  photoState.frame = container.querySelector(".photo-frame");
+  photoState.empty = container.querySelector(".photo-empty");
+  loadPhotoList();
+  photoState.timer = setInterval(() => {
+    if (!container.classList.contains("mod-hidden")) nextPhoto();
+  }, PHOTO_MS);
+}
+
+function loadPhotoList() {
+  return fetch("/api/photos", { credentials: "same-origin" })
+    .then(r => r.json().then(d => ({ ok: r.ok, d })))
+    .then(({ ok, d }) => {
+      if (!ok || !Array.isArray(d.photos) || !d.photos.length) {
+        photoState.frame.style.display = "none";
+        photoState.empty.style.display = "";
+        photoState.empty.textContent = (d && d.error) ||
+          "No photos yet. Add some to the family's shared album.";
+        return;
+      }
+      const list = d.photos.slice();
+      for (let i = list.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        const t = list[i]; list[i] = list[j]; list[j] = t;
+      }
+      photoState.list = list; photoState.i = 0; photoState.loadedAt = Date.now();
+      photoState.frame.style.display = ""; photoState.empty.style.display = "none";
+      if (!photoState.imgs.some(img => img.classList.contains("shown"))) nextPhoto();
+    })
+    .catch(() => {});
+}
+
+function nextPhoto() {
+  const st = photoState;
+  if (!st.list.length) return;
+  // Pick up newly added photos every 10 minutes.
+  if (Date.now() - st.loadedAt > 10 * 60_000) loadPhotoList();
+  const photo = st.list[st.i++ % st.list.length];
+  const back = st.imgs[1 - st.front];
+  back.onload = () => {
+    back.classList.add("shown");
+    st.imgs[st.front].classList.remove("shown");
+    st.front = 1 - st.front;
+  };
+  back.src = "/api/photos/" + encodeURIComponent(photo.id);
+}
+
 function buildMovies(container) {
   const movies = family.movies || [];
   if (!movies.length) {

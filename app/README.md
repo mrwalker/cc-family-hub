@@ -90,6 +90,9 @@ need a deploy. The pipeline publishes it to `/api/data/:kind` (see [`worker/data
   [`extras/grocery-email.gs`](extras/grocery-email.gs) as a Google Apps Script web app and set
   `hub.groceryEmailUrl`.
 - **Phone widgets.** See [`widgets/README.md`](widgets/README.md).
+- **Photos.** Set `hub.photos.icloudAlbum` to an iCloud shared album with Public Website turned on.
+  The hub page gets a Photos tab in its main rotation, and the Roku screensaver shows the album.
+  The page reads `/api/photos`, which stays behind your family sign-in.
 - **Mac menu bar app.** See [`macos/README.md`](macos/README.md).
 - **Roku channel.** See [`roku/README.md`](roku/README.md).
 - **Trip apps.** See [`docs/trip-apps.md`](../docs/trip-apps.md).
