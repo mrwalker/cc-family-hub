@@ -11,6 +11,7 @@
 import { readFileSync, existsSync } from "fs";
 import { join } from "path";
 import yaml from "js-yaml";
+import { CALENDARS_DIR } from "../hub/paths.js";
 
 export interface CalendarEvent {
   id: string;
@@ -37,8 +38,8 @@ function getISOWeekMonday(date: Date): Date {
  * Loads events from workspace/calendars/google-calendar.yaml, trims to the
  * current week + next week, and strips fields not needed by the portal.
  */
-export function loadCalendarEvents(cwd: string): CalendarEvent[] {
-  const p = join(cwd, "workspace", "calendars", "google-calendar.yaml");
+export function loadCalendarEvents(): CalendarEvent[] {
+  const p = join(CALENDARS_DIR, "google-calendar.yaml");
   if (!existsSync(p)) return [];
 
   const raw = yaml.load(readFileSync(p, "utf8"));

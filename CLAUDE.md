@@ -35,6 +35,7 @@ cc-family-hub/
 - `workspace/` is **gitignored** and contains real family data. Each family maintains their own.
 - `workspace.example/` is committed and shows the expected shape with fake data.
 - Never commit anything from `workspace/` — it contains PII.
+- The workspace location is configurable: set `HUB_WORKSPACE` (env var or a `.env` file at the repo root) to keep it outside this repo, e.g. in your family's private instance repo. All code resolves workspace paths through `hub/paths.ts` (or `scripts/workspace-path.js` for plain-JS scripts). Never build a `workspace/...` path from `process.cwd()` directly.
 
 ## Key Concepts
 

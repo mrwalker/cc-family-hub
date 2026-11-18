@@ -24,8 +24,8 @@ import { join } from "path";
 import * as readline from "readline/promises";
 import { stdin as input, stdout as output } from "process";
 import yaml from "js-yaml";
+import { SECRETS_PATH } from "../hub/paths.js";
 
-const SECRETS_PATH = join(process.cwd(), "workspace", "state", "secrets.yaml");
 const TOKEN_URL    = "https://www.strava.com/api/v3/oauth/token";
 
 async function ask(rl: readline.Interface, prompt: string): Promise<string> {

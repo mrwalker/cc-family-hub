@@ -17,9 +17,8 @@ import { renderDailyPlanPrompt, generateWeeklyPlan, generateWeeklySummary } from
 import { loadRegisteredIntegrations } from "./integrations/registry.js";
 import { WeeklyPlanSchema } from "../integrations/_base/schemas.js";
 import type { WeeklyPlan, FamilyConfig } from "../integrations/_base/types.js";
+import { WORKSPACE, STATE_DIR } from "./paths.js";
 
-const WORKSPACE = join(process.cwd(), "workspace");
-const STATE_DIR = join(WORKSPACE, "state");
 const PLAN_PATH = join(STATE_DIR, "last-plan.yaml");
 const PROMPT_PATH = join(STATE_DIR, "pending-prompt.md");
 

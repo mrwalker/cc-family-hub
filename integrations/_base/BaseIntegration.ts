@@ -5,8 +5,8 @@
 import { readFileSync, existsSync } from "fs";
 import { join } from "path";
 import yaml from "js-yaml";
+import { SECRETS_PATH } from "../../hub/paths.js";
 
-const SECRETS_PATH = join(process.cwd(), "workspace", "state", "secrets.yaml");
 
 export abstract class BaseIntegration {
   abstract readonly id: string;

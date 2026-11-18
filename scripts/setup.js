@@ -7,10 +7,10 @@
 import { existsSync, mkdirSync, copyFileSync, readdirSync, statSync } from "fs";
 import { join, relative } from "path";
 import { createInterface } from "readline";
+import { WORKSPACE } from "./workspace-path.js";
 
 const ROOT = process.cwd();
 const EXAMPLE = join(ROOT, "workspace.example");
-const WORKSPACE = join(ROOT, "workspace");
 
 const rl = createInterface({ input: process.stdin, output: process.stdout });
 const ask = (q) => new Promise((resolve) => rl.question(q, resolve));

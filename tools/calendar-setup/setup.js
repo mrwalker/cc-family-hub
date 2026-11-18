@@ -13,11 +13,12 @@ import { existsSync, readFileSync } from "fs";
 import { join } from "path";
 import { createSign } from "crypto";
 import yaml from "js-yaml";
+import { WORKSPACE } from "../../scripts/workspace-path.js";
 
 const ROOT = process.cwd();
-const KEY_PATH = join(ROOT, "workspace", "state", "google-service-account.json");
-const FAMILY_PATH = join(ROOT, "workspace", "family.yaml");
-const MEMBERS_DIR = join(ROOT, "workspace", "members");
+const KEY_PATH = join(WORKSPACE, "state", "google-service-account.json");
+const FAMILY_PATH = join(WORKSPACE, "family.yaml");
+const MEMBERS_DIR = join(WORKSPACE, "members");
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 

@@ -14,8 +14,8 @@ import type {
   CalendarEvent,
   WeeklyPlan,
 } from "../../integrations/_base/types.js";
+import { WORKSPACE } from "../paths.js";
 
-const WORKSPACE = join(process.cwd(), "workspace");
 
 export function loadFamilyConfig(): FamilyConfig {
   const path = join(WORKSPACE, "family.yaml");

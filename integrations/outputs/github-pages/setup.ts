@@ -15,8 +15,8 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync } from "fs";
 import { join } from "path";
 import { execSync } from "child_process";
 import yaml from "js-yaml";
+import { SECRETS_PATH } from "../../../hub/paths.js";
 
-const SECRETS_PATH = join(process.cwd(), "workspace", "state", "secrets.yaml");
 const PORTAL_HTML_PATH = join(process.cwd(), "outputs", "web-portal", "index.html");
 
 interface GitHubPagesSecrets {
