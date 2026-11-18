@@ -41,7 +41,7 @@
       </Label>
 
       <Label id="hint" translation="[100,990]" width="700" color="0xf3f5f75A"
-             text="◀ ▶ whose events   OK refresh">
+             text="Left / Right: whose events     OK: refresh">
         <Font role="font" uri="font:SystemFontFile" size="26"/>
       </Label>
       <Label id="status" translation="[840,990]" width="980" horizAlign="right" color="0xf3f5f75A">

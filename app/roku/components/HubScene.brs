@@ -232,9 +232,9 @@ sub addEvent(e as object, y as integer)
         bar.color = toColor(colors[i])
         m.events.appendChild(bar)
     end for
-    addLabel(e.time, 36, y + 8, 34, false, m.MUTED, 220)
-    addLabel(e.title, 270, y, 46, true, m.TEXT, 710)
-    if e.location <> invalid then addLabel(e.location, 270, y + 58, 30, false, m.MUTED, 710)
+    addLabel(e.time, 32, y + 8, 34, false, m.MUTED, 200)
+    addLabel(e.title, 236, y, 46, true, m.TEXT, 744)
+    if e.location <> invalid then addLabel(e.location, 236, y + 58, 30, false, m.MUTED, 744)
 end sub
 
 sub renderTrip(t as dynamic)

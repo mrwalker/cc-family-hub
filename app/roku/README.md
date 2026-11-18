@@ -4,7 +4,7 @@ The hub on your TV: a big clock and date, the rest of today and tomorrow with ea
 color, and the next trip's countdown. The same screen works as a Roku **screensaver**, and it
 drifts slowly so nothing burns in.
 
-- **◀ ▶** on the remote switches between the whole family and each person. The Roku remembers your choice.
+- **Left and right** on the remote switches between the whole family and each person. The Roku remembers your choice.
 - **OK** refreshes. The channel also refreshes every 5 minutes on its own.
 
 It reads the same `GET /api/widget` as the [phone widgets](../widgets/README.md). The channel is
@@ -33,7 +33,7 @@ Put this file outside the repo, at `~/.config/family-hub/roku.env`. To use anoth
 ROKU_HOST=192.168.1.50            # the Roku's IP
 ROKU_DEV_PASSWORD=…               # the developer-mode password
 HUB_URL=https://hub.example.com
-HUB_VIEW=family                   # or a member id; ◀ ▶ changes it on the TV
+HUB_VIEW=family                   # or a member id; left/right changes it on the TV
 CF_ACCESS_CLIENT_ID=….access
 CF_ACCESS_CLIENT_SECRET=…
 ```
@@ -59,7 +59,7 @@ channel; installing again replaces it.
 |-------------|-----|
 | "The hub didn't accept this channel's service token" | Check the token in `roku.env`, that it's in the **Hub Widgets** policy, and that the policy is attached to the `/api/widget` application. Then run `./build.sh --install` again. |
 | "No hub is set up" | `HUB_URL` was empty at build time. |
-| "Unknown view …" | Press ◀ or ▶ to pick someone else. |
+| "Unknown view …" | Press left or right to pick someone else. |
 | "Offline since …" | The Roku couldn't reach the hub, so it keeps showing the last data and retries. |
 
 ## Developing
@@ -68,7 +68,10 @@ channel; installing again replaces it.
 - `components/FetchTask.brs`: the HTTP request.
 - `source/main.brs`: entry points for the channel and the screensaver.
 
-To check the layout from your computer, run `./build.sh --screenshot shot.jpg`. You can also
+To check the layout from your computer, run `./build.sh --screenshot shot.jpg`. To send remote
+keys over the network (`curl -X POST http://<roku-ip>:8060/keypress/Right`), set Settings → System →
+Advanced system settings → Control by mobile apps → Network access to **Permissive**. The default,
+**Limited**, refuses them with 403. You can also
 watch the debug console with `nc <roku-ip> 8085`. To check syntax without a Roku, run
 [BrighterScript](https://github.com/rokucommunity/brighterscript):
 `npx -p brighterscript bsc --rootDir build/stage --createPackage false`.
