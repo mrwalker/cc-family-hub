@@ -13,7 +13,7 @@
  * so it may need updating if Apple changes the page.
  */
 
-const LIST_CACHE_SECONDS = 600;
+const LIST_CACHE_SECONDS = 300;
 const PHOTO_CACHE_SECONDS = 7 * 86_400;
 const MAX_PHOTOS = 500;
 const CK = "https://ckdatabasews.icloud.com/database/1/com.apple.photos.cloud/production";

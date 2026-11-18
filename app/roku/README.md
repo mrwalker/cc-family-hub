@@ -8,7 +8,7 @@ drifts slowly so nothing burns in.
 shared album with Public Website turned on), the screensaver shows the hub screen, then three
 photos, then the hub screen again, 10 seconds each, with crossfades. Photos come in random order,
 with a strip showing the clock, the next event, and the trip countdown. Add a photo to the album on your
-phone and it joins the slideshow within 30 minutes.
+phone and it joins the slideshow within about 15 minutes.
 
 - **Left and right** on the remote switches between the whole family and each person. The Roku remembers your choice.
 - **OK** refreshes. The channel also refreshes every 5 minutes on its own.
