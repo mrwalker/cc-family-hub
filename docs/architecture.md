@@ -120,4 +120,9 @@ The hub doesn't run a persistent scheduler. Instead, it relies on:
 - **Claude Code** (`/daily-plan`, `/sync-calendars`) for manual runs
 - `workspace/family.yaml` documents the intended cron schedule
 
-Any scheduler works, as long as it runs `npm run render`, writes the plan, and then runs `npm run publish`, which exits non-zero on failure.
+Any scheduler works. It can run either of these:
+- `npm run plan`, which calls the Claude API, writes the plan, and publishes it.
+- `npm run render`, then an assistant writes `state/last-plan.yaml` from the rendered
+  prompt, then `npm run publish`.
+
+Both exit non-zero if publishing fails.
