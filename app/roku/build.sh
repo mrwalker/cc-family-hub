@@ -3,6 +3,8 @@
 #
 #   ./build.sh                 build build/family-hub-roku.zip
 #   ./build.sh --install       build it and install it on the Roku (developer mode)
+#   ./build.sh --screensaver   build a screensaver-only package (add --install to install it)
+#   ./build.sh --preview       a channel that runs the screensaver, for testing (--install to install)
 #   ./build.sh --screenshot F  save a screenshot of the running channel to F (a .jpg)
 #
 # Settings come from roku.env, outside the repo:
@@ -11,6 +13,15 @@
 # the package, so keep the zip private.
 set -euo pipefail
 cd "$(dirname "$0")"
+
+INSTALL=false SCREENSAVER_ONLY=false PREVIEW=false
+for arg in "$@"; do
+  case "$arg" in
+    --install) INSTALL=true ;;
+    --screensaver) SCREENSAVER_ONLY=true ;;
+    --preview) PREVIEW=true ;;
+  esac
+done
 
 ENV_FILE="${FAMILY_HUB_ROKU_ENV:-$HOME/.config/family-hub/roku.env}"
 if [[ -f "$ENV_FILE" ]]; then
@@ -60,6 +71,15 @@ ZIP=build/family-hub-roku.zip
 rm -rf build && mkdir -p "$STAGE"
 cp -R source components images "$STAGE/"
 sed -e "s/__MAJOR__/$MAJOR/" -e "s/__MINOR__/$MINOR/" -e "s/__PATCH__/$PATCH/" manifest > "$STAGE/manifest"
+if $SCREENSAVER_ONLY; then
+  # A "pure" screensaver (no Main, no title) is the kind Roku reliably lists under
+  # Settings → Theme → Screensavers when sideloaded. It has no Home screen tile.
+  rm "$STAGE/source/channel.brs"
+  sed -i '' -e '/^title=/d' -e '/^mm_icon/d' -e '/^splash_/d' "$STAGE/manifest"
+fi
+if $PREVIEW; then
+  sed -i '' 's/RunHub(false)/RunHub(true)/' "$STAGE/source/channel.brs"
+fi
 {
   printf '{"url":%s,' "$(json_string "${HUB_URL%/}")"
   printf '"view":%s,' "$(json_string "$HUB_VIEW")"
@@ -67,15 +87,17 @@ sed -e "s/__MAJOR__/$MAJOR/" -e "s/__MINOR__/$MINOR/" -e "s/__PATCH__/$PATCH/" m
   printf '"clientSecret":%s}\n' "$(json_string "$CF_ACCESS_CLIENT_SECRET")"
 } > "$STAGE/config.json"
 (cd "$STAGE" && zip -qr "../$(basename "$ZIP")" .)
-echo "Built $ZIP ($VERSION)"
+echo "Built $ZIP ($VERSION$($SCREENSAVER_ONLY && echo ", screensaver only"))"
 
-if [[ "${1:-}" == "--install" ]]; then
+if $INSTALL; then
   need_roku
   result="$(curl -sS --digest -u "rokudev:$ROKU_DEV_PASSWORD" \
     --form-string mysubmit=Install -F "archive=@$ZIP" \
     "http://$ROKU_HOST/plugin_install")"
   msg="$(printf '%s' "$result" | grep -oE '(Install Success|Identical to previous version|Install Failure[^<"]*|Application Received[^<"]*)' | head -1)"
   echo "Roku: ${msg:-$(printf '%s' "$result" | head -c 300)}"
-  # Identical packages aren't reinstalled; relaunch so changes in roku.env still show.
-  curl -sS -X POST "http://$ROKU_HOST:8060/launch/dev" >/dev/null || true
+  if ! $SCREENSAVER_ONLY; then
+    # Identical packages aren't reinstalled; relaunch so changes in roku.env still show.
+    curl -sS -X POST "http://$ROKU_HOST:8060/launch/dev" >/dev/null || true
+  fi
 fi

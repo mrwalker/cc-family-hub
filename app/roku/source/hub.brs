@@ -1,8 +1,4 @@
-' Family Hub for Roku: the channel, and the same screen as a screensaver.
-
-sub Main(args as dynamic)
-    RunHub(false)
-end sub
+' Family Hub for Roku: the same screen runs as the channel (channel.brs) and the screensaver.
 
 sub RunScreenSaver()
     RunHub(true)
