@@ -67,8 +67,8 @@ swift build                    # compile
 - `Model.swift`: the `/api/widget` response.
 
 To check layout without clicking around, set `FAMILY_HUB_SNAPSHOT` to a folder and run the
-binary inside the app. It fetches once with the saved settings, writes `menu-light.png` and
-`menu-dark.png`, prints the menu bar text, and quits:
+binary inside the app. It fetches once with the saved settings, writes `menu-light.png`,
+`menu-dark.png` and `settings.png`, prints the menu bar text, and quits:
 
 ```bash
 FAMILY_HUB_SNAPSHOT=/tmp "build/Family Hub.app/Contents/MacOS/Family Hub"
