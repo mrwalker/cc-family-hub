@@ -12,6 +12,8 @@ serves.
   screens, via Scriptable. See [widgets/README.md](widgets/README.md).
 - **A Mac menu bar app** shows the next event and the trip countdown next to the clock.
   See [macos/README.md](macos/README.md).
+- **A Roku channel** puts the day and the trip countdown on the TV, and doubles as a screensaver.
+  See [roku/README.md](roku/README.md).
 
 ```
 cc-family-hub (this repo)                   your family's hub repo (private)
@@ -89,6 +91,7 @@ need a deploy. The pipeline publishes it to `/api/data/:kind` (see [`worker/data
   `hub.groceryEmailUrl`.
 - **Phone widgets.** See [`widgets/README.md`](widgets/README.md).
 - **Mac menu bar app.** See [`macos/README.md`](macos/README.md).
+- **Roku channel.** See [`roku/README.md`](roku/README.md).
 - **Trip apps.** See [`docs/trip-apps.md`](../docs/trip-apps.md).
 - **Wall tablet.** See [`docs/wall-tablet.md`](../docs/wall-tablet.md).
 

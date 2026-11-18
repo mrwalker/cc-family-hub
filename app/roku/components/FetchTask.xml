@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Fetches GET /api/widget off the render thread. Result: { data } or { error }. -->
+<component name="FetchTask" extends="Task">
+  <interface>
+    <field id="config" type="assocarray"/>
+    <field id="result" type="assocarray"/>
+  </interface>
+  <script type="text/brightscript" uri="pkg:/components/FetchTask.brs"/>
+</component>

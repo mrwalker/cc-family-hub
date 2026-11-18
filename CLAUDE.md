@@ -31,6 +31,7 @@ cc-family-hub/
 │   ├── build.mjs                # Run in a family's hub repo: family.yaml → .generated/
 │   ├── widgets/                 # iPhone widgets (Scriptable script + /api/widget docs)
 │   ├── macos/                   # Mac menu bar app (SwiftUI package, build-app.sh)
+│   ├── roku/                    # Roku channel + screensaver (BrightScript, build.sh sideloads)
 │   └── template/                # Skeleton for a family's hub repo
 ├── scripts/                     # Setup, sync, and utility scripts
 └── .claude/
