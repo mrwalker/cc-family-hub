@@ -6,12 +6,12 @@
 import { existsSync, readFileSync } from "fs";
 import { join } from "path";
 import yaml from "js-yaml";
-import { WORKSPACE } from "./workspace-path.js";
+import { WORKSPACE, SECRETS_DIR } from "./workspace-path.js";
 
 const ROOT = process.cwd();
 const FAMILY_CONFIG_PATH = join(WORKSPACE, "family.yaml");
-const SECRETS_PATH = join(WORKSPACE, "state", "secrets.yaml");
-const GOOGLE_KEY_PATH = join(WORKSPACE, "state", "google-service-account.json");
+const SECRETS_PATH = join(SECRETS_DIR, "secrets.yaml");
+const GOOGLE_KEY_PATH = join(SECRETS_DIR, "google-service-account.json");
 
 // Required secrets.yaml keys per integration (google-calendar uses a separate key file)
 const REQUIRED_SECRETS = {
@@ -33,13 +33,13 @@ function main() {
     // Google Calendar uses a key file, not secrets.yaml
     if (id === "google-calendar") {
       if (!existsSync(GOOGLE_KEY_PATH)) {
-        console.error(`MISSING: workspace/state/google-service-account.json`);
+        console.error(`MISSING: ${GOOGLE_KEY_PATH}`);
         console.error(`         Run: npm run setup:calendars`);
         allOk = false;
       } else {
         const key = JSON.parse(readFileSync(GOOGLE_KEY_PATH, "utf8"));
         if (key.type !== "service_account") {
-          console.error(`INVALID: workspace/state/google-service-account.json is not a service account key`);
+          console.error(`INVALID: ${GOOGLE_KEY_PATH} is not a service account key`);
           allOk = false;
         } else {
           // Count members with calendarIds configured
@@ -69,7 +69,7 @@ function main() {
     if (!required) continue;
 
     if (!existsSync(SECRETS_PATH)) {
-      console.error("ERROR: workspace/state/secrets.yaml not found.");
+      console.error(`ERROR: ${SECRETS_PATH} not found.`);
       console.error("Copy workspace/state/secrets.example.yaml to get started.");
       process.exit(1);
     }

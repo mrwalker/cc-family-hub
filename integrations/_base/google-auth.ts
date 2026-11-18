@@ -10,9 +10,9 @@
 import { createSign } from "crypto";
 import { readFileSync, existsSync } from "fs";
 import { join } from "path";
-import { STATE_DIR } from "../../hub/paths.js";
+import { GOOGLE_KEY_PATH } from "../../hub/paths.js";
 
-const SERVICE_ACCOUNT_PATH = join(STATE_DIR, "google-service-account.json");
+const SERVICE_ACCOUNT_PATH = GOOGLE_KEY_PATH;
 
 export interface ServiceAccountKey {
   type: string;
@@ -32,14 +32,14 @@ export function loadServiceAccountKey(): ServiceAccountKey {
   if (!existsSync(SERVICE_ACCOUNT_PATH)) {
     throw new Error(
       `Google service account key not found.\n` +
-      `Expected: workspace/state/google-service-account.json\n` +
+      `Expected: ${SERVICE_ACCOUNT_PATH}\n` +
       `Run: npm run setup:calendars`
     );
   }
   const raw = JSON.parse(readFileSync(SERVICE_ACCOUNT_PATH, "utf8"));
   if (raw.type !== "service_account") {
     throw new Error(
-      `workspace/state/google-service-account.json is not a service account key file. ` +
+      `${SERVICE_ACCOUNT_PATH} is not a service account key file. ` +
       `Download it from Google Cloud Console → IAM & Admin → Service Accounts → Keys.`
     );
   }

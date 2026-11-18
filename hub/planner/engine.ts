@@ -30,7 +30,7 @@ function loadApiKey(): string {
 
   throw new Error(
     `Anthropic API key not found.\n` +
-    `Add it to workspace/state/secrets.yaml:\n\n` +
+    `Add it to ${SECRETS_PATH}:\n\n` +
     `  anthropic:\n    apiKey: "sk-ant-..."\n\n` +
     `Or set the ANTHROPIC_API_KEY environment variable.`
   );

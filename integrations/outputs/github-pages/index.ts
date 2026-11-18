@@ -40,7 +40,7 @@ export default class GitHubPagesOutput extends BaseIntegration implements Output
     if (!existsSync(secrets.repoPath)) {
       throw new Error(
         `GitHub Pages repo not found at: ${secrets.repoPath}\n` +
-          `Create the directory or update repoPath in workspace/state/secrets.yaml.`
+          `Create the directory or update github-pages.repoPath in your secrets.yaml.`
       );
     }
     const gitDir = join(secrets.repoPath, ".git");

@@ -26,13 +26,13 @@ interface GitHubPagesSecrets {
 
 function loadSecrets(): GitHubPagesSecrets {
   if (!existsSync(SECRETS_PATH)) {
-    console.error("✗ workspace/state/secrets.yaml not found.");
+    console.error(`✗ ${SECRETS_PATH} not found.`);
     process.exit(1);
   }
   const all = yaml.load(readFileSync(SECRETS_PATH, "utf8")) as Record<string, unknown>;
   const s = all["github-pages"] as GitHubPagesSecrets | undefined;
   if (!s?.repoPath) {
-    console.error("✗ Missing github-pages.repoPath in workspace/state/secrets.yaml");
+    console.error(`✗ Missing github-pages.repoPath in ${SECRETS_PATH}`);
     console.error("  Add:");
     console.error("    github-pages:");
     console.error('      repoPath: "/absolute/path/to/walker-family-hub"');
