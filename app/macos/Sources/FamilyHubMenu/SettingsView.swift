@@ -49,6 +49,9 @@ struct SettingsView: View {
                 }
             }
             .formStyle(.grouped)
+            // A grouped Form scrolls, so it has no height of its own in an auto-sized window.
+            .frame(height: 410)
+            .scrollDisabled(true)
 
             if let error {
                 Text(error).font(.caption).foregroundStyle(.red).padding(.horizontal, 20)
