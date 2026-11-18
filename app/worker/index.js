@@ -11,7 +11,9 @@
  *   GET /api/events?days=N  — live Google Calendar events for every member (default 14 days)
  *   GET /api/config.js      — the page's share of the hub config (names, colors, trip apps)
  *   GET /api/widget?view=…  — compact upcoming events + next trip for phone widgets (widget.js)
- *   GET /api/widget/photos… — photos from the family's iCloud shared album (photos.js)
+ *   GET /api/widget/photos… — photos from the family's iCloud shared album (photos.js);
+ *                             also at /api/photos… for the hub page
+ *   GET /api/widget/trips…  — trip apps at a glance: countdown, leaderboard (trips.js)
  *   /api/data…              — published plan/family/strava data (see data-api.js)
  *   /api/trip/:id/…         — trip app check-ins and packing lists
  *   All other paths         — static assets (the hub page, trip apps)
@@ -30,6 +32,7 @@
 import { handleDataApi } from "./data-api.js";
 import { handleWidget } from "./widget.js";
 import { handlePhotos } from "./photos.js";
+import { handleTrips } from "./trips.js";
 
 // Widgets refresh often and every phone asks separately; one Google fetch per
 // window serves them all.
@@ -79,8 +82,15 @@ async function route(request, env, hub) {
     return handleWidget(request, env, hub, days => cachedEvents(env, hub, days));
   }
 
-  if (url.pathname === "/api/widget/photos" || url.pathname.startsWith("/api/widget/photos/")) {
-    return handlePhotos(request, env, hub, url.pathname.slice("/api/widget/photos".length));
+  // Photos for widgets (service tokens on /api/widget) and for the hub page (family sign-in).
+  const photosPath = url.pathname.match(/^\/api(?:\/widget)?\/photos(\/.*)?$/);
+  if (photosPath) {
+    return handlePhotos(request, env, hub, photosPath[1] ?? "");
+  }
+
+  const tripsPath = url.pathname.match(/^\/api\/widget\/trips(\/.*)?$/);
+  if (tripsPath) {
+    return handleTrips(request, env, hub, tripsPath[1] ?? "");
   }
 
   if (url.pathname === "/api/config.js") {

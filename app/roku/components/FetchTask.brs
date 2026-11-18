@@ -1,7 +1,8 @@
 ' Requests to the hub, off the render thread. config.mode:
 '   "widget"   GET /api/widget?view=…           → result { data } or { error }
 '   "photos"   GET /api/widget/photos            → result { photos } or { error }
-'   "download" GET /api/widget/photos/<id> to config.path → result { path, id } or { error }
+'   "trips"    GET /api/widget/trips             → result { trips } or { error }
+'   "download" GET /api/widget/photos/<id> (or config.fullUrl) to config.path → result { path, id } or { error }
 
 sub init()
     m.top.functionName = "doRequest"
@@ -17,10 +18,17 @@ sub doRequest()
     xfer.SetMessagePort(port)
 
     if mode = "download" then
-        xfer.SetUrl(cfg.url + "/api/widget/photos/" + xfer.Escape(cfg.id))
+        if cfg.fullUrl <> invalid then
+            xfer.SetUrl(cfg.fullUrl)
+        else
+            xfer.SetUrl(cfg.url + "/api/widget/photos/" + xfer.Escape(cfg.id))
+        end if
         started = xfer.AsyncGetToFile(cfg.path)
     else if mode = "photos" then
         xfer.SetUrl(cfg.url + "/api/widget/photos")
+        started = xfer.AsyncGetToString()
+    else if mode = "trips" then
+        xfer.SetUrl(cfg.url + "/api/widget/trips")
         started = xfer.AsyncGetToString()
     else
         xfer.SetUrl(cfg.url + "/api/widget?view=" + xfer.Escape(cfg.view))
@@ -54,6 +62,8 @@ sub doRequest()
 
     if code = 200 and data <> invalid and mode = "photos" and data.photos <> invalid then
         m.top.result = { photos: data.photos }
+    else if code = 200 and data <> invalid and mode = "trips" and data.trips <> invalid then
+        m.top.result = { trips: data.trips }
     else if code = 200 and data <> invalid and mode = "widget" and data.events <> invalid then
         m.top.result = { data: data }
     else if data <> invalid and data.error <> invalid then

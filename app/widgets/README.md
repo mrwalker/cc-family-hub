@@ -22,7 +22,8 @@ a widget shows the last data it fetched, marked "Offline".
 The [Mac menu bar app](../macos/README.md) and the [Roku channel](../roku/README.md) read the
 same endpoint, and their tokens go in the same policy. The Roku screensaver also reads
 `/api/widget/photos` (the family's iCloud shared album, see [`../worker/photos.js`](../worker/photos.js)).
-The `/api/widget` Access application covers that path too.
+The `/api/widget` Access application covers that path too, and
+`/api/widget/trips` (each trip app's countdown and leaderboard, see [`../worker/trips.js`](../worker/trips.js)).
 
 ## 1. Give widgets their own key (Cloudflare Access)
 

@@ -49,7 +49,7 @@
       </Label>
     </Group>
 
-    <!-- Screensaver photos (from /api/widget/photos), shown between hub screens. -->
+    <!-- Screensaver photos (from /api/widget/photos), three between each hub/trip screen. -->
     <Group id="photoLayer" visible="false" opacity="0">
       <Rectangle width="1920" height="1080" color="0x000000FF"/>
       <Poster id="photoA" width="1920" height="1080" loadWidth="1920" loadHeight="1080"
@@ -70,17 +70,42 @@
         <Font role="font" uri="font:BoldSystemFontFile" size="40"/>
       </Label>
     </Group>
-    <Animation id="toPhoto" duration="1.5" easeFunction="linear">
-      <FloatFieldInterpolator key="[0.0, 1.0]" keyValue="[0.0, 1.0]" fieldToInterp="photoLayer.opacity"/>
-      <FloatFieldInterpolator key="[0.0, 1.0]" keyValue="[1.0, 0.0]" fieldToInterp="layout.opacity"/>
-    </Animation>
+    <!-- Screensaver trip screens (from /api/widget/trips), between photo runs. -->
+    <Group id="tripLayer" visible="false" opacity="0">
+      <Rectangle width="1920" height="1080" color="0x08090cFF"/>
+      <Poster id="tripHero" width="1920" height="1080" loadWidth="1920" loadHeight="1080"
+              loadDisplayMode="scaleToZoom"/>
+      <Rectangle width="1920" height="1080" color="0x000000B8"/>
+      <Label id="tripTitle" translation="[100,84]" width="980" color="0xf3f5f7FF">
+        <Font role="font" uri="font:BoldSystemFontFile" size="96"/>
+      </Label>
+      <Label id="tripResort" translation="[104,210]" width="960" color="0xf3f5f7CC">
+        <Font role="font" uri="font:SystemFontFile" size="40"/>
+      </Label>
+      <Label id="tripRange" translation="[104,262]" width="960" color="0xf3f5f7A0">
+        <Font role="font" uri="font:SystemFontFile" size="36"/>
+      </Label>
+      <Label id="tripBig" translation="[94,340]" width="980" color="0xf3f5f7FF">
+        <Font role="font" uri="font:BoldSystemFontFile" size="220"/>
+      </Label>
+      <Label id="tripBigLabel" translation="[104,610]" width="960" color="0x7dd3fcFF">
+        <Font role="font" uri="font:BoldSystemFontFile" size="44"/>
+      </Label>
+      <Group id="tripToday" translation="[104,700]"/>
+      <Label id="tripBoardTitle" translation="[1120,96]" width="700" color="0x7dd3fcFF">
+        <Font role="font" uri="font:BoldSystemFontFile" size="30"/>
+      </Label>
+      <Group id="tripBoard" translation="[1120,160]"/>
+    </Group>
+
     <Animation id="photoFade" duration="1.5" easeFunction="linear">
       <FloatFieldInterpolator id="fadeIn" key="[0.0, 1.0]" keyValue="[0.0, 1.0]" fieldToInterp="photoB.opacity"/>
       <FloatFieldInterpolator id="fadeOut" key="[0.0, 1.0]" keyValue="[1.0, 0.0]" fieldToInterp="photoA.opacity"/>
     </Animation>
-    <Animation id="toHub" duration="1.5" easeFunction="linear">
-      <FloatFieldInterpolator key="[0.0, 1.0]" keyValue="[1.0, 0.0]" fieldToInterp="photoLayer.opacity"/>
-      <FloatFieldInterpolator key="[0.0, 1.0]" keyValue="[0.0, 1.0]" fieldToInterp="layout.opacity"/>
+    <!-- Switches between the hub, photo, and trip layers (targets set in code). -->
+    <Animation id="swap" duration="1.5" easeFunction="linear">
+      <FloatFieldInterpolator id="swapIn" key="[0.0, 1.0]" keyValue="[0.0, 1.0]" fieldToInterp="photoLayer.opacity"/>
+      <FloatFieldInterpolator id="swapOut" key="[0.0, 1.0]" keyValue="[1.0, 0.0]" fieldToInterp="layout.opacity"/>
     </Animation>
   </children>
 </component>

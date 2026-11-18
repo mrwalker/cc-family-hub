@@ -19,6 +19,7 @@
 
 import { readFileSync, writeFileSync, mkdirSync, existsSync, rmSync, cpSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { runInNewContext } from "node:vm";
 import { fileURLToPath } from "node:url";
 import yaml from "js-yaml";
 import { albumKey } from "./worker/photos.js";
@@ -92,8 +93,44 @@ const tripApps = (Array.isArray(hub.tripApps) ? hub.tripApps : []).map((t, i) =>
   const extra = strings(t?.guests);
   for (const g of extra) if (!guestIds.has(g)) fail("family.yaml", `${at}.guests`, `"${g}" is not listed under hub.guests`);
   if (t?.path && !existsSync(join(root, t.path, "index.html"))) fail("family.yaml", `${at}.path`, `no ${t.path}index.html in the repo`);
-  return { trip: t.trip, path: t.path, appId: t.appId, players: [...memberIds, ...extra] };
+  const summary = t?.path ? tripSummary(t.path, at) : null;
+  return { trip: t.trip, path: t.path, appId: t.appId, players: [...memberIds, ...extra], summary };
 });
+
+/**
+ * What screens outside the trip app (the Roku screensaver, widgets) need from a
+ * trip's trip-data.js: title, dates, hero photo, people, and the quest scoring
+ * table. The file sets window.TRIP; it runs here in an empty sandbox.
+ */
+function tripSummary(path, at) {
+  const file = join(root, path, "trip-data.js");
+  if (!existsSync(file)) return null;
+  let T;
+  try {
+    const window = {};
+    runInNewContext(readFileSync(file, "utf8"), { window }, { filename: file, timeout: 1000 });
+    T = window.TRIP;
+  } catch (err) {
+    fail(`${path}trip-data.js`, "", `couldn't run it: ${err.message}`);
+    return null;
+  }
+  if (!T || typeof T !== "object") { fail(`${path}trip-data.js`, "", "doesn't set window.TRIP"); return null; }
+  const str = v => (typeof v === "string" ? v : null);
+  return {
+    title: str(T.title), titleAccent: str(T.titleAccent), resort: str(T.resort),
+    start: str(T.start), end: str(T.end), tz: str(T.tz),
+    countdown: str(T.text?.countdown), team: str(T.text?.team),
+    hero: str(T.photo?.src) ? `${path}${T.photo.src.replace(/^\.?\//, "")}` : null,
+    members: (T.members ?? []).map(m => ({ id: m.id, name: m.name, color: m.color })),
+    scoring: { firstBonus: Number(T.scoring?.firstBonus) || 0, varietyBonus: Number(T.scoring?.varietyBonus) || 0 },
+    categories: (T.categories ?? []).map(c => c.id),
+    quests: Object.fromEntries((T.quests ?? []).map(q => [q.id, { pts: Number(q.pts) || 0, cat: q.cat }])),
+    days: (T.days ?? []).map(d => ({
+      date: str(d.date), title: str(d.title), emoji: str(d.emoji),
+      items: (d.items ?? []).map(i => ({ time: str(i.time) ?? str(i.when), emoji: str(i.emoji), title: str(i.title) })),
+    })),
+  };
+}
 
 const trips = tripApps.length ? load("trips.yaml") : [];
 const knownTrips = new Set((Array.isArray(trips) ? trips : []).map(t => t?.id));

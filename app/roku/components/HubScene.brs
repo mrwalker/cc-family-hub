@@ -263,6 +263,10 @@ sub renderTrip(t as dynamic)
 end sub
 
 function addLabel(text as string, x as integer, y as integer, size as integer, bold as boolean, color as string, width as integer) as object
+    return addLabelTo(m.events, text, x, y, size, bold, color, width)
+end function
+
+function addLabelTo(parent as object, text as string, x as integer, y as integer, size as integer, bold as boolean, color as string, width as integer) as object
     font = CreateObject("roSGNode", "Font")
     font.uri = "font:SystemFontFile"
     if bold then font.uri = "font:BoldSystemFontFile"
@@ -273,7 +277,7 @@ function addLabel(text as string, x as integer, y as integer, size as integer, b
     label.color = color
     label.width = width
     label.translation = [x, y]
-    m.events.appendChild(label)
+    parent.appendChild(label)
     return label
 end function
 
@@ -301,37 +305,55 @@ function isoTimeText(iso as string) as string
     return timeText(dt)
 end function
 
-' ─── Photo slideshow (screensaver) ───────────────────────────────────────────
-' The hub screen, then PHOTOS_PER_HUB photos from the hub's iCloud shared album
-' (shuffled), then the hub screen again; SLIDE_SECONDS each, with crossfades.
-' The photos carry a strip with the clock, next event, and trip countdown. With
-' no album (or no photos) the hub screen stays up.
+' ─── Screensaver slideshow ──────────────────────────────────────────────────
+' An "anchor" screen, then PHOTOS_BETWEEN photos from the hub's iCloud shared
+' album (shuffled), then the next anchor; SLIDE_SECONDS each, with crossfades.
+' Anchors cycle through the hub screen and each upcoming trip:
+'   hub, 3 photos, trip 1, 3 photos, trip 2, 3 photos, trip 3, 3 photos, hub, …
+' Photos carry a strip with the clock, next event, and trip countdown. With no
+' album (or no photos) the hub screen stays up.
 
 sub startPhotos()
     if m.config.url = "" or m.photosStarted then return
     m.photosStarted = true
     m.SLIDE_SECONDS = 10
-    m.PHOTOS_PER_HUB = 3
-    m.photosSinceHub = 0
+    m.PHOTOS_BETWEEN = 3
+    m.photosSinceAnchor = 0
+    m.anchorIndex = 0        ' 0 = hub, n = trips[n - 1]
     m.photos = []
     m.photoIndex = 0
+    m.trips = []
+    m.heroPaths = {}
     m.ready = invalid        ' downloaded photo waiting to be shown { path }
-    m.showingPhoto = false
+    m.showing = "hub"        ' "hub" | "photo" | "trip"
     m.fileCounter = 0
     m.frontPoster = m.top.findNode("photoA")
     m.backPoster = m.top.findNode("photoB")
     m.photoLayer = m.top.findNode("photoLayer")
+    m.tripLayer = m.top.findNode("tripLayer")
     m.slideTimer = makeTimer(m.SLIDE_SECONDS, "onSlide")
     m.photoListTimer = makeTimer(600, "loadPhotoList")
+    m.tripsTimer = makeTimer(600, "loadTrips")
     loadPhotoList()
+    loadTrips()
+end sub
+
+function photoConfig(extra as object) as object
+    cfg = { url: m.config.url, clientId: m.config.clientId, clientSecret: m.config.clientSecret }
+    cfg.Append(extra)
+    return cfg
+end function
+
+sub runTask(cfg as object, handler as string, slot as string)
+    task = CreateObject("roSGNode", "FetchTask")
+    task.config = photoConfig(cfg)
+    task.observeField("result", handler)
+    task.control = "RUN"
+    m[slot] = task
 end sub
 
 sub loadPhotoList()
-    task = CreateObject("roSGNode", "FetchTask")
-    task.config = photoConfig({ mode: "photos" })
-    task.observeField("result", "onPhotoList")
-    task.control = "RUN"
-    m.photoListTask = task
+    runTask({ mode: "photos" }, "onPhotoList", "photoListTask")
 end sub
 
 sub onPhotoList(event as object)
@@ -351,22 +373,12 @@ sub onPhotoList(event as object)
     if first then downloadNext()
 end sub
 
-function photoConfig(extra as object) as object
-    cfg = { url: m.config.url, clientId: m.config.clientId, clientSecret: m.config.clientSecret }
-    cfg.Append(extra)
-    return cfg
-end function
-
 sub downloadNext()
     if m.photos.count() = 0 then return
     photo = m.photos[m.photoIndex mod m.photos.count()]
     m.photoIndex = m.photoIndex + 1
     m.fileCounter = m.fileCounter + 1
-    task = CreateObject("roSGNode", "FetchTask")
-    task.config = photoConfig({ mode: "download", id: photo.id, path: "tmp:/photo-" + m.fileCounter.ToStr() + ".jpg" })
-    task.observeField("result", "onPhotoDownloaded")
-    task.control = "RUN"
-    m.downloadTask = task
+    runTask({ mode: "download", id: photo.id, path: "tmp:/photo-" + m.fileCounter.ToStr() + ".jpg" }, "onPhotoDownloaded", "downloadTask")
 end sub
 
 sub onPhotoDownloaded(event as object)
@@ -374,12 +386,31 @@ sub onPhotoDownloaded(event as object)
     if result.path <> invalid then m.ready = result
 end sub
 
+sub loadTrips()
+    runTask({ mode: "trips" }, "onTrips", "tripsTask")
+end sub
+
+sub onTrips(event as object)
+    result = event.getData()
+    if result.trips = invalid then return
+    m.trips = result.trips
+    ' Hero photos: fetched once per screensaver session.
+    for each t in m.trips
+        if t.hero <> invalid and m.heroPaths[t.id] = invalid then
+            m.heroPaths[t.id] = ""
+            runTask({ mode: "download", fullUrl: t.hero, id: t.id, path: "tmp:/hero-" + t.id + ".jpg" }, "onHeroDownloaded", "heroTask_" + t.id)
+        end if
+    end for
+end sub
+
+sub onHeroDownloaded(event as object)
+    result = event.getData()
+    if result.path <> invalid then m.heroPaths[result.id] = result.path
+end sub
+
 sub onSlide()
-    if m.showingPhoto and m.photosSinceHub >= m.PHOTOS_PER_HUB then
-        ' Photos → hub.
-        m.showingPhoto = false
-        m.photosSinceHub = 0
-        m.top.findNode("toHub").control = "start"
+    if m.showing = "photo" and m.photosSinceAnchor >= m.PHOTOS_BETWEEN then
+        showNextAnchor()
         return
     end if
     if m.ready = invalid then return   ' next photo not downloaded yet: keep what's showing
@@ -399,24 +430,117 @@ sub onPosterLoaded()
     downloadNext()
     if status = "failed" then return
 
-    if m.showingPhoto then
+    if m.showing = "photo" then
         ' Photo → photo: crossfade the posters.
         m.top.findNode("fadeIn").fieldToInterp = m.backPoster.id + ".opacity"
         m.top.findNode("fadeOut").fieldToInterp = m.frontPoster.id + ".opacity"
         m.top.findNode("photoFade").control = "start"
+        m.photosSinceAnchor = m.photosSinceAnchor + 1
     else
-        ' Hub → photo: fade the photo layer in over the hub.
+        ' Hub or trip → photo.
         m.backPoster.opacity = 1
         m.frontPoster.opacity = 0
-        m.photoLayer.visible = true
-        m.top.findNode("toPhoto").control = "start"
-        m.showingPhoto = true
+        swapTo("photo")
+        m.photosSinceAnchor = 1
     end if
-    m.photosSinceHub = m.photosSinceHub + 1
     t = m.frontPoster
     m.frontPoster = m.backPoster
     m.backPoster = t
 end sub
+
+sub showNextAnchor()
+    m.photosSinceAnchor = 0
+    m.anchorIndex = (m.anchorIndex + 1) mod (m.trips.count() + 1)
+    if m.anchorIndex = 0 then
+        swapTo("hub")
+    else
+        renderTripScreen(m.trips[m.anchorIndex - 1])
+        swapTo("trip")
+    end if
+end sub
+
+' Crossfades from the layer showing now to `target` ("hub" | "photo" | "trip").
+sub swapTo(target as string)
+    layers = { hub: m.layout, photo: m.photoLayer, trip: m.tripLayer }
+    fromNode = layers[m.showing]
+    toNode = layers[target]
+    m.showing = target
+    if fromNode.isSameNode(toNode) then return
+    toNode.opacity = 0
+    toNode.visible = true
+    m.top.findNode("swapIn").fieldToInterp = toNode.id + ".opacity"
+    m.top.findNode("swapOut").fieldToInterp = fromNode.id + ".opacity"
+    m.top.findNode("swap").control = "start"
+end sub
+
+sub renderTripScreen(t as object)
+    hero = m.heroPaths[t.id]
+    if hero = invalid then hero = ""
+    m.top.findNode("tripHero").uri = hero
+    title = t.title
+    if t.titleAccent <> invalid then title = title + " " + t.titleAccent
+    m.top.findNode("tripTitle").text = title
+    m.top.findNode("tripResort").text = valueOr(t.resort, "")
+    m.top.findNode("tripRange").text = t.dates
+
+    big = m.top.findNode("tripBig")
+    label = m.top.findNode("tripBigLabel")
+    if t.status = "active" then
+        big.text = "Day " + t.day.ToStr()
+        label.text = "of " + t.days.ToStr()
+    else
+        big.text = t.daysUntil.ToStr()
+        unit = "days"
+        if t.daysUntil = 1 then unit = "day"
+        label.text = unit + " " + valueOr(t.countdown, "to go")
+    end if
+
+    ' Today's plan, while the trip is on.
+    today = m.top.findNode("tripToday")
+    today.removeChildrenIndex(today.getChildCount(), 0)
+    if t.today <> invalid then
+        y = 0
+        for each item in t.today
+            if y > 240 then exit for
+            line = valueOr(item.title, "")
+            if item.time <> invalid then line = item.time + "   " + line
+            addLabelTo(today, line, 0, y, 34, false, m.TEXT, 960)
+            y = y + 50
+        end for
+    end if
+
+    ' Leaderboard.
+    heading = UCase(valueOr(t.team, "Leaderboard"))
+    heading = heading + "  ·  " + t.questsDone.ToStr() + " OF " + t.questsTotal.ToStr() + " QUESTS"
+    m.top.findNode("tripBoardTitle").text = heading
+    board = m.top.findNode("tripBoard")
+    board.removeChildrenIndex(board.getChildCount(), 0)
+    rows = t.leaderboard
+    shown = 0
+    for each r in rows
+        if shown >= 10 then exit for
+        y = shown * 76
+        addLabelTo(board, (shown + 1).ToStr(), 0, y + 6, 36, false, m.MUTED, 50)
+        bar = CreateObject("roSGNode", "Rectangle")
+        bar.width = 8
+        bar.height = 52
+        bar.translation = [60, y + 2]
+        bar.color = toColor(r.color)
+        board.appendChild(bar)
+        addLabelTo(board, r.name, 92, y, 44, false, m.TEXT, 440)
+        pts = addLabelTo(board, r.points.ToStr(), 540, y, 44, true, m.TEXT, 160)
+        pts.horizAlign = "right"
+        shown = shown + 1
+    end for
+    if rows.count() > shown then
+        addLabelTo(board, "+" + (rows.count() - shown).ToStr() + " more", 92, shown * 76 + 6, 32, false, m.MUTED, 600)
+    end if
+end sub
+
+function valueOr(v as dynamic, fallback as string) as string
+    if v = invalid then return fallback
+    return v
+end function
 
 sub renderPhotoStrip(d as object)
     nextText = ""
