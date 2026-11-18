@@ -322,7 +322,7 @@ sub startPhotos()
     m.backPoster = m.top.findNode("photoB")
     m.photoLayer = m.top.findNode("photoLayer")
     m.slideTimer = makeTimer(m.SLIDE_SECONDS, "onSlide")
-    m.photoListTimer = makeTimer(1800, "loadPhotoList")
+    m.photoListTimer = makeTimer(600, "loadPhotoList")
     loadPhotoList()
 end sub
 
