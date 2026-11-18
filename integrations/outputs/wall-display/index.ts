@@ -24,7 +24,7 @@ export default class WallDisplayOutput extends BaseIntegration implements Output
 
   async healthCheck(): Promise<void> {
     const secrets = this.loadSecrets<WallDisplaySecrets>();
-    this.requireSecretKeys(secrets, ["deviceUrl", "apiKey"]);
+    this.requireSecretKeys(secrets as unknown as Record<string, unknown>, ["deviceUrl", "apiKey"]);
     const response = await this.post(secrets, "/health", {});
     if (!response.ok) throw new Error(`Wall display unreachable at ${secrets.deviceUrl}`);
   }

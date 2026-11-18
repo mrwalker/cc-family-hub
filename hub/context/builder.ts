@@ -18,7 +18,10 @@ export function buildPlanningContext(options?: {
 }): PlanningContext {
   const family = loadFamilyConfig();
   const members = loadMemberProfiles();
-  const events = loadCachedEvents(options?.daysAhead ?? 14);
+  const events = (loadCachedEvents(options?.daysAhead ?? 14) ?? [])
+    // Declined/cancelled events are not commitments — keep them out of the
+    // planning context so the planner doesn't schedule around them.
+    .filter((e) => !e.declined);
   const contextItems = loadContextItems({
     unconsumedOnly: options?.unconsumedContextOnly ?? false,
   });
