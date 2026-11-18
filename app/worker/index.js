@@ -10,6 +10,7 @@
  * Routes:
  *   GET /api/events?days=N  — live Google Calendar events for every member (default 14 days)
  *   GET /api/config.js      — the page's share of the hub config (names, colors, trip apps)
+ *   GET /api/widget?view=…  — compact upcoming events + next trip for phone widgets (widget.js)
  *   /api/data…              — published plan/family/strava data (see data-api.js)
  *   /api/trip/:id/…         — trip app check-ins and packing lists
  *   All other paths         — static assets (the hub page, trip apps)
@@ -26,6 +27,11 @@
  */
 
 import { handleDataApi } from "./data-api.js";
+import { handleWidget } from "./widget.js";
+
+// Widgets refresh often and every phone asks separately; one Google fetch per
+// window serves them all.
+const EVENTS_CACHE_SECONDS = 300;
 
 const CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar.readonly";
 const TOKEN_URI      = "https://oauth2.googleapis.com/token";
@@ -33,6 +39,9 @@ const TOKEN_URI      = "https://oauth2.googleapis.com/token";
 /** Builds the Worker for one family's config (the JSON written by app/build.mjs). */
 export function createHub(config) {
   const hub = {
+    title: config.title,
+    timezone: config.timezone,
+    locale: config.locale || "en-US",
     members: config.members,
     tripApps: config.tripApps,
     // Trips that have an app, and who can score on each (family members plus
@@ -61,6 +70,10 @@ async function route(request, env, hub) {
 
   if (url.pathname === "/api/events") {
     return handleEvents(request, env, hub);
+  }
+
+  if (url.pathname === "/api/widget") {
+    return handleWidget(request, env, hub, days => cachedEvents(env, hub, days));
   }
 
   if (url.pathname === "/api/config.js") {
@@ -120,6 +133,25 @@ async function handleEvents(request, env, hub) {
       headers: { "Content-Type": "application/json" },
     });
   }
+}
+
+/** Live events for the next `days` days, cached briefly at the edge. */
+async function cachedEvents(env, hub, days) {
+  const cache = typeof caches !== "undefined" ? caches.default : null;
+  const key = new Request(`https://family-hub.internal/events?days=${days}`);
+  const hit = cache && (await cache.match(key));
+  if (hit) return hit.json();
+
+  const timeMin = new Date().toISOString();
+  const timeMax = new Date(Date.now() + days * 86_400_000).toISOString();
+  const token = await getServiceAccountToken(env.SA_CLIENT_EMAIL, env.SA_PRIVATE_KEY);
+  const events = await fetchAllEvents(token, hub.members, timeMin, timeMax);
+  if (cache) {
+    await cache.put(key, new Response(JSON.stringify(events), {
+      headers: { "Content-Type": "application/json", "Cache-Control": `max-age=${EVENTS_CACHE_SECONDS}` },
+    }));
+  }
+  return events;
 }
 
 // ─── Google Service Account auth ─────────────────────────────────────────────

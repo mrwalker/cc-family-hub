@@ -105,6 +105,7 @@ if (errors.length) {
 const config = {
   title: hub.title || `${family.family?.name ?? "Family"} Hub`,
   timezone: family.family?.timezone || "UTC",
+  locale: family.family?.locale || "en-US",
   members,
   guests,
   tripApps,
