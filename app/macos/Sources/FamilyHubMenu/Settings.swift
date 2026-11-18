@@ -3,12 +3,13 @@ import Security
 
 /// What the menu bar shows next to the icon.
 enum MenuBarText: String, CaseIterable, Identifiable {
-    case auto, nextEvent, trip, iconOnly
+    case auto, rotate, nextEvent, trip, iconOnly
 
     var id: String { rawValue }
     var label: String {
         switch self {
         case .auto: "Next event today, else the trip"
+        case .rotate: "Rotate: next event, then each trip"
         case .nextEvent: "Next event"
         case .trip: "Trip countdown"
         case .iconOnly: "Icon only"

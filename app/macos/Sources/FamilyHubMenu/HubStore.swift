@@ -13,6 +13,14 @@ final class HubStore: ObservableObject {
     @Published private(set) var isOffline = false
     @Published private(set) var isLoading = false
     @Published private(set) var now = Date()
+    @Published private(set) var trips: [TripSummary] = []
+    @Published private(set) var photo: NSImage?
+    /// Which item the menu bar shows when it rotates (see MenuBarText.rotate).
+    @Published private(set) var rotation = 0
+
+    private var photoIDs: [String] = []
+    private var photoListAt = Date.distantPast
+    private var photoID: String?
 
     private let refreshEvery: TimeInterval = 5 * 60
     private let retryEvery: TimeInterval = 60
@@ -85,14 +93,43 @@ final class HubStore: ObservableObject {
             isOffline = false
             Cache.write(fresh, view: settings.view)
             nextRefresh = Date().addingTimeInterval(refreshEvery)
+            await refreshExtras()
         } catch {
             problem = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
             isOffline = data != nil
         }
     }
 
+    /// Trips (every refresh) and the photo list (every 10 minutes). Failures just
+    /// leave the old values: these are extras on top of the calendar.
+    private func refreshExtras() async {
+        if let body = try? await HubClient.get(settings, path: "/api/widget/trips", session: session),
+           let list = try? JSONDecoder().decode(TripsResponse.self, from: body) {
+            trips = list.trips
+        }
+        if Date().timeIntervalSince(photoListAt) > 600,
+           let body = try? await HubClient.get(settings, path: "/api/widget/photos", session: session),
+           let list = try? JSONDecoder().decode(PhotoList.self, from: body) {
+            photoIDs = list.photos.map(\.id)
+            photoListAt = Date()
+            if photo == nil { await nextPhoto() }
+        }
+    }
+
+    /// Shows a different random photo from the album.
+    func nextPhoto() async {
+        let choices = photoIDs.filter { $0 != photoID }
+        guard let id = choices.randomElement() ?? photoIDs.first else { return }
+        let path = "/api/widget/photos/" + (id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id)
+        if let body = try? await HubClient.get(settings, path: path, session: session), let image = NSImage(data: body) {
+            photo = image
+            photoID = id
+        }
+    }
+
     private func tick() {
         now = Date()
+        rotation += 1
         if now >= nextRefresh { Task { await refresh() } }
     }
 
@@ -116,6 +153,13 @@ final class HubStore: ObservableObject {
         case .auto:
             if let e = nextEvent, e.day == "Today", !e.allDay { return eventText(e) }
             return tripText ?? ""
+        case .rotate:
+            // Next event today, then each trip's countdown; one step per 30-second tick.
+            var items: [String] = []
+            if let e = nextEvent, e.day == "Today", !e.allDay { items.append(eventText(e)) }
+            items += trips.map(tripShort)
+            if items.isEmpty, let t = tripText { items.append(t) }
+            return items.isEmpty ? "" : items[rotation % items.count]
         }
     }
 
@@ -129,6 +173,12 @@ final class HubStore: ObservableObject {
             if minutes < 60 { return "in \(minutes)m · \(title)" }
         }
         return "\(e.time) · \(title)"
+    }
+
+    private func tripShort(_ t: TripSummary) -> String {
+        if t.isActive { return "\(t.title) day \(t.day ?? 1)/\(t.days)" }
+        if t.daysUntil <= 1 { return "\(t.title) tomorrow" }
+        return "\(t.title) \(t.daysUntil)d"
     }
 
     private var tripText: String? {
@@ -150,6 +200,19 @@ enum HubError: LocalizedError {
 }
 
 enum HubClient {
+    /// GET a path on the hub with the service token; the body on 200, else throws.
+    static func get(_ settings: HubSettings, path: String, session: URLSession) async throws -> Data {
+        guard let url = URL(string: settings.url + path) else { throw HubError.message("Bad URL") }
+        var request = URLRequest(url: url)
+        if !settings.clientId.isEmpty {
+            request.setValue(settings.clientId, forHTTPHeaderField: "CF-Access-Client-Id")
+            request.setValue(settings.clientSecret, forHTTPHeaderField: "CF-Access-Client-Secret")
+        }
+        let (body, response) = try await session.data(for: request)
+        guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw HubError.message("HTTP error") }
+        return body
+    }
+
     static func fetch(_ settings: HubSettings, session: URLSession) async throws -> WidgetData {
         guard var components = URLComponents(string: settings.url + "/api/widget") else {
             throw HubError.message("The hub URL isn't valid. Check it in Settings.")

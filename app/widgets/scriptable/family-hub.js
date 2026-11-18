@@ -15,6 +15,13 @@
  *      Cloudflare Access service token (stored in the iOS Keychain).
  *   2. Add a Scriptable widget, choose this script, and set Parameter to a
  *      member id (e.g. "alex") for their events, or "family" for everyone's.
+ *
+ * Parameter words (any order):
+ *   alex | family   whose events (default family)
+ *   mix             rotate on each refresh: calendar → photo → trip (trips take turns)
+ *   photos          always a photo from the family album
+ *   trips           always a trip card (trips take turns)
+ * Lock-screen widgets always show the calendar.
  */
 
 const KEYCHAIN = "family-hub";
@@ -103,6 +110,81 @@ async function loadData(settings, view) {
     }
     throw err;
   }
+}
+
+function authHeaders(settings) {
+  return settings.clientId
+    ? { "CF-Access-Client-Id": settings.clientId, "CF-Access-Client-Secret": settings.clientSecret }
+    : {};
+}
+
+/** GET a JSON path on the hub; null on failure (callers fall back to the calendar). */
+async function hubJSON(settings, path) {
+  try {
+    const req = new Request(`${settings.url}${path}`);
+    req.timeoutInterval = 20;
+    req.headers = authHeaders(settings);
+    const data = await req.loadJSON();
+    return req.response?.statusCode === 200 ? data : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+async function hubImage(settings, url) {
+  try {
+    const req = new Request(url);
+    req.timeoutInterval = 30;
+    req.headers = authHeaders(settings);
+    return await req.loadImage();
+  } catch (_) {
+    return null;
+  }
+}
+
+/** What this widget shows this time: "calendar" | "photo" | "trip". Advances on each widget refresh. */
+function nextMode(param, family) {
+  if (family.startsWith("accessory")) return { mode: "calendar", trip: 0 };
+  if (param.photos) return { mode: "photo", trip: 0 };
+  const fm = FileManager.local();
+  const path = fm.joinPath(fm.documentsDirectory(), `family-hub-rotation-${param.key}.json`);
+  let state = { step: -1, trip: -1 };
+  try { if (fm.fileExists(path)) state = JSON.parse(fm.readString(path)); } catch (_) { /* start over */ }
+  let mode;
+  if (param.trips) {
+    mode = "trip";
+  } else if (param.mix) {
+    state.step = (state.step + 1) % 3;
+    mode = ["calendar", "photo", "trip"][state.step];
+  } else {
+    return { mode: "calendar", trip: 0 };
+  }
+  if (mode === "trip") state.trip += 1;
+  if (config.runsInWidget) fm.writeString(path, JSON.stringify(state));
+  return { mode, trip: Math.max(0, state.trip) };
+}
+
+/** Widget size in pixels (approximate; iOS picks the exact size). */
+function pixelSize(family) {
+  const s = { small: [340, 340], medium: [720, 340], large: [720, 760], extraLarge: [1520, 760] }[family];
+  return s || [720, 340];
+}
+
+/** Scale `img` to fill `size` (cropping), darken it by `shade`, and return the new image. */
+function fillImage(img, [w, h], shade) {
+  const ctx = new DrawContext();
+  ctx.size = new Size(w, h);
+  ctx.opaque = true;
+  ctx.respectScreenScale = false;
+  const scale = Math.max(w / img.size.width, h / img.size.height);
+  const dw = img.size.width * scale;
+  const dh = img.size.height * scale;
+  ctx.drawImageInRect(img, new Rect((w - dw) / 2, (h - dh) / 2, dw, dh));
+  if (shade) {
+    ctx.setFillColor(new Color("#000000", shade));
+    ctx.fillRect(new Rect(0, 0, w, h));
+  }
+  return ctx.getImage();
 }
 
 // ─── Pieces ───────────────────────────────────────────────────────────────────
@@ -402,6 +484,89 @@ function circular(w, result) {
   sub.centerAlignText();
 }
 
+// ─── Photo and trip widgets (over images, so text is always white) ───────────
+
+const WHITE = new Color("#ffffff");
+const WHITE_MUTED = new Color("#ffffff", 0.75);
+const SKY = new Color("#7dd3fc");
+
+function whiteText(stack, text, f, color = WHITE, lines = 1) {
+  const t = stack.addText(text);
+  t.font = f;
+  t.textColor = color;
+  t.lineLimit = lines;
+  t.minimumScaleFactor = 0.7;
+  t.shadowColor = new Color("#000000", 0.6);
+  t.shadowRadius = 2;
+  return t;
+}
+
+function photoLayout(w, family, data, photo) {
+  w.backgroundImage = fillImage(photo, pixelSize(family), 0);
+  w.setPadding(0, 0, 0, 0);
+  w.addSpacer();
+  const bar = w.addStack();
+  bar.layoutVertically();
+  bar.backgroundColor = new Color("#000000", 0.5);
+  bar.setPadding(6, 12, 8, 12);
+  const row = bar.addStack();
+  row.layoutHorizontally();
+  const next = nextUp(data.events);
+  if (next) {
+    const when = next.day === "Today" ? next.time : `${next.day} ${next.time}`;
+    whiteText(row, `${when}  ${next.title}`, F.title(family === "small" ? 11 : 13));
+  }
+  row.addSpacer();
+  const trip = tripText(data.nextTrip);
+  if (trip && family !== "small") {
+    bar.addSpacer(1);
+    whiteText(bar, trip, F.body(11), SKY);
+  }
+}
+
+function tripLayout(w, family, trip, hero) {
+  if (hero) w.backgroundImage = fillImage(hero, pixelSize(family), 0.55);
+  else w.backgroundColor = new Color("#08090c");
+  w.url = trip.url;
+  const big = family === "small" ? 40 : 54;
+  const row = w.addStack();
+  row.layoutHorizontally();
+
+  const left = row.addStack();
+  left.layoutVertically();
+  whiteText(left, `${trip.title}${trip.titleAccent ? " " + trip.titleAccent : ""}`, F.title(family === "small" ? 15 : 18));
+  whiteText(left, trip.dates, F.body(11), WHITE_MUTED);
+  left.addSpacer();
+  whiteText(left, trip.status === "active" ? `Day ${trip.day}` : String(trip.daysUntil), F.big(big));
+  const unit = trip.status === "active" ? `of ${trip.days}`
+    : `${trip.daysUntil === 1 ? "day" : "days"} ${trip.countdown || "to go"}`;
+  whiteText(left, unit, F.body(11), SKY, 2);
+
+  if (family === "small") return;
+  row.addSpacer(14);
+  const right = row.addStack();
+  right.layoutVertically();
+  label(right, trip.team || "Leaderboard", SKY);
+  right.addSpacer(4);
+  const max = family === "medium" ? 5 : 10;
+  trip.leaderboard.slice(0, max).forEach((r, i) => {
+    if (i) right.addSpacer(3);
+    const line = right.addStack();
+    line.layoutHorizontally();
+    line.centerAlignContent();
+    const dot = line.addStack();
+    dot.size = new Size(7, 7);
+    dot.cornerRadius = 3.5;
+    dot.backgroundColor = new Color(r.color);
+    line.addSpacer(6);
+    whiteText(line, r.name, F.body(12));
+    line.addSpacer();
+    whiteText(line, String(r.points), F.title(12));
+  });
+  right.addSpacer();
+  whiteText(right, `${trip.questsDone} of ${trip.questsTotal} quests`, F.body(10), WHITE_MUTED);
+}
+
 const LAYOUTS = {
   small, medium, large, extraLarge: large,
   accessoryRectangular: rectangular, accessoryInline: inline, accessoryCircular: circular,
@@ -416,7 +581,7 @@ function errorWidget(w, message) {
   t.minimumScaleFactor = 0.7;
 }
 
-async function buildWidget(family, view, settings) {
+async function buildWidget(family, param, settings) {
   const w = new ListWidget();
   const accessory = family.startsWith("accessory");
   if (!accessory) {
@@ -429,8 +594,29 @@ async function buildWidget(family, view, settings) {
     return w;
   }
   try {
-    const result = await loadData(settings, view);
+    const result = await loadData(settings, param.view);
     w.url = result.data.hubUrl;
+    const { mode, trip: tripTurn } = nextMode(param, family);
+
+    if (mode === "photo") {
+      const list = await hubJSON(settings, "/api/widget/photos");
+      const photos = list?.photos || [];
+      const pick = photos[Math.floor(Math.random() * photos.length)];
+      const img = pick && (await hubImage(settings, `${settings.url}/api/widget/photos/${encodeURIComponent(pick.id)}`));
+      if (img) {
+        photoLayout(w, family, result.data, img);
+        return w;
+      }
+    } else if (mode === "trip") {
+      const trips = (await hubJSON(settings, "/api/widget/trips"))?.trips || [];
+      if (trips.length) {
+        const trip = trips[tripTurn % trips.length];
+        const hero = trip.hero ? await hubImage(settings, trip.hero) : null;
+        tripLayout(w, family, trip, hero);
+        return w;
+      }
+    }
+    // The calendar (also the fallback when photos or trips can't load).
     (LAYOUTS[family] || medium)(w, result);
   } catch (err) {
     errorWidget(w, err.message);
@@ -438,14 +624,28 @@ async function buildWidget(family, view, settings) {
   return w;
 }
 
+/** "matt mix" → { view: "matt", mix: true, … }. Unknown words are taken as the view. */
+function parseParam(text) {
+  const words = String(text || "").trim().toLowerCase().split(/[\s,]+/).filter(Boolean);
+  const flags = new Set(["mix", "photos", "photo", "trips", "trip"]);
+  const view = words.find(w => !flags.has(w)) || "family";
+  return {
+    view,
+    mix: words.includes("mix"),
+    photos: words.includes("photos") || words.includes("photo"),
+    trips: words.includes("trips") || words.includes("trip"),
+    key: words.join("-").replace(/[^a-z0-9-]/g, "") || "family",
+  };
+}
+
 // ─── Entry point ──────────────────────────────────────────────────────────────
 
 async function main() {
   let settings = readSettings();
-  const view = ((args.widgetParameter || "family") + "").trim().toLowerCase() || "family";
+  const param = parseParam(args.widgetParameter);
 
   if (config.runsInWidget) {
-    Script.setWidget(await buildWidget(config.widgetFamily || "medium", view, settings));
+    Script.setWidget(await buildWidget(config.widgetFamily || "medium", param, settings));
     return;
   }
 
@@ -454,7 +654,9 @@ async function main() {
 
   const menu = new Alert();
   menu.title = "Family Hub widget";
-  menu.message = "Preview a size, or change the hub sign-in. Preview view (a member id or \"family\"):";
+  menu.message =
+    "Preview a size, or change the hub sign-in. Preview parameter: a member id or \"family\", " +
+    "plus \"photos\" or \"trips\" to preview those (\"mix\" rotates only on the home screen):";
   menu.addTextField("family", "family");
   for (const size of ["Small", "Medium", "Large"]) menu.addAction(`Preview ${size}`);
   menu.addAction("Change hub sign-in");
@@ -465,9 +667,9 @@ async function main() {
     await askSettings(settings);
     return;
   }
-  const previewView = menu.textFieldValue(0).trim().toLowerCase() || "family";
+  const previewParam = parseParam(menu.textFieldValue(0));
   const family = ["small", "medium", "large"][choice];
-  const w = await buildWidget(family, previewView, settings);
+  const w = await buildWidget(family, previewParam, settings);
   if (family === "small") await w.presentSmall();
   else if (family === "medium") await w.presentMedium();
   else await w.presentLarge();
