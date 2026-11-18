@@ -108,6 +108,17 @@ export default class GoogleCalendarInput extends BaseIntegration implements Inpu
 
   private mapToCalendarEvent(item: GoogleCalendarEvent, calendarId: string): CalendarEvent {
     const allDay = Boolean(item.start?.date && !item.start?.dateTime);
+
+    // RSVP status: the attendee marked `self` is the calendar owner. An event
+    // is "declined" when that attendee's responseStatus is declined, or when
+    // the organizer cancelled the event. Declined/cancelled events must not be
+    // treated as commitments by the planner.
+    const attendees = Array.isArray(item.attendees) ? item.attendees : [];
+    const selfAttendee = attendees.find((a) => a.self === true);
+    const declined =
+      item.status === "cancelled" ||
+      selfAttendee?.responseStatus === "declined";
+
     return {
       id: `google-calendar:${item.id}`,
       source: this.id,
@@ -119,6 +130,7 @@ export default class GoogleCalendarInput extends BaseIntegration implements Inpu
       endAt: item.end?.dateTime ?? item.end?.date ?? "",
       allDay,
       recurrenceRule: item.recurrence?.[0],
+      declined,
     };
   }
 
@@ -136,6 +148,8 @@ interface GoogleCalendarEvent {
   summary?: string;
   description?: string;
   location?: string;
+  status?: string;
+  attendees?: Array<{ email?: string; self?: boolean; responseStatus?: string }>;
   start?: { dateTime?: string; date?: string };
   end?: { dateTime?: string; date?: string };
   recurrence?: string[];

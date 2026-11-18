@@ -97,6 +97,7 @@ export interface CalendarEvent {
   allDay: boolean;
   recurrenceRule?: string;     // RRULE string
   tags?: string[];
+  declined?: boolean;          // RSVP declined or organizer cancelled
   enrichment?: EventEnrichment;
 }
 
