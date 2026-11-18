@@ -1,0 +1,14 @@
+{
+  "name": "my-family-hub",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "dependencies": {
+    "cc-family-hub": "github:mrwalker/cc-family-hub#v0.2.0"
+  },
+  "devDependencies": {
+    "wrangler": "^3.114.0"
+  }
+}

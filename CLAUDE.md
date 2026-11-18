@@ -25,6 +25,11 @@ cc-family-hub/
 │   ├── _base/                   # Shared types and base classes
 │   ├── inputs/                  # Input integrations
 │   └── outputs/                 # Output integrations
+├── app/                         # The hub app: Cloudflare Worker + pages (see app/README.md)
+│   ├── worker/                  # createHub(config) — the Worker
+│   ├── public/                  # Hub page + shared trip-app engine (static)
+│   ├── build.mjs                # Run in a family's hub repo: family.yaml → .generated/
+│   └── template/                # Skeleton for a family's hub repo
 ├── scripts/                     # Setup, sync, and utility scripts
 └── .claude/
     └── commands/                # Custom Claude Code slash commands
@@ -36,6 +41,14 @@ cc-family-hub/
 - `workspace.example/` is committed and shows the expected shape with fake data.
 - Never commit anything from `workspace/` — it contains PII.
 - The workspace location is configurable: set `HUB_WORKSPACE` (env var or a `.env` file at the repo root) to keep it outside this repo, e.g. in your family's private instance repo. Secrets (`secrets.yaml`, `google-service-account.json`) resolve through `SECRETS_DIR` and can live outside the repo via `HUB_SECRETS_DIR`. Do this whenever the workspace is versioned. All code resolves workspace paths through `hub/paths.ts` (or `scripts/workspace-path.js` for plain-JS scripts). Never build a `workspace/...` path from `process.cwd()` directly.
+
+## The Hub App (`app/`)
+
+- This repo is public. `app/` must never contain family data: no names, emails, calendar ids, tokens, or URLs. Everything family-specific comes from the family's `family.yaml` through `app/build.mjs` (at deploy) or `/api/config.js` (in the page). Secrets are Worker secrets.
+- A family's hub repo imports `createHub` from `app/worker/index.js`, and its `wrangler.jsonc` runs `app/build.mjs` as the `build.command`. Keep `app/template/` working: it's what a new family copies.
+- The page and trip apps are plain JS with no build step, and must run on an old Android WebView (Chrome ~80–86): no CSS `inset`, no flexbox `gap`.
+- Changes to `app/public/trip-app/` reach phones only after a family bumps its trips' `sw.js` versions. Never change localStorage keys or check-in id formats without a migration.
+- Release by tagging `vX.Y.Z` on main; family repos pin the tag.
 
 ## Key Concepts
 

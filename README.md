@@ -80,6 +80,18 @@ npm run plan
 claude /daily-plan
 ```
 
+## The Hub App
+
+`app/` is the family-facing side: a Cloudflare Worker that serves a wall-tablet/phone
+hub page, offline trip apps, live calendars, and a data API that the pipeline publishes to
+(the `hub-api` output). Your family runs it from a small private repo that holds only
+your config and content and pins a version of this one. See [app/README.md](app/README.md).
+
+```
+  cc-family-hub pipeline ──publish──►  your hub (Cloudflare Worker)  ◄── tablet, phones
+  (planning, daily)                    app/ code + your family.yaml
+```
+
 ## Repository Structure
 
 ```
@@ -105,6 +117,13 @@ cc-family-hub/
 │       ├── google-calendar/
 │       ├── web-portal/
 │       └── wall-display/
+├── app/                        # The hub app (Cloudflare Worker + pages)
+│   ├── worker/                 # createHub(config): calendars, data API, trip APIs
+│   ├── public/                 # Hub page and the shared trip-app engine
+│   ├── build.mjs               # Validates family.yaml, assembles a family's site
+│   ├── template/               # Starting point for your family's hub repo
+│   └── extras/                 # Optional add-ons (grocery email)
+├── docs/                       # Architecture, trip apps, wall tablet
 ├── scripts/                    # Utility scripts
 └── .claude/
     └── commands/               # Custom slash commands

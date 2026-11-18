@@ -1,0 +1,27 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "my-family-hub",
+  "main": "worker.js",
+  // Serve only on your own domain, behind Cloudflare Access; the default
+  // *.workers.dev address would bypass Access.
+  "workers_dev": false,
+  "routes": [{ "pattern": "hub.example.com", "custom_domain": true }],
+  "compatibility_date": "2026-06-06",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true },
+  // Validates workspace/family.yaml and assembles .generated/ before every dev/deploy.
+  "build": {
+    "command": "node node_modules/cc-family-hub/app/build.mjs",
+    "watch_dir": "workspace"
+  },
+  "assets": {
+    "directory": ".generated/site",
+    "binding": "ASSETS"
+  },
+  "kv_namespaces": [
+    // Published plan/family/strava data: wrangler kv namespace create HUB_DATA
+    { "binding": "HUB_DATA", "id": "<id>" },
+    // Trip app check-ins and packing lists: wrangler kv namespace create TRIP_KV
+    { "binding": "TRIP_KV", "id": "<id>" }
+  ]
+}
