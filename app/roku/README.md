@@ -5,9 +5,9 @@ color, and the next trip's countdown. The same screen works as a Roku **screensa
 drifts slowly so nothing burns in.
 
 **Photos.** If your hub has a photo album (`hub.photos.icloudAlbum` in `family.yaml`, an iCloud
-shared album with Public Website turned on), the screensaver alternates between the hub screen
-and a photo, 15 seconds each, with a crossfade. Photos come in random order, with a strip
-showing the clock, the next event, and the trip countdown. Add a photo to the album on your
+shared album with Public Website turned on), the screensaver shows the hub screen, then three
+photos, then the hub screen again, 10 seconds each, with crossfades. Photos come in random order,
+with a strip showing the clock, the next event, and the trip countdown. Add a photo to the album on your
 phone and it joins the slideshow within 30 minutes.
 
 - **Left and right** on the remote switches between the whole family and each person. The Roku remembers your choice.

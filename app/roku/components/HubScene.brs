@@ -26,8 +26,6 @@ sub init()
     m.error = ""
     m.ticks = 0
     m.photosStarted = false
-    m.previousPath = ""
-    m.shownPath = ""
 
     m.clockTimer = makeTimer(5, "onClock")
     m.refreshTimer = makeTimer(300, "refresh")
@@ -304,20 +302,24 @@ function isoTimeText(iso as string) as string
 end function
 
 ' ─── Photo slideshow (screensaver) ───────────────────────────────────────────
-' Alternates the hub screen and a photo from the hub's iCloud shared album
-' (shuffled), SLIDE_SECONDS each, crossfading between them. With no album (or
-' no photos) the hub screen stays up.
+' The hub screen, then PHOTOS_PER_HUB photos from the hub's iCloud shared album
+' (shuffled), then the hub screen again; SLIDE_SECONDS each, with crossfades.
+' The photos carry a strip with the clock, next event, and trip countdown. With
+' no album (or no photos) the hub screen stays up.
 
 sub startPhotos()
     if m.config.url = "" or m.photosStarted then return
     m.photosStarted = true
-    m.SLIDE_SECONDS = 15
+    m.SLIDE_SECONDS = 10
+    m.PHOTOS_PER_HUB = 3
+    m.photosSinceHub = 0
     m.photos = []
     m.photoIndex = 0
     m.ready = invalid        ' downloaded photo waiting to be shown { path }
     m.showingPhoto = false
     m.fileCounter = 0
-    m.poster = m.top.findNode("photo")
+    m.frontPoster = m.top.findNode("photoA")
+    m.backPoster = m.top.findNode("photoB")
     m.photoLayer = m.top.findNode("photoLayer")
     m.slideTimer = makeTimer(m.SLIDE_SECONDS, "onSlide")
     m.photoListTimer = makeTimer(1800, "loadPhotoList")
@@ -373,33 +375,47 @@ sub onPhotoDownloaded(event as object)
 end sub
 
 sub onSlide()
-    if m.showingPhoto then
-        ' Photo → hub.
+    if m.showingPhoto and m.photosSinceHub >= m.PHOTOS_PER_HUB then
+        ' Photos → hub.
         m.showingPhoto = false
-        m.layout.visible = true
+        m.photosSinceHub = 0
         m.top.findNode("toHub").control = "start"
         return
     end if
-    if m.ready = invalid then return   ' no photo downloaded yet: stay on the hub
-    ' Hub → photo, once the poster has decoded it.
-    m.poster.unobserveField("loadStatus")
-    m.poster.observeField("loadStatus", "onPosterLoaded")
-    m.previousPath = m.shownPath
-    m.shownPath = m.ready.path
-    m.poster.uri = m.ready.path
+    if m.ready = invalid then return   ' next photo not downloaded yet: keep what's showing
+    ' Load into the back poster; onPosterLoaded fades it in once decoded.
+    old = m.backPoster.uri
+    m.backPoster.unobserveField("loadStatus")
+    m.backPoster.observeField("loadStatus", "onPosterLoaded")
+    m.backPoster.uri = m.ready.path
     m.ready = invalid
+    if old <> "" then DeleteFile(old)
 end sub
 
 sub onPosterLoaded()
-    status = m.poster.loadStatus
+    status = m.backPoster.loadStatus
     if status <> "ready" and status <> "failed" then return
-    m.poster.unobserveField("loadStatus")
+    m.backPoster.unobserveField("loadStatus")
     downloadNext()
     if status = "failed" then return
-    m.showingPhoto = true
-    m.photoLayer.visible = true
-    m.top.findNode("toPhoto").control = "start"
-    if m.previousPath <> "" then DeleteFile(m.previousPath)
+
+    if m.showingPhoto then
+        ' Photo → photo: crossfade the posters.
+        m.top.findNode("fadeIn").fieldToInterp = m.backPoster.id + ".opacity"
+        m.top.findNode("fadeOut").fieldToInterp = m.frontPoster.id + ".opacity"
+        m.top.findNode("photoFade").control = "start"
+    else
+        ' Hub → photo: fade the photo layer in over the hub.
+        m.backPoster.opacity = 1
+        m.frontPoster.opacity = 0
+        m.photoLayer.visible = true
+        m.top.findNode("toPhoto").control = "start"
+        m.showingPhoto = true
+    end if
+    m.photosSinceHub = m.photosSinceHub + 1
+    t = m.frontPoster
+    m.frontPoster = m.backPoster
+    m.backPoster = t
 end sub
 
 sub renderPhotoStrip(d as object)
