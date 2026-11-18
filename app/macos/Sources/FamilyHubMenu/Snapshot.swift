@@ -1,0 +1,31 @@
+import AppKit
+import SwiftUI
+
+/// Developer aid: `FAMILY_HUB_SNAPSHOT=<dir> "Family Hub.app/Contents/MacOS/Family Hub"`
+/// fetches once with the saved settings, writes the panel as menu-light.png and
+/// menu-dark.png into <dir>, prints the menu bar text, and quits.
+@MainActor
+enum Snapshot {
+    static func runIfRequested() {
+        guard let dir = ProcessInfo.processInfo.environment["FAMILY_HUB_SNAPSHOT"] else { return }
+        Task { @MainActor in
+            let store = HubStore()
+            await store.refresh()
+            for (name, scheme) in [("light", ColorScheme.light), ("dark", .dark)] {
+                let view = MenuView()
+                    .environmentObject(store)
+                    .environment(\.colorScheme, scheme)
+                    .background(scheme == .dark ? Color(white: 0.16) : Color(white: 0.96))
+                let renderer = ImageRenderer(content: view)
+                renderer.scale = 2
+                if let tiff = renderer.nsImage?.tiffRepresentation,
+                   let png = NSBitmapImageRep(data: tiff)?.representation(using: .png, properties: [:]) {
+                    try? png.write(to: URL(fileURLWithPath: dir).appendingPathComponent("menu-\(name).png"))
+                }
+            }
+            print("menu bar: \(store.menuBarText)")
+            if let problem = store.problem { print("problem: \(problem)") }
+            exit(0)
+        }
+    }
+}

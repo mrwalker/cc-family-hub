@@ -10,6 +10,8 @@ serves.
 - **The data API** receives what the planning pipeline publishes, through the `hub-api` output.
 - **Phone widgets** put upcoming events and a trip countdown on the iPhone home and lock
   screens, via Scriptable. See [widgets/README.md](widgets/README.md).
+- **A Mac menu bar app** shows the next event and the trip countdown next to the clock.
+  See [macos/README.md](macos/README.md).
 
 ```
 cc-family-hub (this repo)                   your family's hub repo (private)
@@ -86,6 +88,7 @@ need a deploy. The pipeline publishes it to `/api/data/:kind` (see [`worker/data
   [`extras/grocery-email.gs`](extras/grocery-email.gs) as a Google Apps Script web app and set
   `hub.groceryEmailUrl`.
 - **Phone widgets.** See [`widgets/README.md`](widgets/README.md).
+- **Mac menu bar app.** See [`macos/README.md`](macos/README.md).
 - **Trip apps.** See [`docs/trip-apps.md`](../docs/trip-apps.md).
 - **Wall tablet.** See [`docs/wall-tablet.md`](../docs/wall-tablet.md).
 
