@@ -13,10 +13,10 @@ import { existsSync, readFileSync } from "fs";
 import { join } from "path";
 import { createSign } from "crypto";
 import yaml from "js-yaml";
-import { WORKSPACE } from "../../scripts/workspace-path.js";
+import { WORKSPACE, SECRETS_DIR } from "../../scripts/workspace-path.js";
 
 const ROOT = process.cwd();
-const KEY_PATH = join(WORKSPACE, "state", "google-service-account.json");
+const KEY_PATH = join(SECRETS_DIR, "google-service-account.json");
 const FAMILY_PATH = join(WORKSPACE, "family.yaml");
 const MEMBERS_DIR = join(WORKSPACE, "members");
 
@@ -81,7 +81,7 @@ async function main() {
     if (key.type !== "service_account") throw new Error("Not a service account key");
   } catch (err) {
     console.error(`✗  Invalid key file: ${err.message}`);
-    console.error(`   Expected a service account JSON key at workspace/state/google-service-account.json`);
+    console.error(`   Expected a service account JSON key at ${KEY_PATH}`);
     process.exit(1);
   }
 
@@ -171,7 +171,7 @@ function printSetupInstructions() {
   console.log("     Click the service account → Keys → Add Key → Create new key → JSON");
   console.log("     Download the file\n");
   console.log("  5. Move the downloaded file to:");
-  console.log("     workspace/state/google-service-account.json\n");
+  console.log(`     ${KEY_PATH}\n`);
   console.log("  6. Re-run: npm run setup:calendars\n");
 }
 

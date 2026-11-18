@@ -127,7 +127,7 @@ async function main() {
   all["strava"] = strava;
 
   writeFileSync(SECRETS_PATH, yaml.dump(all), "utf8");
-  console.log(`✓ Saved credentials for "${memberId}" to workspace/state/secrets.yaml`);
+  console.log(`✓ Saved credentials for "${memberId}" to ${SECRETS_PATH}`);
   console.log("\nRun 'npm run sync' to pull their activities.\n");
 
   rl.close();

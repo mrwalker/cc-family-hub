@@ -21,7 +21,7 @@ export abstract class BaseIntegration {
   protected loadSecrets<T = Record<string, string>>(): T {
     if (!existsSync(SECRETS_PATH)) {
       throw new Error(
-        `workspace/state/secrets.yaml not found. ` +
+        `${SECRETS_PATH} not found. ` +
           `Create it from workspace/state/secrets.example.yaml.`
       );
     }
@@ -29,7 +29,7 @@ export abstract class BaseIntegration {
     const secrets = all[this.id];
     if (!secrets) {
       throw new Error(
-        `No secrets found for integration "${this.id}" in workspace/state/secrets.yaml.`
+        `No secrets found for integration "${this.id}" in ${SECRETS_PATH}.`
       );
     }
     return secrets as T;

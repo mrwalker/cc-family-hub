@@ -31,12 +31,12 @@ function readWorkspaceYaml(rel: string): unknown[] {
 function loadRepoPath(): string {
   const secretsPath = SECRETS_PATH;
   if (!existsSync(secretsPath)) {
-    throw new Error("workspace/state/secrets.yaml not found");
+    throw new Error(`${SECRETS_PATH} not found`);
   }
   const all = yaml.load(readFileSync(secretsPath, "utf8")) as Record<string, unknown>;
   const ghp = all["github-pages"] as { repoPath?: string } | undefined;
   if (!ghp?.repoPath) {
-    throw new Error("github-pages.repoPath not set in workspace/state/secrets.yaml");
+    throw new Error(`github-pages.repoPath not set in ${SECRETS_PATH}`);
   }
   return ghp.repoPath;
 }

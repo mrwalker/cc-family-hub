@@ -19,7 +19,7 @@ npm run publish
    ```bash
    openssl rand -hex 32 | wrangler secret put PUBLISH_TOKEN
    ```
-2. Add the same token to `workspace/state/secrets.yaml`:
+2. Add the same token to your `secrets.yaml` (`workspace/state/`, or `HUB_SECRETS_DIR`):
    ```yaml
    hub-api:
      url: "https://hub.example.com"
@@ -44,5 +44,6 @@ npm run publish
 |-------|---------|
 | `plan rejected (400): plan failed validation` + a list | The plan has the listed field problems. Fix them in the plan file. |
 | `rejected (401)` | `publishToken` doesn't match the Worker's `PUBLISH_TOKEN`. |
-| `was redirected (302 → …cloudflareaccess.com…)` | Access blocked the request. Check the service token and the Service Auth policy. |
+| `was redirected (302 → …cloudflareaccess.com…)` | Access saw no service token. Check `accessClientId`/`accessClientSecret` are set. |
+| `blocked by Cloudflare Access (403)` | Access rejected the token. Re-copy both values, and check the app has a **Service Auth** policy that includes the token. |
 | `could not reach …` | Network or URL problem. |

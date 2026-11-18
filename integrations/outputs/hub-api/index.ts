@@ -89,6 +89,13 @@ export default class HubApiOutput extends BaseIntegration implements OutputInteg
           `The hub is probably behind an auth wall; check accessClientId/accessClientSecret.`
       );
     }
+    if (res.status === 403 && /Cloudflare Access/i.test(text)) {
+      throw new Error(
+        `${kind} was blocked by Cloudflare Access (403). The service token was not accepted: check that ` +
+          `accessClientId/accessClientSecret are copied exactly and that the Access application has a ` +
+          `policy with action "Service Auth" that includes this token.`
+      );
+    }
     if (!res.ok || !body.ok) {
       const details = body.errors?.length ? "\n" + body.errors.map((e) => `    - ${e}`).join("\n") : "";
       throw new Error(`${kind} rejected (${res.status}): ${body.error ?? text.slice(0, 200)}${details}`);
