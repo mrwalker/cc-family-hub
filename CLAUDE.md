@@ -29,6 +29,7 @@ cc-family-hub/
 │   ├── worker/                  # createHub(config) — the Worker
 │   ├── public/                  # Hub page + shared trip-app engine (static)
 │   ├── build.mjs                # Run in a family's hub repo: family.yaml → .generated/
+│   ├── widgets/                 # iPhone widgets (Scriptable script + /api/widget docs)
 │   └── template/                # Skeleton for a family's hub repo
 ├── scripts/                     # Setup, sync, and utility scripts
 └── .claude/
