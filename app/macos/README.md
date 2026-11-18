@@ -4,8 +4,12 @@ A small menu bar app that shows your family's day at a glance, next to the clock
 
 - **In the menu bar:** the next event today ("in 25m · Soccer practice"). When nothing timed
   is left today, it shows the trip countdown instead ("🏖️ 6d").
-- **Click it:** the rest of today and tomorrow, with each person's color, and a card for the
-  next trip. Click an event to open the hub, or click the trip card to open the trip app.
+- **Click it:** a photo from the family album (a new one every 10 seconds while the panel is open),
+  the rest of today and tomorrow with each person's color, and a card for each upcoming trip app
+  with its countdown and quest leaderboard. The trip cards take turns every 8 seconds. Click an
+  event to open the hub, or a trip card to open its trip app.
+- **Rotate:** set Menu bar to "Rotate" in Settings, and the menu bar takes turns showing your next
+  event and each trip's countdown, changing every 30 seconds.
 - **Offline:** it keeps showing the last data it got, marked "Offline · as of …".
 
 It reads the same `GET /api/widget` as the [phone widgets](../widgets/README.md) and refreshes
@@ -33,7 +37,8 @@ opens, Settings asks for:
 - **Hub URL**, e.g. `https://hub.example.com`
 - **Client ID** and **Client Secret** from the service token. These are stored in the Keychain.
 - **Whose events:** the whole family, or one member (shared invites included)
-- **Menu bar:** next event today with a trip fallback, next event only, trip countdown, or icon only
+- **Menu bar:** next event today with a trip fallback, rotate (next event, then each trip), next
+  event only, trip countdown, or icon only
 - **Open at login**
 
 To change them later, click the menu bar icon and then ⚙ (or press ⌘,).

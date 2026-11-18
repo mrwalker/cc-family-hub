@@ -107,3 +107,43 @@ extension String {
         count <= max ? self : String(prefix(max - 1)).trimmingCharacters(in: .whitespaces) + "…"
     }
 }
+
+/// `GET /api/widget/trips` (see app/worker/trips.js).
+struct TripsResponse: Codable {
+    let trips: [TripSummary]
+}
+
+struct TripSummary: Codable, Equatable, Identifiable {
+    struct Row: Codable, Equatable {
+        let id: String
+        let name: String
+        let color: String
+        let points: Int
+        let quests: Int
+    }
+
+    let id: String
+    let title: String
+    let titleAccent: String?
+    let resort: String?
+    let dates: String
+    let status: String
+    let daysUntil: Int
+    let day: Int?
+    let days: Int
+    let countdown: String?
+    let team: String?
+    let url: String
+    let leaderboard: [Row]
+    let questsDone: Int
+    let questsTotal: Int
+
+    var isActive: Bool { status == "active" }
+    var fullTitle: String { titleAccent.map { "\(title) \($0)" } ?? title }
+}
+
+/// `GET /api/widget/photos` (see app/worker/photos.js).
+struct PhotoList: Codable {
+    struct Photo: Codable { let id: String }
+    let photos: [Photo]
+}

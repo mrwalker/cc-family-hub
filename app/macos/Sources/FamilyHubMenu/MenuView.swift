@@ -12,9 +12,14 @@ struct MenuView: View {
                 setupPrompt
             } else {
                 if let problem = store.problem { banner(problem) }
+                if let photo = store.photo { PhotoCard(image: photo) }
                 if let data = store.data {
                     EventList(events: store.events, data: data, now: store.now)
-                    if let trip = data.nextTrip { TripCard(trip: trip) }
+                    if !store.trips.isEmpty {
+                        TripCarousel(trips: store.trips)
+                    } else if let trip = data.nextTrip {
+                        TripCard(trip: trip)
+                    }
                 } else if store.isLoading {
                     ProgressView().controlSize(.small).frame(maxWidth: .infinity)
                 }
@@ -24,7 +29,15 @@ struct MenuView: View {
         }
         .padding(14)
         .frame(width: 340)
+        // A new photo every 10 seconds while the panel is open.
+        .onReceive(Timer.publish(every: 10, on: .main, in: .common).autoconnect()) { _ in
+            if isOpen { Task { await store.nextPhoto() } }
+        }
+        .onAppear { isOpen = true }
+        .onDisappear { isOpen = false }
     }
+
+    @State private var isOpen = false
 
     private var header: some View {
         HStack(spacing: 6) {
@@ -227,5 +240,88 @@ extension Color {
             green: Double((value >> 8) & 0xFF) / 255,
             blue: Double(value & 0xFF) / 255
         )
+    }
+}
+
+/// A photo from the family album, cropped to a fixed height.
+struct PhotoCard: View {
+    let image: NSImage
+
+    var body: some View {
+        Image(nsImage: image)
+            .resizable()
+            .scaledToFill()
+            .frame(width: 312, height: 190)
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .id(ObjectIdentifier(image))
+            .transition(.opacity)
+            .animation(.easeInOut(duration: 0.8), value: ObjectIdentifier(image))
+    }
+}
+
+/// Every upcoming trip app, one at a time: countdown and leaderboard. Advances
+/// every 8 seconds; click the dots to pick one, or the card to open the trip app.
+struct TripCarousel: View {
+    let trips: [TripSummary]
+    @State private var index = 0
+    @State private var hovering = false
+
+    var body: some View {
+        let trip = trips[min(index, trips.count - 1)]
+        VStack(spacing: 6) {
+            Button { openURL(trip.url) } label: { card(trip) }
+                .buttonStyle(.plain)
+                .onHover { hovering = $0 }
+                .help("Open the trip app")
+            if trips.count > 1 {
+                HStack(spacing: 6) {
+                    ForEach(trips.indices, id: \.self) { i in
+                        Circle()
+                            .fill(i == index ? Color.accentColor : Color.secondary.opacity(0.35))
+                            .frame(width: 6, height: 6)
+                            .onTapGesture { index = i }
+                    }
+                }
+            }
+        }
+        .onReceive(Timer.publish(every: 8, on: .main, in: .common).autoconnect()) { _ in
+            if !hovering, trips.count > 1 { withAnimation { index = (index + 1) % trips.count } }
+        }
+    }
+
+    private func card(_ t: TripSummary) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(t.fullTitle).font(.headline).lineLimit(1)
+                Text(t.dates).font(.caption).foregroundStyle(.secondary)
+                Text(t.isActive ? "Day \(t.day ?? 1)" : "\(t.daysUntil)")
+                    .font(.system(size: 30, weight: .bold, design: .rounded))
+                    .monospacedDigit()
+                    .padding(.top, 4)
+                Text(t.isActive ? "of \(t.days)" : "\(t.daysUntil == 1 ? "day" : "days") \(t.countdown ?? "to go")")
+                    .font(.caption).foregroundStyle(Color.accentColor).lineLimit(2)
+            }
+            .frame(width: 120, alignment: .leading)
+            VStack(alignment: .leading, spacing: 3) {
+                Text((t.team ?? "Leaderboard").uppercased())
+                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                ForEach(Array(t.leaderboard.prefix(5).enumerated()), id: \.offset) { _, r in
+                    HStack(spacing: 6) {
+                        Circle().fill(Color(hex: r.color)).frame(width: 7, height: 7)
+                        Text(r.name).font(.callout).lineLimit(1)
+                        Spacer(minLength: 4)
+                        Text("\(r.points)").font(.callout.weight(.semibold)).monospacedDigit()
+                    }
+                }
+                Text("\(t.questsDone) of \(t.questsTotal) quests").font(.caption2).foregroundStyle(.tertiary)
+            }
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 10).fill(Color.primary.opacity(hovering ? 0.10 : 0.06)))
+        .contentShape(Rectangle())
+        .id(t.id)
+        .transition(.opacity)
     }
 }

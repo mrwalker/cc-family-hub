@@ -14,6 +14,18 @@ countdown to the next trip.
 Each widget picks its **view**: one member's events (shared invites included) or the whole family.
 Tapping a widget opens the hub. Tapping the trip card opens the trip app.
 
+Add words to the Parameter to show more than the calendar:
+
+| Parameter | Shows |
+|-----------|-------|
+| `alex` or `family` | The calendar (as above) |
+| `alex mix` | Rotates on each refresh: the calendar, then a photo from the family album, then a trip card (trips take turns) |
+| `photos` | A photo from the family album, with the next event and trip countdown along the bottom |
+| `trips` | A trip card: hero photo, countdown, and quest leaderboard (trips take turns) |
+
+Photos need `hub.photos.icloudAlbum`, and trip cards need trip apps. Without them, the widget
+shows the calendar. Lock-screen widgets always show the calendar.
+
 The widgets run in [Scriptable](https://scriptable.app), a free iOS app, so you don't need
 Xcode or an Apple Developer account. They read `GET /api/widget?view=<member id>|family`
 from your hub (see [`../worker/widget.js`](../worker/widget.js)). If the phone is offline,
@@ -71,5 +83,5 @@ data for 5 minutes, so many widgets don't mean many Google API calls.
 |-------------|-----|
 | "Open this script in Scriptable to sign in" | Run the script in the app and enter the URL and token. |
 | "The hub didn't accept this widget's service token" | Check the token values (Run → Change hub sign-in), that the policy is **Service Auth** and includes the token, and that it's attached to the `/api/widget` application. |
-| "Unknown view …" | Set Parameter to one of the listed member ids, or `family`. |
+| "Unknown view …" | Set Parameter to one of the listed member ids, or `family` (plus `mix`, `photos`, or `trips`). |
 | "Offline · as of …" | The phone couldn't reach the hub, so the widget shows the last data it got. |
