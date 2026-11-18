@@ -19,7 +19,7 @@
 ## Integrations
 
 - **Inputs:** `google-calendar` (OAuth2, full event fetch), `apple-reminders` (AppleScript, macOS)
-- **Outputs:** `google-calendar` (enriched descriptions + action item events), `web-portal` (static JSON), `wall-display` (HTTP push to Android tablet)
+- **Outputs:** `hub-api` (validated PUT to a hub Worker's data API, the recommended way to feed a hub page), `github-pages` (commit data files to a portal repo), `google-calendar` (enriched descriptions + action item events), `web-portal` (static JSON), `wall-display` (HTTP push to Android tablet)
 - Each has a `README.md` with setup instructions
 
 ## Workspace

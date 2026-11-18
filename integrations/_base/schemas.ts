@@ -62,13 +62,15 @@ export const MemberProfileSchema = z.object({
     .optional(),
 });
 
+const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "expected a date like 2026-11-18 (YYYY-MM-DD)");
+
 export const WeeklyPlanSchema = z.object({
-  weekStarting: z.string(),
+  weekStarting: isoDate,
   summary: z.string(),
   days: z
     .array(
       z.object({
-        date: z.string(),
+        date: isoDate,
         notes: z.string().optional(),
         logistics: z.string().optional(),
       })
@@ -91,7 +93,7 @@ export const WeeklyPlanSchema = z.object({
       z.object({
         description: z.string(),
         assignedTo: z.string().optional(),
-        dueDate: z.string().optional(),
+        dueDate: isoDate.optional(),
         priority: z.enum(["high", "medium", "low"]),
       })
     )

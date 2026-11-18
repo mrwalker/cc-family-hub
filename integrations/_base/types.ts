@@ -231,4 +231,6 @@ export interface OutputIntegration extends BaseIntegration {
 export interface IntegrationRegistry {
   inputs: Map<string, InputIntegration>;
   outputs: Map<string, OutputIntegration>;
+  /** Active integrations that failed to load or failed their health check. */
+  failures: Array<{ id: string; kind: "input" | "output" | "unknown"; error: string }>;
 }
