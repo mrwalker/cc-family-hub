@@ -123,6 +123,7 @@ cc-family-hub/
 │   ├── build.mjs               # Validates family.yaml, assembles a family's site
 │   ├── template/               # Starting point for your family's hub repo
 │   ├── widgets/                # iPhone home/lock screen widgets (Scriptable)
+│   ├── macos/                  # Mac menu bar app (SwiftUI)
 │   └── extras/                 # Optional add-ons (grocery email)
 ├── docs/                       # Architecture, trip apps, wall tablet
 ├── scripts/                    # Utility scripts

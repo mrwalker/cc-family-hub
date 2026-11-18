@@ -19,6 +19,9 @@ Xcode or an Apple Developer account. They read `GET /api/widget?view=<member id>
 from your hub (see [`../worker/widget.js`](../worker/widget.js)). If the phone is offline,
 a widget shows the last data it fetched, marked "Offline".
 
+The [Mac menu bar app](../macos/README.md) reads the same endpoint, and its token goes in the
+same policy.
+
 ## 1. Give widgets their own key (Cloudflare Access)
 
 If your hub is behind Cloudflare Access, a widget can't sign in the way a browser does.
