@@ -2,7 +2,28 @@
 
 ## Overview
 
-The hub runs as a local Node.js process (invoked on a cron or manually via Claude Code). It has no persistent server — it's a pipeline that wakes up, does its work, and exits.
+cc-family-hub has two halves:
+
+- **The pipeline** (`hub/`, `integrations/`) is a Node.js process that runs on a cron or
+  manually via Claude Code. It wakes up, plans, publishes, and exits. It has no persistent
+  server. It's described below.
+- **The hub app** (`app/`) is a Cloudflare Worker and the pages it serves: the wall-tablet
+  and phone hub, trip apps, live calendars, and the data API that the pipeline publishes to.
+  See [app/README.md](../app/README.md).
+
+A family runs both from its own private **hub repo**. That repo holds `workspace/` (config
+and content), its trip folders, and a thin Worker that pins a release of this repo:
+
+```
+family hub repo (private)                       cc-family-hub (this repo)
+  workspace/ ──── HUB_WORKSPACE ────────────►   pipeline: plan ──► hub-api output
+     │                                                                 │ PUT /api/data/:kind
+     └── app/build.mjs (at deploy) ──►  Worker = createHub(config) ◄───┘
+                                          │
+                                          └──► hub page, trip apps (tablet, phones)
+```
+
+### Pipeline
 
 ```
 workspace/          ← family data (gitignored)
@@ -51,6 +72,7 @@ WeeklyPlan ──► workspace/state/last-plan.yaml  (persisted)
 
 ```
 WeeklyPlan ──► hub/integrations/registry.ts ──► integrations/outputs/*/
+                                                    ├── hub-api/         (validated PUT to the hub app's data API)
                                                     ├── google-calendar/ (enriched event notes)
                                                     ├── web-portal/      (static JSON)
                                                     ├── wall-display/    (HTTP push to tablet)
@@ -67,7 +89,11 @@ The planning prompt is in `hub/planner/prompts/daily-plan.md`. It's a Markdown f
 
 ## Workspace Isolation
 
-Every family forks the repo and has their own `workspace/` directory. The workspace is gitignored — it contains PII. The `workspace.example/` directory is committed and serves as both documentation and a template for new setups.
+Family data never lives in this repo. A family's `workspace/` is gitignored here. It
+usually lives in the family's private hub repo, where it can be versioned, and the pipeline
+finds it through `HUB_WORKSPACE`. Secrets stay outside every repo (`HUB_SECRETS_DIR`).
+`workspace.example/` is committed and serves as both documentation and a template for new
+setups.
 
 ## Integration Contract
 
@@ -85,7 +111,7 @@ Minimal state is persisted in `workspace/state/`:
 |------|----------|
 | `last-plan.yaml` | The most recent WeeklyPlan output |
 | `sync-cursors.yaml` | Per-integration sync cursors (for incremental fetches) |
-| `secrets.yaml` | Credentials (gitignored) |
+| `secrets.yaml` | Credentials; lives in `HUB_SECRETS_DIR` when that's set |
 
 ## Scheduling
 
@@ -94,4 +120,9 @@ The hub doesn't run a persistent scheduler. Instead, it relies on:
 - **Claude Code** (`/daily-plan`, `/sync-calendars`) for manual runs
 - `workspace/family.yaml` documents the intended cron schedule
 
-See `docs/scheduling.md` for crontab setup instructions.
+Any scheduler works. It can run either of these:
+- `npm run plan`, which calls the Claude API, writes the plan, and publishes it.
+- `npm run render`, then an assistant writes `state/last-plan.yaml` from the rendered
+  prompt, then `npm run publish`.
+
+Both exit non-zero if publishing fails.
