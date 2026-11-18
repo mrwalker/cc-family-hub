@@ -48,21 +48,21 @@ async function runRender() {
   const prompt = renderDailyPlanPrompt(ctx);
   mkdirSync(STATE_DIR, { recursive: true });
   writeFileSync(PROMPT_PATH, prompt, "utf8");
-  console.log(`Prompt written to workspace/state/pending-prompt.md`);
+  console.log(`Prompt written to ${PROMPT_PATH}`);
   console.log(`\nNext step: have the assistant read that file, generate the weekly plan JSON\n` +
-    `matching the output format in the prompt, and save it to workspace/state/last-plan.yaml.\n` +
+    `matching the output format in the prompt, and save it to ${PLAN_PATH}\n` +
     `Then run: npm run publish`);
 }
 
 async function runPublish() {
   if (!existsSync(PLAN_PATH)) {
     throw new Error(
-      `workspace/state/last-plan.yaml not found. Run 'npm run render', have the\n` +
+      `${PLAN_PATH} not found. Run 'npm run render', have the\n` +
       `assistant write the plan to that path, then re-run 'npm run publish'.`
     );
   }
 
-  console.log("Loading plan from workspace/state/last-plan.yaml...");
+  console.log(`Loading plan from ${PLAN_PATH}...`);
   const raw = yaml.load(readFileSync(PLAN_PATH, "utf8")) as Record<string, unknown>;
 
   // Normalize and validate the assistant-written plan
@@ -100,7 +100,7 @@ async function publishPlanToOutputs(plan: WeeklyPlan, family: FamilyConfig) {
 function writePlan(plan: WeeklyPlan): void {
   mkdirSync(STATE_DIR, { recursive: true });
   writeFileSync(PLAN_PATH, yaml.dump(plan), "utf8");
-  console.log("Plan saved to workspace/state/last-plan.yaml");
+  console.log(`Plan saved to ${PLAN_PATH}`);
 }
 
 function normalizeAssistantPlan(raw: Record<string, unknown>): WeeklyPlan {
