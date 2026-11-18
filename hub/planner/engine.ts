@@ -36,7 +36,11 @@ function loadApiKey(): string {
   );
 }
 
-const client = new Anthropic({ apiKey: loadApiKey() });
+// Created on first use so `render` / `publish` (which never call the API) don't need a key.
+let _client: Anthropic | null = null;
+function client(): Anthropic {
+  return (_client ??= new Anthropic({ apiKey: loadApiKey() }));
+}
 
 function loadPrompt(name: string): string {
   return readFileSync(join(__dirname, "prompts", `${name}.md`), "utf8");
@@ -60,7 +64,7 @@ export function renderDailyPlanPrompt(ctx: PlanningContext): string {
 export async function generateWeeklyPlan(ctx: PlanningContext): Promise<WeeklyPlan> {
   const systemPrompt = renderDailyPlanPrompt(ctx);
 
-  const response = await client.messages.create({
+  const response = await client().messages.create({
     model: "claude-opus-4-6",
     max_tokens: 8192,
     system: [
@@ -104,7 +108,7 @@ export async function generateWeeklySummary(
     .replace("{{PLAN}}", planYaml)
     .replace("{{CONTEXT}}", contextMarkdown);
 
-  const response = await client.messages.create({
+  const response = await client().messages.create({
     model: "claude-opus-4-6",
     max_tokens: 2048,
     system: [
