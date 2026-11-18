@@ -49,13 +49,11 @@
       </Label>
     </Group>
 
-    <!-- Screensaver photo slideshow (iCloud shared album via /api/widget/photos). -->
-    <Group id="photoLayer" visible="false">
+    <!-- Screensaver: alternates with the hub screen (photos from /api/widget/photos). -->
+    <Group id="photoLayer" visible="false" opacity="0">
       <Rectangle width="1920" height="1080" color="0x000000FF"/>
-      <Poster id="photoA" width="1920" height="1080" loadWidth="1920" loadHeight="1080"
-              loadDisplayMode="scaleToFit" opacity="0"/>
-      <Poster id="photoB" width="1920" height="1080" loadWidth="1920" loadHeight="1080"
-              loadDisplayMode="scaleToFit" opacity="0"/>
+      <Poster id="photo" width="1920" height="1080" loadWidth="1920" loadHeight="1080"
+              loadDisplayMode="scaleToFit"/>
       <Rectangle translation="[0,930]" width="1920" height="150" color="0x000000A6"/>
       <Label id="photoClock" translation="[80,958]" width="360" color="0xf3f5f7FF">
         <Font role="font" uri="font:BoldSystemFontFile" size="64"/>
@@ -70,9 +68,13 @@
         <Font role="font" uri="font:BoldSystemFontFile" size="40"/>
       </Label>
     </Group>
-    <Animation id="fade" duration="1.5" easeFunction="linear">
-      <FloatFieldInterpolator id="fadeIn" key="[0.0, 1.0]" keyValue="[0.0, 1.0]" fieldToInterp="photoB.opacity"/>
-      <FloatFieldInterpolator id="fadeOut" key="[0.0, 1.0]" keyValue="[1.0, 0.0]" fieldToInterp="photoA.opacity"/>
+    <Animation id="toPhoto" duration="1.5" easeFunction="linear">
+      <FloatFieldInterpolator key="[0.0, 1.0]" keyValue="[0.0, 1.0]" fieldToInterp="photoLayer.opacity"/>
+      <FloatFieldInterpolator key="[0.0, 1.0]" keyValue="[1.0, 0.0]" fieldToInterp="layout.opacity"/>
+    </Animation>
+    <Animation id="toHub" duration="1.5" easeFunction="linear">
+      <FloatFieldInterpolator key="[0.0, 1.0]" keyValue="[1.0, 0.0]" fieldToInterp="photoLayer.opacity"/>
+      <FloatFieldInterpolator key="[0.0, 1.0]" keyValue="[0.0, 1.0]" fieldToInterp="layout.opacity"/>
     </Animation>
   </children>
 </component>

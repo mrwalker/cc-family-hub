@@ -26,8 +26,8 @@ sub init()
     m.error = ""
     m.ticks = 0
     m.photosStarted = false
-    m.olderPath = ""
     m.previousPath = ""
+    m.shownPath = ""
 
     m.clockTimer = makeTimer(5, "onClock")
     m.refreshTimer = makeTimer(300, "refresh")
@@ -304,25 +304,21 @@ function isoTimeText(iso as string) as string
 end function
 
 ' ─── Photo slideshow (screensaver) ───────────────────────────────────────────
-' Photos from the hub's iCloud shared album, shuffled, a new one every
-' SLIDE_SECONDS with a crossfade. Every HUB_EVERY photos the hub screen shows
-' for HUB_SLIDES slides. With no album (or no photos) the hub screen stays up.
+' Alternates the hub screen and a photo from the hub's iCloud shared album
+' (shuffled), SLIDE_SECONDS each, crossfading between them. With no album (or
+' no photos) the hub screen stays up.
 
 sub startPhotos()
     if m.config.url = "" or m.photosStarted then return
     m.photosStarted = true
-    m.SLIDE_SECONDS = 12
-    m.HUB_EVERY = 10
-    m.HUB_SLIDES = 3
+    m.SLIDE_SECONDS = 15
     m.photos = []
     m.photoIndex = 0
-    m.slideCount = 0
-    m.hubSlidesLeft = 0
     m.ready = invalid        ' downloaded photo waiting to be shown { path }
-    m.shownPath = ""
+    m.showingPhoto = false
     m.fileCounter = 0
-    m.frontPoster = m.top.findNode("photoA")
-    m.backPoster = m.top.findNode("photoB")
+    m.poster = m.top.findNode("photo")
+    m.photoLayer = m.top.findNode("photoLayer")
     m.slideTimer = makeTimer(m.SLIDE_SECONDS, "onSlide")
     m.photoListTimer = makeTimer(1800, "loadPhotoList")
     loadPhotoList()
@@ -373,56 +369,37 @@ end sub
 
 sub onPhotoDownloaded(event as object)
     result = event.getData()
-    if result.path = invalid then return
-    m.ready = result
-    ' The first photo shows as soon as it's here.
-    if m.shownPath = "" then onSlide()
+    if result.path <> invalid then m.ready = result
 end sub
 
 sub onSlide()
-    if m.hubSlidesLeft > 0 then
-        m.hubSlidesLeft = m.hubSlidesLeft - 1
-        if m.hubSlidesLeft > 0 then return
-        m.top.findNode("photoLayer").visible = true
-        m.layout.visible = false
-        return
-    end if
-    if m.ready = invalid then return
-
-    m.slideCount = m.slideCount + 1
-    if m.slideCount mod m.HUB_EVERY = 0 then
-        m.hubSlidesLeft = m.HUB_SLIDES
-        m.top.findNode("photoLayer").visible = false
+    if m.showingPhoto then
+        ' Photo → hub.
+        m.showingPhoto = false
         m.layout.visible = true
+        m.top.findNode("toHub").control = "start"
         return
     end if
-
-    ' Load into the back poster, then crossfade once it's decoded.
-    m.backPoster.unobserveField("loadStatus")
-    m.backPoster.observeField("loadStatus", "onPosterLoaded")
-    m.backPoster.uri = m.ready.path
+    if m.ready = invalid then return   ' no photo downloaded yet: stay on the hub
+    ' Hub → photo, once the poster has decoded it.
+    m.poster.unobserveField("loadStatus")
+    m.poster.observeField("loadStatus", "onPosterLoaded")
     m.previousPath = m.shownPath
     m.shownPath = m.ready.path
+    m.poster.uri = m.ready.path
     m.ready = invalid
-    downloadNext()
 end sub
 
 sub onPosterLoaded()
-    status = m.backPoster.loadStatus
+    status = m.poster.loadStatus
     if status <> "ready" and status <> "failed" then return
-    m.backPoster.unobserveField("loadStatus")
+    m.poster.unobserveField("loadStatus")
+    downloadNext()
     if status = "failed" then return
-    m.top.findNode("photoLayer").visible = true
-    m.layout.visible = false
-    m.top.findNode("fadeIn").fieldToInterp = m.backPoster.id + ".opacity"
-    m.top.findNode("fadeOut").fieldToInterp = m.frontPoster.id + ".opacity"
-    m.top.findNode("fade").control = "start"
-    t = m.frontPoster
-    m.frontPoster = m.backPoster
-    m.backPoster = t
-    ' The photo before the one now fading out is no longer on screen.
-    if m.olderPath <> "" then DeleteFile(m.olderPath)
-    m.olderPath = m.previousPath
+    m.showingPhoto = true
+    m.photoLayer.visible = true
+    m.top.findNode("toPhoto").control = "start"
+    if m.previousPath <> "" then DeleteFile(m.previousPath)
 end sub
 
 sub renderPhotoStrip(d as object)
