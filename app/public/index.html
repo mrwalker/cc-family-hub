@@ -1698,7 +1698,9 @@ async function initRotation() {
 
   let stream = null;
   try {
-    const r = await fetch("/api/stream?output=hub-page", { credentials: "same-origin" });
+    // /api/page/stream, not /api/stream: the screens' Access application covers
+    // /api/stream, and this page's sign-in doesn't (see worker/index.js).
+    const r = await fetch("/api/page/stream?output=hub-page", { credentials: "same-origin" });
     if (!r.ok) throw new Error(`/api/stream returned ${r.status}`);
     stream = await r.json();
   } catch (e) {
@@ -2017,7 +2019,7 @@ function esc(s) {
 }
 
 function loadTripCards() {
-  return fetch("/api/stream?components=trips,past-trips&all=1", { credentials: "same-origin" })
+  return fetch("/api/page/stream?components=trips,past-trips&all=1", { credentials: "same-origin" })
     .then(r => (r.ok ? r.json() : Promise.reject(new Error(`/api/stream returned ${r.status}`))))
     .then(d => { tripsState.cards = d.cards || []; })
     .catch(e => console.warn("Trip cards unavailable:", e.message))

@@ -3,7 +3,7 @@
 The other docs describe the hub as designed for v1.0. This page lists what they describe
 that the current release doesn't do yet, in the order to build it. When an item ships, delete it here.
 
-## Where v0.8.0 stands
+## Where v0.8.1 stands
 
 **What each screen shows today.** The target is in [outputs.md](outputs.md#what-each-screen-shows).
 The hub page rotates through the stream and draws every component in full. The other

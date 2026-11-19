@@ -47,6 +47,7 @@ leaves the live hub as it was.
 |-------|--------------|------|
 | `GET /api/stream` | Every screen | The stream, for a view and an output. See [docs/stream.md](../docs/stream.md#the-stream-api). |
 | `GET /api/stream/image/<card id>` | Every screen | A card's photo |
+| `GET /api/page/stream…` | The hub page | The same stream and images, under the hub's sign-in rather than the screens' Access application |
 | `GET /api/events?days=N` | The hub page | Live calendar events, for the interactive calendar. Checks `X-Api-Token`. |
 | `GET /api/config.js` | The hub page | Names, colors, timezone, title, trip-app links, and the events token |
 | `GET /api/data.js` | The hub page | Everything published, for the page's full views (the whole movie list, every escape room) |
