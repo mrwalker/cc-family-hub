@@ -14,10 +14,17 @@ export interface FamilyConfig {
     locale: string;            // BCP 47, e.g. "en-US"
   };
   members: MemberRef[];
-  integrations: {
-    active: string[];          // Integration IDs that are enabled
-    schedule: HubSchedule;
+  /** v0.6 and earlier: ids loaded as both an input and an output. */
+  integrations?: {
+    active: string[];
+    schedule?: unknown;
   };
+  /** v0.7 and later: input and output ids, with their settings (docs/workspace.md). */
+  inputs?: Record<string, Record<string, unknown> | null>;
+  outputs?: Record<string, Record<string, unknown> | null>;
+  brain?: { model?: string; daysAhead?: number };
+  /** What the pipeline runs, worked out by the loader from either shape above. */
+  pipeline: { inputs: string[]; outputs: string[] };
 }
 
 export interface MemberRef {

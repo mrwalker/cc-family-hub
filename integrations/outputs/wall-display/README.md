@@ -1,5 +1,9 @@
 # Wall Display — Output Integration
 
+> **Retired.** The [hub app](../../../docs/outputs.md#hub-page) replaced this output, and it will be
+> removed in v1.0. The Android app it pushes to was never written. To put the hub on a wall tablet, see
+> [docs/wall-tablet.md](../../../docs/wall-tablet.md). See also [docs/roadmap.md](../../../docs/roadmap.md). This page is kept for families still using it.
+
 Pushes plan updates to a wall-mounted Android tablet running the Family Hub Display app over local Wi-Fi.
 
 ## Setup

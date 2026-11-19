@@ -26,7 +26,12 @@ function main() {
   }
 
   const family = yaml.load(readFileSync(FAMILY_CONFIG_PATH, "utf8"));
-  const active = family?.integrations?.active ?? [];
+  // integrations.active (v0.6 and earlier), plus the ids under inputs: and outputs: (v0.7 and later).
+  const active = [...new Set([
+    ...(family?.integrations?.active ?? []),
+    ...Object.keys(family?.inputs ?? {}),
+    ...Object.keys(family?.outputs ?? {}),
+  ])];
   let allOk = true;
 
   for (const id of active) {

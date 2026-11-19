@@ -1,15 +1,18 @@
 # Wall Tablet
 
 The hub page is designed for a wall-mounted Android tablet running a kiosk browser
-such as [FreeKiosk](https://freekiosk.app). The page rotates through its modules and reloads itself
-to pick up freshly published data.
+such as [FreeKiosk](https://freekiosk.app). Left alone, the page rotates through
+[the stream](stream.md), one card at a time. Tap it and rotation stops, so you can scroll
+the calendar or add to the grocery list. It resumes after two idle minutes.
 
 ## Normal operation
 
-- The page loads `/api/config.js` (names, colors, trip apps) and `/api/data.js` (the
-  latest published plan, trips, and so on).
-- Calendar events come live from `/api/events` and refresh every 5 minutes, so no sync step is needed.
-- New plans arrive whenever the pipeline publishes. Publishing writes data; it doesn't redeploy.
+- The page loads `/api/config.js` (names, colors, trip apps) and `/api/stream` (the cards
+  to rotate through), and reloads the stream as it rotates.
+- Calendar events are live and refresh every 5 minutes, so no sync step is needed.
+- New plans arrive whenever the pipeline publishes. Publishing writes data. It doesn't redeploy.
+- To give the wall a different mix from the phones, set `outputs.hub-page.stream` in
+  `family.yaml`. See [stream.md](stream.md#configuring-the-stream).
 
 ## Kiosk setup and Google sign-in
 
@@ -35,4 +38,5 @@ To get past it:
 | Google sign-in blocked ("browser or app may not be secure") | Set the custom user agent (above). |
 | Calendar section empty | Check `/api/events` in the Network tab. A 401 means the page's token from `/api/config.js` doesn't match the `API_TOKEN` secret. A 502 means a service-account or calendar-sharing problem. |
 | Page shows old data | Check that the pipeline's last run printed `PUBLISH OK`. `GET /api/data/plan` shows `publishedAt`. |
+| A component never comes up | It has nothing to show, or it isn't in your `stream.components`. `npx family-hub check` lists the stream. |
 | Page won't load | The Access session may have expired. Sign in again using the steps above. |

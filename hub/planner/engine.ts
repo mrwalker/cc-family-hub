@@ -65,8 +65,9 @@ export async function generateWeeklyPlan(ctx: PlanningContext): Promise<WeeklyPl
   const systemPrompt = renderDailyPlanPrompt(ctx);
 
   const response = await client().messages.create({
-    model: "claude-opus-4-6",
-    max_tokens: 8192,
+    model: plannerModel(ctx),
+    // Thinking is always on with current models, and counts toward max_tokens.
+    max_tokens: 16000,
     system: [
       {
         type: "text",
@@ -82,6 +83,12 @@ export async function generateWeeklyPlan(ctx: PlanningContext): Promise<WeeklyPl
     ],
   });
 
+  if (response.stop_reason === "refusal") {
+    throw new Error(`The planner (${plannerModel(ctx)}) declined to write a plan. Re-run, or set brain.model in family.yaml to another model.`);
+  }
+  if (response.stop_reason === "max_tokens") {
+    throw new Error("The planner ran out of room before finishing the plan. Re-run; if it keeps happening, shorten the notes in workspace/context/.");
+  }
   const text = response.content
     .filter((b) => b.type === "text")
     .map((b) => (b as { type: "text"; text: string }).text)
@@ -109,8 +116,8 @@ export async function generateWeeklySummary(
     .replace("{{CONTEXT}}", contextMarkdown);
 
   const response = await client().messages.create({
-    model: "claude-opus-4-6",
-    max_tokens: 2048,
+    model: plannerModel(ctx),
+    max_tokens: 8000,
     system: [
       {
         type: "text",
@@ -147,4 +154,10 @@ export function normalizePlan(raw: Record<string, unknown>, ctx: PlanningContext
     })),
     flags: (raw.flags as WeeklyPlan["flags"]) ?? [],
   };
+}
+
+/** The model the planner uses: brain.model in family.yaml, or the current Opus. */
+export const DEFAULT_MODEL = "claude-opus-5-5";
+export function plannerModel(ctx: PlanningContext): string {
+  return ctx.family.brain?.model || DEFAULT_MODEL;
 }

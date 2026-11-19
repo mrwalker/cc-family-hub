@@ -13,6 +13,7 @@ import { writeFileSync, mkdirSync, readFileSync, existsSync } from "fs";
 import { join } from "path";
 import yaml from "js-yaml";
 import { buildPlanningContext } from "./context/builder.js";
+import { loadFamilyConfig } from "./context/loader.js";
 import { renderDailyPlanPrompt, generateWeeklyPlan, generateWeeklySummary } from "./planner/engine.js";
 import { loadRegisteredIntegrations } from "./integrations/registry.js";
 import { WeeklyPlanSchema } from "../integrations/_base/schemas.js";
@@ -20,11 +21,16 @@ import type { WeeklyPlan, FamilyConfig } from "../integrations/_base/types.js";
 import { WORKSPACE, STATE_DIR } from "./paths.js";
 
 const PLAN_PATH = join(STATE_DIR, "last-plan.yaml");
+
+/** How far ahead the planner looks: brain.daysAhead in family.yaml (default 14). */
+function daysAhead(): number {
+  return loadFamilyConfig().brain?.daysAhead ?? 14;
+}
 const PROMPT_PATH = join(STATE_DIR, "pending-prompt.md");
 
 async function runPlan() {
   console.log("Building planning context...");
-  const ctx = buildPlanningContext({ daysAhead: 14 });
+  const ctx = buildPlanningContext({ daysAhead: daysAhead() });
 
   console.log(`Context assembled: ${ctx.members.length} members, ${ctx.events.length} events, ${ctx.contextItems.length} context items`);
   console.log("Generating weekly plan...");
@@ -41,7 +47,7 @@ async function runPlan() {
 
 async function runRender() {
   console.log("Building planning context...");
-  const ctx = buildPlanningContext({ daysAhead: 14 });
+  const ctx = buildPlanningContext({ daysAhead: daysAhead() });
 
   console.log(`Context assembled: ${ctx.members.length} members, ${ctx.events.length} events, ${ctx.contextItems.length} context items`);
   console.log("Rendering daily-plan prompt...");

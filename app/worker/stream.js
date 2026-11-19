@@ -1,0 +1,180 @@
+/**
+ * The stream: what the brain hands every output (docs/stream.md).
+ *
+ *   GET /api/stream?view=family|<member id>&output=<output id>
+ *     → { title, view, output, members, hubUrl, generatedAt, cards: [card…], errors? }
+ *   GET /api/stream/image/<card id>   → the card's photo (album photo or trip hero)
+ *
+ * Each component (components/) turns data into cards. compose() then applies the
+ * rotation rules: order, empty components skipped, an active trip leads, long
+ * components take turns, and photos between cards. A component that fails is
+ * skipped and reported in `errors`; it never fails the stream.
+ */
+
+import { COMPONENT_IDS, byId } from "./components/index.js";
+import { tripSummaries, heroResponse } from "./trips.js";
+import { albumPhotos, photoById } from "./photos.js";
+import { listGrocery } from "./grocery.js";
+import { ymd, addDays, json } from "./util.js";
+
+export const DEFAULT_MAX = 3;
+export const DEFAULT_DWELL = 15;
+const TURN_MS = 10 * 60_000;     // long components move to their next few cards every 10 minutes
+const EVENT_DAYS = 8;            // today through the end of the week
+
+/** Defaults each screen gets before the family's own `outputs.<id>.stream`. */
+export const OUTPUT_DEFAULTS = {
+  "hub-page": {},
+  "phone-widget": {},
+  "mac-menu-bar": {},
+  roku: { photosBetween: 3, dwell: 10 },
+};
+
+/**
+ * The stream settings for one output: the family's `stream`, then the
+ * output's built-in defaults, then the family's `outputs.<id>.stream`.
+ */
+export function resolveConfig(hub, outputId) {
+  const base = hub.stream ?? {};
+  const layers = [base, OUTPUT_DEFAULTS[outputId] ?? {}, hub.outputs?.[outputId]?.stream ?? {}];
+  const cfg = { components: COMPONENT_IDS, dwell: DEFAULT_DWELL, photosBetween: 0, max: {} };
+  for (const l of layers) {
+    if (Array.isArray(l.components)) cfg.components = l.components.filter(c => byId[c]);
+    if (l.dwell != null) cfg.dwell = mergeDwell(cfg.dwell, l.dwell);
+    if (l.photosBetween != null) cfg.photosBetween = l.photosBetween;
+    if (l.max) cfg.max = { ...cfg.max, ...l.max };
+  }
+  return cfg;
+}
+
+function mergeDwell(a, b) {
+  const asMap = d => (typeof d === "number" ? { default: d } : { ...d });
+  return { ...asMap(a), ...asMap(b) };
+}
+
+export function dwellFor(dwell, component) {
+  if (typeof dwell === "number") return dwell;
+  return dwell?.[component] ?? dwell?.default ?? DEFAULT_DWELL;
+}
+
+/** Up to `max` of `list`, starting at a different place each turn so every card gets its go. */
+export function takeTurns(list, max, turn) {
+  if (list.length <= max) return list.slice();
+  const start = (turn * max) % list.length;
+  return Array.from({ length: max }, (_, i) => list[(start + i) % list.length]);
+}
+
+/**
+ * Applies the rotation rules (docs/stream.md#rotation-rules) to each component's
+ * cards. Pure: the same inputs give the same stream.
+ *
+ *   cardsBy:   { <component>: [card…] }, in each component's own order
+ *   photoPool: shuffled photo cards for photosBetween
+ */
+export function compose({ cfg, cardsBy, photoPool = [], turn = 0 }) {
+  const between = Math.max(0, cfg.photosBetween | 0);
+  const leading = [];
+  const rest = [];
+  for (const component of cfg.components) {
+    // With photos between every card, photos don't also take a place of their own.
+    if (between && component === "photos") continue;
+    let list = (cardsBy[component] ?? []).map(c => ({ ...c, component }));
+    // Rule 3: an active trip leads, and is never left out by taking turns.
+    const leads = list.filter(c => c.leads);
+    list = list.filter(c => !c.leads);
+    leading.push(...leads);
+    rest.push(...takeTurns(list, cfg.max[component] ?? DEFAULT_MAX, turn));
+  }
+  const ordered = [...leading, ...rest].map(({ leads, ...c }) => ({ ...c, dwell: dwellFor(cfg.dwell, c.component) }));
+  if (!between || !photoPool.length) return ordered;
+
+  const out = [];
+  let p = 0;
+  for (const card of ordered) {
+    out.push(card);
+    for (let i = 0; i < between; i++) {
+      const photo = photoPool[p++ % photoPool.length];
+      out.push({ ...photo, component: "photos", dwell: dwellFor(cfg.dwell, "photos") });
+    }
+  }
+  return out;
+}
+
+/** The context components read from. Each source is fetched at most once per request. */
+export function makeContext({ request, env, hub, loadEvents, now = new Date(), view = null }) {
+  const url = new URL(request.url);
+  const tz = hub.timezone;
+  const today = ymd(now, tz);
+  const once = fn => { let p; return () => (p ??= Promise.resolve().then(fn)); };
+  const dataCache = {};
+  const ctx = {
+    env, hub, now, tz, view,
+    locale: hub.locale || "en-US",
+    today,
+    tomorrow: addDays(today, 1),
+    origin: url.origin,
+    hubUrl: `${url.origin}/`,
+    turn: Math.floor(now.getTime() / TURN_MS),
+    photoSeed: Math.floor(now.getTime() / 60_000),
+    data: kind => (dataCache[kind] ??= env.HUB_DATA ? env.HUB_DATA.get(`data:${kind}`, "json") : Promise.resolve(null)),
+    events: once(() => loadEvents(EVENT_DAYS)),
+    trips: once(() => tripSummaries(env, hub)),
+    photos: once(() => albumPhotos(hub)),
+    grocery: once(() => listGrocery(env)),
+    image: cardId => `${url.origin}/api/stream/image/${encodeURIComponent(cardId)}`,
+  };
+  return ctx;
+}
+
+export async function handleStream(request, env, hub, loadEvents, path) {
+  if (request.method !== "GET") return json({ error: "Method not allowed" }, 405);
+  const url = new URL(request.url);
+
+  const image = path.match(/^\/image\/(.+)$/);
+  if (image) return streamImage(env, hub, decodeURIComponent(image[1]), url.origin);
+  if (path !== "") return json({ error: "Not found" }, 404);
+
+  const viewId = (url.searchParams.get("view") || "family").toLowerCase();
+  const view = hub.members.find(m => m.id === viewId) || null;
+  if (!view && viewId !== "family") {
+    return json({ error: `Unknown view "${viewId}". Use "family" or one of: ${hub.members.map(m => m.id).join(", ")}` }, 400);
+  }
+  const output = url.searchParams.get("output") || null;
+  const cfg = resolveConfig(hub, output);
+  const ctx = makeContext({ request, env, hub, loadEvents, view });
+
+  const wanted = new Set(cfg.components);
+  if (cfg.photosBetween > 0) wanted.add("photos");
+  const cardsBy = {};
+  const errors = [];
+  await Promise.all([...wanted].map(async id => {
+    try {
+      cardsBy[id] = await byId[id].cards(ctx);
+    } catch (err) {
+      cardsBy[id] = [];
+      errors.push({ component: id, error: err.message });
+    }
+  }));
+
+  const cards = compose({ cfg, cardsBy, photoPool: cardsBy.photos ?? [], turn: ctx.turn });
+  return json({
+    title: hub.title,
+    view: view ? { id: view.id, name: view.name, color: view.color } : null,
+    output,
+    members: hub.members.map(({ id, name, color }) => ({ id, name, color })),
+    hubUrl: ctx.hubUrl,
+    generatedAt: ctx.now.toISOString(),
+    cards,
+    ...(errors.length ? { errors } : {}),
+  });
+}
+
+async function streamImage(env, hub, cardId, origin) {
+  const [component, ...rest] = cardId.split(":");
+  const id = rest.join(":");
+  if (component === "photos" && id) return photoById(hub, id);
+  if ((component === "trips" || component === "past-trips") && id) {
+    return heroResponse(env, hub.tripApps.find(t => t.trip === id), origin);
+  }
+  return json({ error: `No image for card "${cardId}"` }, 404);
+}

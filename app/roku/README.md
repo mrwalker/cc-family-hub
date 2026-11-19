@@ -1,24 +1,31 @@
 # Roku Channel
 
-The hub on your TV: a big clock and date, the rest of today and tomorrow with each person's
-color, and the next trip's countdown. The same screen works as a Roku **screensaver**, and it
-drifts slowly so nothing burns in.
+The hub on your TV. It rotates through [the stream](../../docs/stream.md) one card at a
+time, with crossfades: today and tomorrow beside a big clock, each upcoming trip with its
+hero photo and leaderboard, trips you've taken, the grocery list, and photos from the family
+album.
 
-**Photos.** If your hub has a photo album (`hub.photos.icloudAlbum` in `family.yaml`, an iCloud
-shared album with Public Website turned on), the screensaver cycles through an anchor screen and
-then three photos, 10 seconds each, with crossfades. The anchors take turns: the hub screen, then
-each upcoming trip app. So it runs hub, 3 photos, trip 1, 3 photos, trip 2, 3 photos, trip 3,
-3 photos, then the hub again. A trip screen shows the trip's hero photo, its countdown (or "Day 2
-of 5"), and its quest leaderboard, plus today's plan while the trip is on. Photos come in random
-order, with a strip showing the clock, the next event, and the trip countdown. Add a photo to the album on your
-phone and it joins the slideshow within about 15 minutes.
+The same screen works as a Roku **screensaver**, and it drifts slowly so nothing burns in.
+As a screensaver it shows three album photos between every other card by default, each with
+a strip along the bottom showing the clock, the next event, and the trip countdown. Add a
+photo to the album on your phone and it joins within about 15 minutes.
 
-- **Left and right** on the remote switches between the whole family and each person. The Roku remembers your choice.
+- **Left and right** on the remote switch between the whole family and each person. The Roku remembers your choice.
 - **OK** refreshes. The channel also refreshes every 5 minutes on its own.
 
-It reads the same `GET /api/widget` as the [phone widgets](../widgets/README.md). The channel is
-installed in Roku's developer mode ("sideloaded"), so it never goes through the Roku Channel
-Store. It's private to your Roku.
+To change what it shows, set `outputs.roku.stream` in your `family.yaml`:
+
+```yaml
+outputs:
+  roku:
+    stream:
+      components: [today, trips, past-trips, grocery]
+      photosBetween: 3
+      dwell: 10
+```
+
+The channel is installed in Roku's developer mode ("sideloaded"), so it never goes through
+the Roku Channel Store. It's private to your Roku.
 
 ## 1. Turn on developer mode on the Roku
 
@@ -29,14 +36,14 @@ Store. It's private to your Roku.
 
 ## 2. Give the Roku its own key
 
-If your hub is behind Cloudflare Access, create a service token for the TV (e.g. `hub-roku`) and
-add it to the **Hub Widgets** policy on the `/api/widget` application. See
-[the widget setup](../widgets/README.md#1-give-widgets-their-own-key-cloudflare-access).
+If your hub is behind Cloudflare Access, create a service token for the TV (e.g. `hub-roku`)
+and add it to the **Hub Screens** policy. See
+[Giving a screen its key](../../docs/outputs.md#giving-a-screen-its-key).
 
 ## 3. Write `roku.env`
 
-Put this file outside the repo, at `~/.config/family-hub/roku.env`. To use another path, set
-`FAMILY_HUB_ROKU_ENV`.
+Put this file outside every repo, at `~/.config/family-hub/roku.env`. To use another path,
+set `FAMILY_HUB_ROKU_ENV`.
 
 ```bash
 ROKU_HOST=192.168.1.50            # the Roku's IP
@@ -52,10 +59,10 @@ gitignored.
 
 ## 4. Build and install
 
-A Roku holds one sideloaded package at a time, so choose one:
+A Roku holds one sideloaded package at a time, so choose one. From your hub repo:
 
 ```bash
-cd app/roku
+cd node_modules/cc-family-hub/app/roku
 ./build.sh --screensaver --install   # the screensaver (recommended)
 ./build.sh --install                 # the channel: a Home screen tile you open
 ```
@@ -66,22 +73,22 @@ Hub**, and use **Preview** to check it.
 
 `./build.sh --preview --install` installs a channel that runs the screensaver, photos included.
 You can launch it from the Home screen, or with `curl -X POST http://<roku-ip>:8060/launch/dev`,
-to check the slideshow without waiting for the screensaver.
+to check the rotation without waiting for the screensaver.
 
 ## Troubleshooting
 
 | Screen says | Fix |
 |-------------|-----|
-| "The hub didn't accept this channel's service token" | Check the token in `roku.env`, that it's in the **Hub Widgets** policy, and that the policy is attached to the `/api/widget` application. Then run `./build.sh --install` again. |
+| "The hub didn't accept this channel's service token" | Check the token in `roku.env`, that it's in the **Hub Screens** policy, and that the policy is attached to the `/api/stream` application. Then run `./build.sh --install` again. |
 | "No hub is set up" | `HUB_URL` was empty at build time. |
 | "Unknown view …" | Press left or right to pick someone else. |
-| "Offline since …" | The Roku couldn't reach the hub, so it keeps showing the last data and retries. |
+| "Offline since …" | The Roku couldn't reach the hub, so it keeps showing the last stream and retries. |
 
 ## Developing
 
-- `components/HubScene.brs`: layout and remote keys.
+- `components/HubScene.brs`: layout, rotation, and remote keys.
 - `components/FetchTask.brs`: the HTTP request.
-- `source/main.brs`: entry points for the channel and the screensaver.
+- `source/`: entry points for the channel and the screensaver.
 
 To check the layout from your computer, run `./build.sh --screenshot shot.jpg`. To send remote
 keys over the network (`curl -X POST http://<roku-ip>:8060/keypress/Right`), set Settings → System →

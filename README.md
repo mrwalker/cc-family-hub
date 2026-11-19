@@ -1,160 +1,131 @@
 # Claude Code Family Hub
 
-A family coordination hub powered by Claude Code. It pulls from scattered inputs — calendars, notes, photos, to-do lists, flagged links — applies AI-powered planning and enrichment, and pushes the results to wherever your family needs them.
-
-## What It Does
+A toolkit for building your family's hub. It gathers what your family already keeps in
+different places (calendars, a shared photo album, trip plans, the grocery list), has Claude
+make sense of the week, and shows the result as one rotating stream on every screen you own:
+a wall tablet, phones, the Mac menu bar, and the TV.
 
 ```
-  INPUTS                    HUB                        OUTPUTS
-  ──────                    ───                        ───────
-  Google Calendar  ──┐                        ┌──  Annotated Calendar
-  Apple Reminders  ──┤                        ├──  Weekly Plan (web portal)
-  Family Bios      ──┤   Claude Code Engine   ├──  Wall Display (Android)
-  Flagged Links    ──┤   ─────────────────    ├──  Menu Bar Notifications
-  Shopping Items   ──┤   • Context Assembly   ├──  Shopping List
-  Photos           ──┤   • AI Planning        ├──  Photo Reel
-  Free-form Notes  ──┘   • Enrichment         └──  Mobile App Push
-                         • Scheduling
+  INPUTS                        BRAIN                          OUTPUTS
+  ──────                        ─────                          ───────
+  Google Calendar   ──┐                                  ┌──  Wall tablet / browser
+  iCloud album      ──┤    integrate   what's there      ├──  iPhone widgets
+  Trips + trip apps ──┤    process     Claude plans      ├──  Mac menu bar
+  Grocery list      ──┼──► format      one card format ──┼──► Roku channel + screensaver
+  Escape rooms      ──┤    control     what shows where  ├──  Trip apps (phones, offline)
+  Movies, notes     ──┤                                  ├──  Google Calendar notes
+  Reminders, Strava ──┘         THE STREAM               └──  Grocery email
 ```
 
-On a configurable schedule (typically daily), the hub:
-1. Loads all family context and upcoming calendar events
-2. Runs a Claude-powered planning pass over the next 7–14 days
-3. Enriches events with notes, weather considerations, driving info, cross-schedule conflicts
-4. Updates all output integrations with the refreshed plan
+> **Status.** These docs describe the hub as designed for v1.0. The current release, v0.7.0,
+> ships most of it. [docs/roadmap.md](docs/roadmap.md) lists what isn't built yet. For docs
+> that match v0.6.0 exactly, read them at
+> [the v0.6.0 tag](https://github.com/mrwalker/cc-family-hub/tree/v0.6.0).
 
-## Getting Started
+## The stream
 
-### Prerequisites
+Every output shows the same thing: a rotating stream of **cards**. Each card comes from a
+**component**, and each component is fed by one or more inputs.
 
-- [Node.js](https://nodejs.org/) 20+
-- [Claude Code](https://docs.anthropic.com/claude-code) CLI
-- Git
+| Component | A card shows | Fed by |
+|-----------|--------------|--------|
+| `today` | The rest of today and tomorrow, in each person's color | Google Calendar |
+| `week` | The days ahead | Google Calendar |
+| `plan` | Claude's read on the week: summary, conflicts, things to do | The planner |
+| `photos` | A photo from the family album | iCloud shared album |
+| `trips` | An upcoming trip: countdown, hero photo, quest leaderboard, today's schedule | `trips.yaml`, trip apps |
+| `past-trips` | A trip you took: highlights and final standings | `trips.yaml`, trip apps |
+| `grocery` | The shopping list | The hub's shared list, the planner |
+| `escape-rooms` | Your escape record and rooms you've played | `escape-rooms.yaml` |
+| `movies` | What you want to watch next | `movies.yaml` |
+| `workouts` | Recent activities | Strava |
 
-### Setup
+You choose which components are in the stream, in what order, and how long each card stays
+up. Any output can override that for itself. A component with nothing to show is skipped.
+
+Every card carries a small summary that any screen can draw (a headline, a line of detail,
+maybe a photo), so **every output can show every component**. Bigger screens draw the
+components they know in full: the wall tablet shows the whole grocery list where a lock-screen
+widget shows "8 items · milk, eggs, …". See [docs/stream.md](docs/stream.md).
+
+## How it's put together
+
+You don't work inside this repo. You keep a small private repo of your own, your **hub
+repo**, and it installs cc-family-hub as a dependency:
+
+```
+your hub repo (private)                      cc-family-hub (this repo, a dependency)
+───────────────────────                      ───────────────────────────────────────
+workspace/        your family's config  ──►  the pipeline    sync, plan, publish
+  family.yaml       and content         ──►  the hub app     the Worker and its pages
+  members/, trips.yaml, …                    the screens     widget, Mac app, Roku channel
+<trip>/           each trip app's content
+worker.js         three lines: createHub(config)
+package.json      pins a cc-family-hub version
+```
+
+Your repo holds no app code. To upgrade, bump the version. The brain runs in two places:
+
+- **The pipeline** runs on a schedule on any machine with Node (a laptop, a home server).
+  It syncs inputs, has Claude write the week's plan, and publishes the results to your hub.
+- **The hub Worker** runs on Cloudflare. It stores what the pipeline publishes, reads live
+  inputs (calendars, the photo album, trip check-ins), composes the stream, and serves
+  every screen.
+
+See [docs/architecture.md](docs/architecture.md).
+
+## Get started
+
+You need Node 20+, a Cloudflare account with a domain, and a Google account for calendars.
+[Claude Code](https://claude.com/claude-code) is optional: it can act as the planner, so you
+don't need an Anthropic API key.
 
 ```bash
-# Clone the repo
-git clone https://github.com/your-family/cc-family-hub.git
-cd cc-family-hub
-
-# Install dependencies
-npm install
-
-# Bootstrap your family workspace
-npm run setup
-
-# Follow the prompts — it will create workspace/ from workspace.example/
-# and walk you through configuring family.yaml
+npx github:mrwalker/cc-family-hub init my-family-hub   # scaffold your hub repo
+cd my-family-hub && npm install
+npx family-hub check                                   # what's configured, what's missing
 ```
 
-### Configure Your Family
+Then follow [docs/getting-started.md](docs/getting-started.md): describe your family, connect
+calendars, deploy the hub, schedule the pipeline, and add screens.
 
-Edit `workspace/family.yaml` to set your family name, timezone, and member list. Then run:
+## Docs
 
-```bash
-# Add each family member interactively
-claude /add-member
-```
+| Doc | What's in it |
+|-----|--------------|
+| [Getting started](docs/getting-started.md) | From nothing to a hub on the wall |
+| [Architecture](docs/architecture.md) | Inputs, brain, outputs; what runs where; who can reach what |
+| [The stream](docs/stream.md) | Components, cards, the stream API, rotation rules |
+| [Inputs](docs/inputs.md) | Every input and how to turn it on |
+| [Outputs](docs/outputs.md) | Every output and what it shows |
+| [Workspace](docs/workspace.md) | `family.yaml` and the rest of your workspace, field by field |
+| [Trip apps](docs/trip-apps.md) | Offline trip companions with quests and a leaderboard |
+| [Wall tablet](docs/wall-tablet.md) | Kiosk setup and the Google sign-in fix |
+| [Contributing](docs/contributing.md) | Add an input, a component, or an output |
+| [Repository structure](docs/structure.md) | Where things live in this repo |
+| [Roadmap](docs/roadmap.md) | What these docs describe that isn't built yet |
 
-### Connect Integrations
+## Design principles
 
-Each integration has its own setup guide in `integrations/inputs/<name>/README.md` or `integrations/outputs/<name>/README.md`. At minimum, connect at least one calendar input and one output.
-
-```bash
-# See which integrations are available
-ls integrations/inputs/
-ls integrations/outputs/
-
-# Activate an integration by adding it to workspace/family.yaml
-# then configure its credentials in workspace/state/secrets.yaml
-```
-
-### Run the Hub
-
-```bash
-# One-off planning run
-npm run plan
-
-# Or interactively via Claude Code
-claude /daily-plan
-```
-
-## The Hub App
-
-`app/` is the family-facing side: a Cloudflare Worker that serves a wall-tablet/phone
-hub page, offline trip apps, live calendars, and a data API that the pipeline publishes to
-(the `hub-api` output). Your family runs it from a small private repo that holds only
-your config and content and pins a version of this one. See [app/README.md](app/README.md).
-
-```
-  cc-family-hub pipeline ──publish──►  your hub (Cloudflare Worker)  ◄── tablet, phones
-  (planning, daily)                    app/ code + your family.yaml
-```
-
-## Repository Structure
-
-```
-cc-family-hub/
-├── CLAUDE.md                   # Claude Code project instructions
-├── workspace/                  # YOUR family's data (gitignored)
-│   ├── family.yaml             # Family config
-│   ├── members/                # Member profiles
-│   ├── context/                # Notes, links, shopping items, photos
-│   ├── calendars/              # Cached calendar data
-│   └── state/                  # Runtime state and secrets
-├── workspace.example/          # Reference workspace with fake data
-├── hub/                        # Core planning engine
-│   ├── planner/                # AI planning logic + prompts
-│   ├── context/                # Context assembly
-│   └── scheduler/              # Scheduling and triggers
-├── integrations/
-│   ├── _base/                  # Shared types and interfaces
-│   ├── inputs/                 # Input integrations
-│   │   ├── google-calendar/
-│   │   └── apple-reminders/
-│   └── outputs/
-│       ├── google-calendar/
-│       ├── web-portal/
-│       └── wall-display/
-├── app/                        # The hub app (Cloudflare Worker + pages)
-│   ├── worker/                 # createHub(config): calendars, data API, trip APIs
-│   ├── public/                 # Hub page and the shared trip-app engine
-│   ├── build.mjs               # Validates family.yaml, assembles a family's site
-│   ├── template/               # Starting point for your family's hub repo
-│   ├── widgets/                # iPhone home/lock screen widgets (Scriptable)
-│   ├── macos/                  # Mac menu bar app (SwiftUI)
-│   ├── roku/                   # Roku channel + screensaver (SceneGraph)
-│   └── extras/                 # Optional add-ons (grocery email)
-├── docs/                       # Architecture, trip apps, wall tablet
-├── scripts/                    # Utility scripts
-└── .claude/
-    └── commands/               # Custom slash commands
-```
-
-## Custom Claude Code Commands
-
-| Command | Description |
-|---------|-------------|
-| `/daily-plan` | Run the full planning routine |
-| `/add-member` | Add a new family member |
-| `/add-integration` | Scaffold a new integration |
-| `/sync-calendars` | Pull latest calendar data |
-| `/context` | Review and manage accumulated context |
-| `/weekly-summary` | Generate a human-readable weekly summary |
-
-## Design Principles
-
-- **Pluggable everything** — integrations are self-contained modules with a common interface
-- **Workspace separation** — family data never touches the source tree
-- **AI-first planning** — Claude assembles rich context and generates plans, not just raw data dumps
-- **Per-member granularity** — outputs can be filtered and personalized per family member
-- **Incremental** — the hub tracks state between runs so it only re-plans what changed
-
-## Contributing
-
-See [docs/contributing.md](docs/contributing.md). The core interfaces in `integrations/_base/types.ts` are the stable API surface — integrations depend on those, not on each other.
+- **One stream, every screen.** A component is built once and appears on every output.
+  No screen has its own private data path.
+- **Your data lives in your repo.** This repo is public and holds no family data. Yours
+  holds no app code.
+- **Configure, don't fork.** Inputs, the stream, and outputs are all set in `family.yaml`.
+- **Claude plans, the hub checks.** The planner writes the week's plan, and the hub validates
+  it before any screen can show it.
+- **Nothing breaks the wall.** A bad config fails the build and leaves the live hub as it
+  was. A bad plan is rejected with the exact field that's wrong. A screen that's offline
+  shows what it last had.
 
 ## Privacy
 
-Your family's data stays local. Nothing in `workspace/` is ever committed. API calls go only to services you explicitly configure. Claude Code runs locally against your own Anthropic API key.
+- Your family's config and content live in your private hub repo. Secrets stay outside
+  every repo.
+- Published data and trip check-ins are stored in your own Cloudflare account. The hub sits
+  behind Cloudflare Access, so only the people you list can open it. Each screen gets its own
+  revocable key that can read the stream and nothing else.
+- The planner sends your family context (profiles, upcoming events, notes) to Claude, through
+  your own Anthropic API key or your own Claude Code session.
+- Calendars are read by a Google service account that you create and that each person
+  shares their calendar with.

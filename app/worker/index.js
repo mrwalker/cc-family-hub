@@ -8,13 +8,17 @@
  *   export default createHub(config);
  *
  * Routes:
+ *   GET /api/stream?view=…&output=…  — the stream: cards for every screen (stream.js)
+ *   GET /api/stream/image/:card      — a card's photo
  *   GET /api/events?days=N  — live Google Calendar events for every member (default 14 days)
  *   GET /api/config.js      — the page's share of the hub config (names, colors, trip apps)
+ *   Until v1.0, for screens installed before the stream:
  *   GET /api/widget?view=…  — compact upcoming events + next trip for phone widgets (widget.js)
  *   GET /api/widget/photos… — photos from the family's iCloud shared album (photos.js);
  *                             also at /api/photos… for the hub page
  *   GET /api/widget/trips…  — trip apps at a glance: countdown, leaderboard (trips.js)
  *   /api/data…              — published plan/family/strava data (see data-api.js)
+ *   /api/grocery            — the shared grocery list (grocery.js)
  *   /api/trip/:id/…         — trip app check-ins and packing lists
  *   All other paths         — static assets (the hub page, trip apps)
  *
@@ -33,6 +37,8 @@ import { handleDataApi } from "./data-api.js";
 import { handleWidget } from "./widget.js";
 import { handlePhotos } from "./photos.js";
 import { handleTrips } from "./trips.js";
+import { handleStream } from "./stream.js";
+import { handleGrocery } from "./grocery.js";
 
 // Widgets refresh often and every phone asks separately; one Google fetch per
 // window serves them all.
@@ -50,6 +56,9 @@ export function createHub(config) {
     members: config.members,
     tripApps: config.tripApps,
     photosAlbum: config.photos?.icloudAlbum ?? null,
+    // The stream's settings: the family's default, and each output's overrides.
+    stream: config.stream ?? {},
+    outputs: config.outputs ?? {},
     // Trips that have an app, and who can score on each (family members plus
     // the trip's guests). Unknown trip ids 404.
     tripMembers: Object.fromEntries(config.tripApps.map(t => [t.appId, new Set(t.players)])),
@@ -76,6 +85,15 @@ async function route(request, env, hub) {
 
   if (url.pathname === "/api/events") {
     return handleEvents(request, env, hub);
+  }
+
+  const streamPath = url.pathname.match(/^\/api\/stream(\/.*)?$/);
+  if (streamPath) {
+    return handleStream(request, env, hub, days => cachedEvents(env, hub, days), streamPath[1] ?? "");
+  }
+
+  if (url.pathname === "/api/grocery") {
+    return handleGrocery(request, env, hub);
   }
 
   if (url.pathname === "/api/widget") {

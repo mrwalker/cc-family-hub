@@ -1,5 +1,8 @@
 # GitHub Pages Output Integration
 
+> **Retired.** The [hub app](../../../docs/outputs.md#hub-page) replaced this output, and it will be
+> removed in v1.0. See [docs/roadmap.md](../../../docs/roadmap.md). This page is kept for families still using it.
+
 Writes the weekly family plan directly to a local clone of a separate portal
 repo, commits, and pushes. GitHub Pages serves the result at a stable URL.
 Family data stays out of `cc-family-hub` — the tool repo stays clean and

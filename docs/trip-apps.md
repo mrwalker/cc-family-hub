@@ -2,7 +2,13 @@
 
 Trip apps are phone-first, offline-capable companion pages for family trips. Each one has a
 schedule, quests with a family leaderboard, packing lists, and tips. The hub serves each app
-at `/<trip>/`, and the hub page's Trips module links to it.
+at `/<trip>/`.
+
+A trip app is an output and an input at once. People use it on their phones during the
+trip, and what they log feeds [the stream](stream.md): every screen's card for that trip
+shows the hero photo, the countdown, the leaderboard, and today's schedule while the trip is
+on. Tapping a trip card opens its app. After the trip, the final standings stay on its
+`past-trips` card.
 
 ## Layout
 
@@ -37,7 +43,7 @@ but stay local to each phone.
    - `guests`: who can score besides the family
 
    The build checks all of these.
-3. **Deploy.**
+3. **Deploy.** The trip's card joins the stream on every screen.
 
 `window.TRIP.storagePrefix` sets the localStorage key prefix (default `family-trip`). Once a
 trip is in use, don't change it, or phones lose check-ins they haven't synced yet.

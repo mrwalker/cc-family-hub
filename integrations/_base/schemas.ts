@@ -133,14 +133,24 @@ export const FamilyConfigSchema = z.object({
       role: z.enum(["adult", "child", "other"]),
     })
   ),
-  integrations: z.object({
-    active: z.array(z.string()),
-    schedule: z.object({
-      planningCron: z.string(),
-      syncCron: z.string(),
-      timezone: z.string(),
-    }),
-  }),
+  // v0.6 and earlier: one list of integration ids, each loaded as an input and an output.
+  integrations: z
+    .object({
+      active: z.array(z.string()).default([]),
+      schedule: z.unknown().optional(),
+    })
+    .optional(),
+  // v0.7 and later (docs/workspace.md). Keys are input and output ids; values are their settings.
+  inputs: z.record(z.string(), z.record(z.string(), z.unknown()).nullable()).optional(),
+  outputs: z.record(z.string(), z.record(z.string(), z.unknown()).nullable()).optional(),
+  stream: z.unknown().optional(),
+  brain: z
+    .object({
+      model: z.string().optional(),
+      daysAhead: z.number().int().min(1).max(60).optional(),
+    })
+    .optional(),
+  hub: z.unknown().optional(),
 });
 
 export type ValidatedFamilyConfig = z.infer<typeof FamilyConfigSchema>;
