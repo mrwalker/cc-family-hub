@@ -13,7 +13,8 @@ const as = (member, db) => ({ HUB_DB: db, ...(member ? { DEV_MEMBER: member } : 
 // "Now" in these tests is 2027-06-21, noon Pacific.
 const NOW = { now: Date.parse("2027-06-21T19:00:00Z") };
 const get = env => handleHousehold(new Request(BASE), env, HUB, "", NOW);
-const post = (env, path, body) => handleHousehold(new Request(BASE + path, { method: "POST", body: JSON.stringify(body ?? {}) }), env, HUB, path, NOW);
+const JSON_BODY = { "Content-Type": "application/json" };
+const post = (env, path, body) => handleHousehold(new Request(BASE + path, { method: "POST", headers: JSON_BODY, body: JSON.stringify(body ?? {}) }), env, HUB, path, NOW);
 
 const PET = { id: "pet-biscuit", name: "Biscuit", species: "dog" };
 const task = (extra = {}) => ({ id: "task-rabies", area: "pets", kind: "vaccination", title: "Rabies shot", petId: PET.id, dueDate: "2027-06-30", ...extra });
@@ -139,11 +140,21 @@ test("bad input is refused with what's wrong", D1, async () => {
   const res = await post(env, "/tasks", task({ dueDate: "soon" }));
   assert.equal(res.status, 400);
   assert.match((await res.json()).error, /^dueDate:/);
-  const notJson = await handleHousehold(new Request(BASE + "/tasks", { method: "POST", body: "{nope" }), env, HUB, "/tasks", NOW);
+  const notJson = await handleHousehold(new Request(BASE + "/tasks", { method: "POST", headers: JSON_BODY, body: "{nope" }), env, HUB, "/tasks", NOW);
   assert.equal(notJson.status, 400);
   assert.equal((await post(env, "/tasks/task-missing/done")).status, 404);
   assert.equal((await post(env, "/nonsense")).status, 404);
   assert.equal((await handleHousehold(new Request(BASE, { method: "DELETE" }), env, HUB, "", NOW)).status, 405);
+});
+
+test("a form posted from another site can't write", D1, async () => {
+  const { env } = await withPet();
+  // What a cross-site <form enctype="text/plain"> can send: JSON-shaped text, but not as JSON.
+  for (const type of ["text/plain", "application/x-www-form-urlencoded", "multipart/form-data"]) {
+    const req = new Request(BASE + "/pets", { method: "POST", headers: { "Content-Type": type }, body: JSON.stringify({ id: "pet-other1", name: "Other" }) });
+    assert.equal((await handleHousehold(req, env, HUB, "/pets", NOW)).status, 415, type);
+  }
+  assert.equal((await (await get(env)).json()).pets.length, 1);
 });
 
 test("children, guests and strangers can't manage records", D1, async () => {
@@ -177,7 +188,7 @@ test("with no way to check the sign-in, writes are refused and reads say why", D
 
 test("DEV_MEMBER is ignored for a request that came through Cloudflare", D1, async () => {
   const { db } = await withPet();
-  const req = new Request(BASE + "/pets", { method: "POST", headers: { "CF-Ray": "8a1b2c3d4e5f-DFW" }, body: JSON.stringify({ id: "pet-other1", name: "Other" }) });
+  const req = new Request(BASE + "/pets", { method: "POST", headers: { ...JSON_BODY, "CF-Ray": "8a1b2c3d4e5f-DFW" }, body: JSON.stringify({ id: "pet-other1", name: "Other" }) });
   assert.equal((await handleHousehold(req, as("alex", db), HUB, "/pets", NOW)).status, 503);
 });
 

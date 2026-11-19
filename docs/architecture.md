@@ -196,7 +196,8 @@ never run a migration by hand.
 | POST | `/api/household/tasks/:id/archive` | Adults | Archive or restore it |
 | GET | `/api/household/export` | The pipeline | What's due, overdue and lately done *(planned)* |
 
-Every write is validated in the Worker and answers with the fresh list.
+Every write is validated in the Worker and answers with the fresh list. A write has to be
+a JSON request, which a form on another website can't send.
 
 ### Who may write
 

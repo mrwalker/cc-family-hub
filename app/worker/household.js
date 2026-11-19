@@ -15,7 +15,8 @@
  *
  * Who may write (access.js works out who's asking): adults manage everything; a
  * child may mark their own chore done and undo it; guests and screens only read.
- * Who made a change is taken from the sign-in, never from the request.
+ * Who made a change is taken from the sign-in, never from the request. Writes
+ * must be JSON requests, which another site's form can't send.
  *
  * Without the HUB_DB binding none of this is on: GET answers { enabled: false }
  * and the stream has no household cards.
@@ -240,6 +241,11 @@ export async function handleHousehold(request, env, hub, path, opts = {}) {
     return json(await snapshot(env, hub, who, now));
   }
   if (request.method !== "POST") return json({ error: "Method not allowed" }, 405);
+  // Only JSON requests may write. A form on another site can't send one, so it
+  // can't make a change with the browser's sign-in.
+  if (!/^application\/json\b/i.test(request.headers.get("Content-Type") || "")) {
+    return json({ error: "Send JSON (Content-Type: application/json)" }, 415);
+  }
   if (!who.viewer) return json({ error: who.problem }, hub.access ? 403 : 503);
 
   let body = {};
