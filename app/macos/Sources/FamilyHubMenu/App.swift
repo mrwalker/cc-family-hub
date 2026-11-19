@@ -3,8 +3,9 @@ import SwiftUI
 
 @main
 struct FamilyHubApp: App {
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     // A snapshot run draws its own store (Snapshot.swift); this one stays idle.
-    @StateObject private var store = HubStore(live: !Snapshot.isRequested)
+    @StateObject private var store = HubStore.shared
 
     init() {
         // Info.plist sets LSUIElement; this covers `swift run` without a bundle.
@@ -68,4 +69,14 @@ enum SettingsWindow {
 func openURL(_ string: String?) {
     guard let string, let url = URL(string: string) else { return }
     NSWorkspace.shared.open(url)
+}
+
+/// Opening the app while it's running (from Spotlight, Finder or Launchpad) shows
+/// Settings. macOS hides menu bar items that don't fit, notably beside a MacBook's
+/// notch, so this is the way back in when the item is out of sight.
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
+        Task { @MainActor in SettingsWindow.show(HubStore.shared) }
+        return false
+    }
 }

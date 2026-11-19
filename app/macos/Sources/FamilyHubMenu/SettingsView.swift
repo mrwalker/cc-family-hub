@@ -27,7 +27,7 @@ struct SettingsView: View {
                         .font(.caption).foregroundStyle(.secondary)
                 }
 
-                Section("Show") {
+                Section {
                     if members.isEmpty {
                         TextField("Whose events", text: $view, prompt: Text("family, or a member id"))
                     } else {
@@ -42,6 +42,11 @@ struct SettingsView: View {
                     Picker("Menu bar", selection: $menuBarText) {
                         ForEach(MenuBarText.allCases) { Text($0.label).tag($0) }
                     }
+                } header: {
+                    Text("Show")
+                } footer: {
+                    Text("Can't see Family Hub in the menu bar? macOS hides items that don't fit, especially beside the notch. Hold ⌘ and drag it to the right, or choose shorter text here. Opening Family Hub again always brings you back to Settings.")
+                        .font(.caption).foregroundStyle(.secondary)
                 }
 
                 Section {
