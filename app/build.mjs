@@ -81,7 +81,7 @@ const album = inputs["icloud-album"]?.album ?? hub.photos?.icloudAlbum;
 const albumAt = inputs["icloud-album"]?.album != null ? "inputs.icloud-album.album" : "hub.photos.icloudAlbum";
 if (inputs["icloud-album"] && inputs["icloud-album"].album == null) fail("family.yaml", "inputs.icloud-album.album", "required (the shared album's link)");
 if (album != null && !albumKey(album)) {
-  fail("family.yaml", albumAt, "expected an iCloud shared album link (https://photos.icloud.com/shared/album/…)");
+  fail("family.yaml", albumAt, "expected an iCloud shared album link (https://photos.icloud.com/shared/album/… or https://www.icloud.com/sharedalbum/#…)");
 }
 const groceryEmailUrl = outputs["grocery-email"]?.url ?? hub.groceryEmailUrl;
 const groceryAt = outputs["grocery-email"]?.url != null ? "outputs.grocery-email.url" : "hub.groceryEmailUrl";
@@ -227,7 +227,7 @@ const trips = tripApps.length || existsSync(ws("trips.yaml")) ? load("trips.yaml
 // A trip's shared album (trips.yaml → album) has to be a link the Worker can read.
 (Array.isArray(trips) ? trips : []).forEach((t, i) => {
   if (t?.album != null && !albumKey(t.album)) {
-    fail("trips.yaml", `[${i}] (${t.id ?? "?"}).album`, "expected an iCloud shared album link (https://photos.icloud.com/shared/album/…) with Public Website on");
+    fail("trips.yaml", `[${i}] (${t.id ?? "?"}).album`, "expected an iCloud shared album link (https://photos.icloud.com/shared/album/… or https://www.icloud.com/sharedalbum/#…) with Public Website on");
   }
 });
 const knownTrips = new Set((Array.isArray(trips) ? trips : []).map(t => t?.id));

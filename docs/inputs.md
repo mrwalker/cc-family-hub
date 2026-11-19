@@ -54,7 +54,8 @@ Shows photos from an iCloud shared album. Add a photo on your phone and it joins
 within about 15 minutes.
 
 - **Set up:** in Apple Photos, open the shared album's settings and turn on **Public
-  Website**. Put the link in `inputs.icloud-album.album`.
+  Website**. Put the link in `inputs.icloud-album.album`. Both kinds of iCloud link work:
+  `https://photos.icloud.com/shared/album/…` and `https://www.icloud.com/sharedalbum/#…`.
 - **Keep your hub repo private.** Anyone with the link can view the album. The link stays
   on the server; screens get photos through the hub.
 - The Worker reads the album the way icloud.com's own album page does. This isn't a
@@ -82,7 +83,9 @@ within about 15 minutes.
 A trip is upcoming, active, or past according to its dates.
 
 **Trip albums.** Most trips get a shared photo album. Add its link as `album:` once the
-trip starts (turn on Public Website for the album, as for the family album), and the
+trip starts (turn on Public Website for the album, as for the family album). Both kinds
+of iCloud link work: `https://photos.icloud.com/shared/album/…` and
+`https://www.icloud.com/sharedalbum/#…`. The
 trip's card on every screen shows its photos: a new one each minute, and a slideshow on
 the hub page's spotlight. After the trip, its past-trip card keeps them. The link stays
 on the server, so keep your hub repo private. `family-hub check` makes sure it's an

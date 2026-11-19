@@ -204,7 +204,7 @@ function validateFamily(d, path, errors) {
     needDate(errors, t.startDate, `${p}.startDate`);
     needDate(errors, t.endDate, `${p}.endDate`);
     if (t.album != null && !albumKey(t.album)) {
-      errors.push(`${p}.album: expected an iCloud shared album link (https://photos.icloud.com/shared/album/…), got ${show(t.album)}`);
+      errors.push(`${p}.album: expected an iCloud shared album link (https://photos.icloud.com/shared/album/… or https://www.icloud.com/sharedalbum/#…), got ${show(t.album)}`);
     }
   }, { optional: false });
   eachObj(errors, d.escapeRooms, `${path}.escapeRooms`, () => {});
