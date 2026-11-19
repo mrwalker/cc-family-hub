@@ -34,9 +34,16 @@ it runs as an app you open. The app keeps the TV's own screensaver from covering
    [Giving a screen its key](../../docs/outputs.md#giving-a-screen-its-key).
 2. **Tizen Studio's command-line tools.** Download the CLI installer for your OS from
    [download.tizen.org/sdk/Installer](https://download.tizen.org/sdk/Installer/)
-   (`web-cli_Tizen_Studio_<version>_<os>.bin`) and install it to `~/tizen-studio`. Then open
-   Tizen Studio's Package Manager (`~/tizen-studio/package-manager/`) and install
-   **Samsung Certificate Extension** and **TV Extensions**.
+   (`web-cli_Tizen_Studio_<version>_<os>.bin`) and install it to `~/tizen-studio`
+   (`./web-cli_….bin --accept-license ~/tizen-studio`). Then install Samsung's packages:
+   ```bash
+   cd ~/tizen-studio/package-manager
+   ./package-manager-cli.bin install --accept-license Certificate-Manager cert-add-on \
+     TV-SAMSUNG-Extension-Tools TV-SAMSUNG-Public-WebAppDevelopment
+   ```
+   If it says Java wasn't found, add `JDK_PATH=$HOME/tizen-studio/jdk` to
+   `~/tizen-studio/sdk.info`. If that isn't enough, make sure `~/.package-manager/jdk` is a
+   full copy of `~/tizen-studio/jdk`, not an empty folder.
 
 ## Each TV: developer mode
 
@@ -45,7 +52,8 @@ On each TV:
 2. Open **App Settings**, press **123** on the remote, and type **1 2 3 4 5**. On older
    models, type it on the Apps screen itself.
 3. Turn **Developer Mode** on, and enter your computer's IP address as the host.
-4. Unplug the TV for a minute, then plug it back in.
+4. Unplug the TV for a minute, then plug it back in. If it installs a software update, let
+   it finish, then check that Developer Mode is still on: updates can turn it off.
 5. Note its IP address: Settings → Connection → Network → Network Status → IP Settings.
 
 ## The certificate (once for all your TVs)
@@ -57,11 +65,14 @@ A TV only installs apps signed with a Samsung certificate that lists that TV's u
 ./build.sh --duid 192.168.1.40     # repeat for each TV
 ```
 
-In Tizen Studio's **Certificate Manager**:
-1. Create a **Samsung** certificate profile named `family-hub` (or set `TIZEN_PROFILE`).
-2. Sign in with a Samsung account, and add every DUID.
+In **Certificate Manager** (`~/tizen-studio/tools/certificate-manager/`):
+1. Create a **Samsung** certificate profile for **TV**, named `family-hub` (or set `TIZEN_PROFILE`).
+2. Create an author certificate. You'll sign in with a Samsung account.
+3. In the distributor certificate step, keep the **Public** privilege and add every DUID.
 
-To add a TV later, make a new certificate with all the ids and reinstall everywhere.
+To add a TV later, create a new profile that **reuses the existing author certificate** and
+lists every TV's id, point `TIZEN_PROFILE` at it, and reinstall everywhere. With the same
+author, installed apps update in place.
 
 ## Install
 
@@ -84,7 +95,7 @@ gitignored.
 | `couldn't connect` | Developer Mode must be on with this computer's IP as the host, and the TV restarted since. The TV and computer must be on the same network. |
 | The app installs but doesn't appear | The certificate doesn't include that TV's DUID. |
 | "The hub didn't accept this TV's service token" | Check the token in `tizen.env`, that it's in the Hub Screens policy, and rebuild. |
-| The app is gone after the TV restarts | Samsung's documentation says SDK-installed apps can be removed on reboot. Run `./build.sh --install` again. |
+| The app is gone after the TV restarts | On a 2025 TV it survived restarts. Samsung's documentation says SDK-installed apps can be removed on reboot on some models: run `./build.sh --install` again. |
 
 ## Developing
 
