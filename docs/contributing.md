@@ -153,7 +153,8 @@ families and screens depend on.
 ## Testing
 
 - `npm run typecheck` for the pipeline.
-- `npm test` for the stream composer and the validators.
+- `npm test` for the stream composer, the validators, and household records. The database
+  tests need Node 22.5 or newer (they use `node:sqlite`); on older Node they're skipped.
 - For the app, run a real hub repo against your checkout, with `npm run dev`.
 - For screens, each README has a way to check layout without the device: the Mac app's
   `FAMILY_HUB_SNAPSHOT`, the Roku's `--screenshot`, and Scriptable's in-app preview.

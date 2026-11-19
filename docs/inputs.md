@@ -10,6 +10,7 @@ workspace file they read. Each input feeds one or more [stream components](strea
 | [`trips`](#trips) | `workspace/trips.yaml` | Workspace | `trips`, `past-trips` |
 | [`trip-apps`](#trip-apps) | Trip folders in your hub repo, and check-ins | Deploy and interactive | `trips`, `past-trips` |
 | [`grocery`](#grocery) | The hub's shared list | Interactive | `grocery` |
+| [`household`](#household) | The hub's household records | Interactive | `pets` |
 | [`escape-rooms`](#escape-rooms-and-movies) | `workspace/escape-rooms.yaml` | Workspace | `escape-rooms` |
 | [`movies`](#escape-rooms-and-movies) | `workspace/movies.yaml` | Workspace | `movies` |
 | [`notes`](#notes) | `workspace/context/` | Workspace | `plan` |
@@ -105,6 +106,20 @@ One shared list that every screen sees. Add and check off items on the hub page.
 planner adds what it finds in the week ahead (a birthday needs candles) and anything you've
 put in `workspace/context/shopping/`. The list is stored by the Worker, so the wall tablet
 and your phone agree.
+
+## household
+
+What it takes to run the house, kept by the hub itself. Today that's the pets: their
+vaccinations, medications, grooming and vet visits. Each is a task with a due date. It can
+repeat, and it keeps a record of every time it was done.
+
+You add and change them at `/household/` on your hub, on a phone or the hub page. Adults
+can change anything. Everyone else can look. A task shows on every screen as a `pets` card
+when it's close to due, and stays there, marked overdue, until someone marks it done.
+
+**Set up:** it needs a D1 database and your Access details. See
+[getting-started.md](getting-started.md#household-records). Without them this input is
+off, and nothing else changes.
 
 ## escape-rooms and movies
 

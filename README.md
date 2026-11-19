@@ -28,6 +28,7 @@ Every output shows the same thing: a rotating stream of **cards**. Each card com
 | `today` | The rest of today and tomorrow, in each person's color | Google Calendar |
 | `week` | The days ahead | Google Calendar |
 | `plan` | Claude's read on the week: summary, conflicts, things to do | The planner |
+| `pets` | What a pet needs soon: a shot, a pill, grooming, a vet visit | Household records, kept on the hub |
 | `photos` | A photo from the family album | iCloud shared album |
 | `trips` | An upcoming trip: countdown, hero photo, quest leaderboard, today's schedule | `trips.yaml`, trip apps |
 | `past-trips` | A trip you took: highlights and final standings | `trips.yaml`, trip apps |

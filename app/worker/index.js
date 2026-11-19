@@ -18,6 +18,7 @@
  *   GET /api/config.js      — the page's share of the hub config (names, colors, trip apps)
  *   /api/data…              — published plan/family/strava data (see data-api.js)
  *   /api/grocery            — the shared grocery list (grocery.js)
+ *   /api/household…         — household records: pets and their care (household.js)
  *   /api/trip/:id/…         — trip app check-ins and packing lists
  *   All other paths         — static assets (the hub page, trip apps)
  *
@@ -29,12 +30,14 @@
  *                       Cloudflare Access) even if /api/events is excluded from it.
  *   PUBLISH_TOKEN     — bearer token the pipeline uses to PUT /api/data/:kind
  *
- * Bindings: ASSETS (static assets), HUB_DATA (KV, published data), TRIP_KV (KV, trip apps).
+ * Bindings: ASSETS (static assets), HUB_DATA (KV, published data), TRIP_KV (KV, trip apps),
+ *           HUB_DB (D1, household records; optional).
  */
 
 import { handleDataApi } from "./data-api.js";
 import { handleStream } from "./stream.js";
 import { handleGrocery } from "./grocery.js";
+import { handleHousehold } from "./household.js";
 
 // Widgets refresh often and every phone asks separately; one Google fetch per
 // window serves them all.
@@ -58,6 +61,8 @@ export function createHub(config) {
     locale: config.locale || "en-US",
     members: config.members,
     tripApps: config.tripApps,
+    // How the Worker checks a sign-in before a household write (access.js).
+    access: config.access ?? null,
     photosAlbum: config.photos?.icloudAlbum ?? null,
     // The stream's settings: the family's default, and each output's overrides.
     stream: config.stream ?? {},
@@ -106,8 +111,13 @@ async function route(request, env, hub) {
     return handleGrocery(request, env, hub);
   }
 
+  const household = url.pathname.match(/^\/api\/household(\/.*)?$/);
+  if (household) {
+    return handleHousehold(request, env, hub, household[1] ?? "");
+  }
+
   if (url.pathname === "/api/config.js") {
-    const page = { ...hub.pageConfig, eventsToken: env.API_TOKEN ?? null };
+    const page = { ...hub.pageConfig, eventsToken: env.API_TOKEN ?? null, household: !!env.HUB_DB };
     return new Response(`window.HUB_CONFIG = ${JSON.stringify(page).replace(/<\//g, "<\\/")};\n`, {
       headers: { "Content-Type": "application/javascript; charset=utf-8", "Cache-Control": "private, no-store" },
     });

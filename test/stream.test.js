@@ -8,7 +8,7 @@ const card = (component, id, extra = {}) => ({ id: `${component}:${id}`, title: 
 
 test("the default stream is every component, in the documented order", () => {
   assert.deepEqual(resolveConfig(HUB, null).components,
-    ["today", "week", "plan", "photos", "trips", "past-trips", "grocery", "escape-rooms", "movies", "workouts"]);
+    ["today", "week", "plan", "pets", "photos", "trips", "past-trips", "grocery", "escape-rooms", "movies", "workouts"]);
   assert.deepEqual(COMPONENT_IDS, resolveConfig(HUB, null).components);
 });
 

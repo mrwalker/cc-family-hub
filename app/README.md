@@ -54,11 +54,12 @@ leaves the live hub as it was.
 | `PUT /api/data/:kind` | The pipeline | Publish `plan`, `family`, or `strava`. Validated, then stored. |
 | `GET /api/data/:kind` | You, when debugging | What's published, and when |
 | `/api/grocery` | The hub page | The shared grocery list |
+| `/api/household…` | The household page | Household records: read them, add and change pets and tasks, mark a task done or undo it. Writes check the Access sign-in. See [docs/architecture.md](../docs/architecture.md#household-records). |
 | `/api/trip/:appId/checkins`, `/packing` | Trip apps | Quest check-ins and packing lists |
 | Everything else | Browsers | Static assets: the hub page and trip apps |
 
 Bindings: `ASSETS`, `HUB_DATA` (KV: published data and the grocery list), `TRIP_KV` (KV:
-trip check-ins and packing). Secrets: `SA_CLIENT_EMAIL`, `SA_PRIVATE_KEY`, `API_TOKEN`,
+trip check-ins and packing), `HUB_DB` (D1: household records; optional). Secrets: `SA_CLIENT_EMAIL`, `SA_PRIVATE_KEY`, `API_TOKEN`,
 `PUBLISH_TOKEN`.
 
 ## What the page is allowed to know

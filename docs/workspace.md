@@ -62,6 +62,12 @@ outputs:                            # see outputs.md
 hub:
   title: "Rivera Family Hub"
 
+  # Lets the hub check who's signed in before anyone changes household records.
+  # Both are in Cloudflare Zero Trust; neither is a secret. See getting-started.md.
+  access:
+    teamDomain: "rivera.cloudflareaccess.com"
+    aud: "4714c1358e65fe4b408ad6d432a5f878f08194bdb4752441fd56faefa9b2b6f2"
+
   # People who join trips but aren't members. An email lets their sign-in pick their
   # player in a trip app. Their calendars are never read.
   guests:

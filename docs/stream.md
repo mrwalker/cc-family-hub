@@ -17,6 +17,7 @@ GET /api/stream?view=family
 | `today` | 1 | The rest of today and all of tomorrow | Google Calendar, plan flags |
 | `week` | 1 | The next several days | Google Calendar |
 | `plan` | 1 | The week's summary, flags, and action items | The planner |
+| `pets` | 1 per task that's due soon or overdue | What a pet needs and when: a shot, a pill, grooming, a vet visit | Household records |
 | `photos` | 1 per photo | A photo from the family album | iCloud album |
 | `trips` | 1 per upcoming or active trip | Countdown (or "Day 2 of 5"), hero photo, leaderboard, today's schedule | `trips.yaml`, trip apps |
 | `past-trips` | 1 per past trip | Where and when, highlights, final standings | `trips.yaml`, trip apps |
@@ -187,14 +188,15 @@ to draw it more richly over time.
 | `photos` | `photo`: `id`, `width`, `height`, `takenAt` |
 | `trips` | `trip`, `name`, `destination`, `resort`, `start`, `end`, `dates`, `status`, `daysUntil`, `day`, `days`, `countdown`, `who[]`, `leaderboard[]`, `questsDone`, `questsTotal`, `today[]`, `album` |
 | `past-trips` | `trip`, `name`, `destination`, `start`, `end`, `dates`, `who[]`, `highlights[]`, `leaderboard[]`, `album` |
-
-A trip with its own shared album has `album: { count, photos: [image URL…] }` (up to 12,
-shuffled each minute), and its `glance.image` is one of them. Without one, `album` is
-`null` and the image is the trip app's hero photo, if any.
+| `pets` | `task`: `id`, `kind`, `title`, `pet`, `assignee`, `dueDate`, `dueTime`, `daysUntil`, `overdue`, `repeats`, `provider`, `phone` |
 | `grocery` | `items[]`, each with `id`, `name`, `quantity`, `store`, `addedBy`, `done` |
 | `escape-rooms` | `record`: `escaped`, `total`. `room`: `venue`, `room`, `city`, `date`, `solved`, `escapeTime`, `who[]` |
 | `movies` | `movie`: `title`, `releaseDate`, `format`, `streaming`, `who[]`, `status` |
 | `workouts` | `members[]`, each with `id` and `activities[]` |
+
+A trip with its own shared album has `album: { count, photos: [image URL…] }` (up to 12,
+shuffled each minute), and its `glance.image` is one of them. Without one, `album` is
+`null` and the image is the trip app's hero photo, if any.
 
 The exact shapes are documented at the top of each component's file in
 `app/worker/components/`.

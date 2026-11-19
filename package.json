@@ -1,6 +1,6 @@
 {
   "name": "cc-family-hub",
-  "version": "1.1.2",
+  "version": "2.0.0",
   "description": "Claude Code-powered family coordination hub: a planning pipeline and the hub app it publishes to",
   "type": "module",
   "bin": {
@@ -16,7 +16,7 @@
     "check-secrets": "node scripts/check-secrets.js",
     "build": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
-    "test": "node --test test/",
+    "test": "node --test",
     "setup:calendars": "node tools/calendar-setup/setup.js",
     "setup:strava": "tsx scripts/setup-strava.ts"
   },
