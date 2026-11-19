@@ -15,6 +15,8 @@
  * Each PUT keeps the previous value at data:<kind>:prev for manual rollback.
  */
 
+import { mergePlanShopping } from "./grocery.js";
+
 const MAX_BYTES = 1_000_000;
 
 export const DATA_KINDS = {
@@ -81,7 +83,13 @@ async function putData(request, env, kind) {
     await env.HUB_DATA.put(`${key(kind)}:prev`, prev.value, { metadata: prev.metadata ?? {} });
   }
   await env.HUB_DATA.put(key(kind), body, { metadata: { publishedAt, bytes: body.length } });
-  return json({ ok: true, kind, bytes: body.length, publishedAt });
+  // The plan's shopping items join the shared grocery list. A failure here
+  // shouldn't fail the publish: the plan itself is stored.
+  let groceryAdded;
+  if (kind === "plan") {
+    try { groceryAdded = await mergePlanShopping(env, data.shoppingList); } catch (e) { console.error("grocery merge:", e.message); }
+  }
+  return json({ ok: true, kind, bytes: body.length, publishedAt, ...(groceryAdded != null ? { groceryAdded } : {}) });
 }
 
 async function dataScript(env) {

@@ -1,0 +1,20 @@
+# Escape rooms you've played, newest first (docs/inputs.md#escape-rooms-and-movies).
+
+- id: er-lab-49
+  venue: Puzzle Co
+  room: Lab 49
+  city: Sacramento, CA
+  date: "2027-03-14"
+  who: [alex, jordan, sam, riley]
+  solved: true
+  escapeTime: "52 min"
+  notes: Sam found the last key with seconds to spare.
+
+- id: er-pharaoh
+  venue: Puzzle Co
+  room: The Pharaoh's Tomb
+  city: Sacramento, CA
+  date: "2026-11-02"
+  who: [alex, sam]
+  solved: false
+  failNote: One lock short

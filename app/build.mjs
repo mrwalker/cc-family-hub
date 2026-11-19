@@ -2,8 +2,9 @@
 /**
  * Builds a family's hub from its repo (run from that repo's root):
  *
- *   workspace/family.yaml        members (+ color, shortName), hub.title, hub.guests,
- *                                hub.tripApps, hub.groceryEmailUrl, hub.photos
+ *   workspace/family.yaml        members (+ color, shortName), inputs, stream, outputs,
+ *                                hub.title, hub.guests, hub.tripApps
+ *                                (and the older hub.photos and hub.groceryEmailUrl)
  *   workspace/members/<id>.yaml  calendarIds, email
  *     → .generated/hub-config.json   imported by the family's worker.js (never served)
  *
@@ -23,6 +24,8 @@ import { runInNewContext } from "node:vm";
 import { fileURLToPath } from "node:url";
 import yaml from "js-yaml";
 import { albumKey } from "./worker/photos.js";
+import { COMPONENT_IDS } from "./worker/components/index.js";
+import { OUTPUT_DEFAULTS } from "./worker/stream.js";
 
 const root = process.cwd();                                        // the family's repo
 const toolkitPublic = join(dirname(fileURLToPath(import.meta.url)), "public");
@@ -68,11 +71,97 @@ const members = (Array.isArray(family.members) ? family.members : []).map((m, i)
   return { id: m.id, name: m.shortName || m.name, color: m.color, calendars, emails };
 });
 if (!members.length) fail("family.yaml", "members", "no members listed");
-if (hub.groceryEmailUrl != null && !/^https:\/\//.test(String(hub.groceryEmailUrl))) {
-  fail("family.yaml", "hub.groceryEmailUrl", "expected an https:// URL");
+const inputs = objectAt(family.inputs, "inputs");
+const outputs = objectAt(family.outputs, "outputs");
+
+// The photo album and grocery email moved from hub: to inputs: and outputs: in v0.7.
+const album = inputs["icloud-album"]?.album ?? hub.photos?.icloudAlbum;
+const albumAt = inputs["icloud-album"]?.album != null ? "inputs.icloud-album.album" : "hub.photos.icloudAlbum";
+if (inputs["icloud-album"] && inputs["icloud-album"].album == null) fail("family.yaml", "inputs.icloud-album.album", "required (the shared album's link)");
+if (album != null && !albumKey(album)) {
+  fail("family.yaml", albumAt, "expected an iCloud shared album link (https://photos.icloud.com/shared/album/…)");
 }
-if (hub.photos?.icloudAlbum != null && !albumKey(hub.photos.icloudAlbum)) {
-  fail("family.yaml", "hub.photos.icloudAlbum", "expected an iCloud shared album link (https://photos.icloud.com/shared/album/…)");
+const groceryEmailUrl = outputs["grocery-email"]?.url ?? hub.groceryEmailUrl;
+const groceryAt = outputs["grocery-email"]?.url != null ? "outputs.grocery-email.url" : "hub.groceryEmailUrl";
+if (outputs["grocery-email"] && outputs["grocery-email"].url == null) fail("family.yaml", "outputs.grocery-email.url", "required (the Apps Script web app's URL)");
+if (groceryEmailUrl != null && !/^https:\/\//.test(String(groceryEmailUrl))) fail("family.yaml", groceryAt, "expected an https:// URL");
+
+// Inputs: the built-in ones, or a family's own module in integrations/inputs/<id>/.
+const KNOWN_INPUTS = ["google-calendar", "icloud-album", "trips", "trip-apps", "grocery", "escape-rooms", "movies", "notes", "apple-reminders", "strava"];
+for (const id of Object.keys(inputs)) {
+  if (!KNOWN_INPUTS.includes(id) && !existsSync(join(root, "integrations", "inputs", id))) {
+    fail("family.yaml", `inputs.${id}`, `unknown input. Known: ${KNOWN_INPUTS.join(", ")}`);
+  }
+}
+
+// Outputs: screens (which can have a stream of their own) and pushes.
+const SCREENS = Object.keys(OUTPUT_DEFAULTS);
+const PUSHES = ["google-calendar", "grocery-email"];
+const outputStreams = {};
+for (const [id, o] of Object.entries(outputs)) {
+  if (SCREENS.includes(id)) {
+    if (o?.stream != null) outputStreams[id] = { stream: checkStream(o.stream, `outputs.${id}.stream`) };
+  } else if (PUSHES.includes(id) || existsSync(join(root, "integrations", "outputs", id))) {
+    if (o?.stream != null) fail("family.yaml", `outputs.${id}.stream`, "only screens have a stream");
+  } else {
+    fail("family.yaml", `outputs.${id}`, `unknown output. Screens: ${SCREENS.join(", ")}. Pushes: ${PUSHES.join(", ")}`);
+  }
+}
+const stream = family.stream == null ? {} : checkStream(family.stream, "stream");
+
+/** Validates a stream: section (docs/stream.md) and returns it. */
+function checkStream(st, at) {
+  if (!isObj(st)) { fail("family.yaml", at, "expected a map (components, dwell, photosBetween, max)"); return {}; }
+  const out = {};
+  for (const k of Object.keys(st)) {
+    if (!["components", "dwell", "photosBetween", "max"].includes(k)) fail("family.yaml", `${at}.${k}`, "unknown setting. Expected components, dwell, photosBetween, or max");
+  }
+  if (st.components != null) {
+    if (!Array.isArray(st.components) || !st.components.length) fail("family.yaml", `${at}.components`, "expected a list of components");
+    else {
+      st.components.forEach((c, i) => {
+        if (!COMPONENT_IDS.includes(c)) fail("family.yaml", `${at}.components[${i}]`, `unknown component ${JSON.stringify(c)}. Known: ${COMPONENT_IDS.join(", ")}`);
+      });
+      out.components = st.components;
+    }
+  }
+  const seconds = (v, p) => {
+    if (typeof v !== "number" || !(v >= 3 && v <= 3600)) { fail("family.yaml", p, `expected seconds between 3 and 3600, got ${JSON.stringify(v)}`); return false; }
+    return true;
+  };
+  if (st.dwell != null) {
+    if (typeof st.dwell === "number") { if (seconds(st.dwell, `${at}.dwell`)) out.dwell = st.dwell; }
+    else if (isObj(st.dwell)) {
+      for (const [k, v] of Object.entries(st.dwell)) {
+        if (k !== "default" && !COMPONENT_IDS.includes(k)) fail("family.yaml", `${at}.dwell.${k}`, `expected "default" or a component`);
+        else seconds(v, `${at}.dwell.${k}`);
+      }
+      out.dwell = st.dwell;
+    } else fail("family.yaml", `${at}.dwell`, "expected seconds, or a map of component to seconds");
+  }
+  if (st.photosBetween != null) {
+    if (!Number.isInteger(st.photosBetween) || st.photosBetween < 0 || st.photosBetween > 10) fail("family.yaml", `${at}.photosBetween`, `expected a whole number from 0 to 10, got ${JSON.stringify(st.photosBetween)}`);
+    else out.photosBetween = st.photosBetween;
+  }
+  if (st.max != null) {
+    if (!isObj(st.max)) fail("family.yaml", `${at}.max`, "expected a map of component to a number of cards");
+    else {
+      for (const [k, v] of Object.entries(st.max)) {
+        if (!COMPONENT_IDS.includes(k)) fail("family.yaml", `${at}.max.${k}`, "unknown component");
+        else if (!Number.isInteger(v) || v < 1) fail("family.yaml", `${at}.max.${k}`, `expected a whole number of cards, got ${JSON.stringify(v)}`);
+      }
+      out.max = st.max;
+    }
+  }
+  return out;
+}
+
+function isObj(v) { return v !== null && typeof v === "object" && !Array.isArray(v); }
+function objectAt(v, at) {
+  if (v == null) return {};
+  if (!isObj(v)) { fail("family.yaml", at, "expected a map of ids to their settings"); return {}; }
+  // `id: {}` and a bare `id:` both mean "on, with no settings".
+  return Object.fromEntries(Object.entries(v).map(([k, o]) => [k, o ?? {}]));
 }
 
 const guests = Object.entries(hub.guests ?? {}).map(([id, g]) => {
@@ -150,12 +239,14 @@ const config = {
   members,
   guests,
   tripApps,
-  groceryEmailUrl: hub.groceryEmailUrl || null,
-  photos: hub.photos?.icloudAlbum ? { icloudAlbum: String(hub.photos.icloudAlbum) } : null,
+  groceryEmailUrl: groceryEmailUrl || null,
+  photos: album ? { icloudAlbum: String(album) } : null,
+  stream,
+  outputs: outputStreams,
 };
 mkdirSync(GENERATED, { recursive: true });
 writeFileSync(OUT, JSON.stringify(config, null, 2) + "\n");
-console.log(`Hub config: ${members.length} members, ${guests.length} guests, ${tripApps.length} trip apps → .generated/hub-config.json`);
+console.log(`Hub config: ${members.length} members, ${guests.length} guests, ${tripApps.length} trip apps, stream of ${(stream.components ?? COMPONENT_IDS).length} components → .generated/hub-config.json`);
 
 // Static site: toolkit pages, then each trip's folder, then the family's public/ overrides.
 rmSync(SITE, { recursive: true, force: true });

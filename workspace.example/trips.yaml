@@ -1,0 +1,36 @@
+# Trips, upcoming and past (docs/inputs.md#trips). A trip is upcoming, active,
+# or past by its dates. `who` decides whose view it shows in; work trips stay
+# out of the stream.
+
+- id: beach-jul-2027
+  name: Beach Week
+  destination: Outer Banks, NC
+  emoji: "🏖️"
+  startDate: "2027-07-03"
+  endDate: "2027-07-09"
+  who: [alex, jordan, sam, riley]
+  type: family
+  description: A week on the sound side, with Grandma for the first half.
+  highlights:
+    - { emoji: "🪁", label: Kite day, caption: "Jockey's Ridge at sunset" }
+    - { emoji: "🐢", label: Turtle walk, caption: Early morning with the rangers }
+
+- id: ski-dec-2026
+  name: Ski Cabin
+  destination: Lake Tahoe, CA
+  emoji: "⛷️"
+  startDate: "2026-12-26"
+  endDate: "2027-01-01"
+  who: [alex, jordan, sam, riley]
+  type: family
+  highlights:
+    - { emoji: "🎿", label: First blue run, caption: Riley went first }
+
+- id: chicago-conf-2027
+  name: Chicago (work)
+  destination: Chicago, IL
+  emoji: "💼"
+  startDate: "2027-05-11"
+  endDate: "2027-05-13"
+  who: [jordan]
+  type: work

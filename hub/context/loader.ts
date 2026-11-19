@@ -14,7 +14,7 @@ import type {
   CalendarEvent,
   WeeklyPlan,
 } from "../../integrations/_base/types.js";
-import { WORKSPACE } from "../paths.js";
+import { WORKSPACE, SECRETS_PATH } from "../paths.js";
 
 
 export function loadFamilyConfig(): FamilyConfig {
@@ -29,7 +29,32 @@ export function loadFamilyConfig(): FamilyConfig {
   if (!result.success) {
     throw new Error(`Invalid family.yaml:\n${result.error.toString()}`);
   }
-  return result.data as FamilyConfig;
+  const config = result.data as Omit<FamilyConfig, "pipeline">;
+  return { ...config, pipeline: pipelineIntegrations(config) } as FamilyConfig;
+}
+
+/**
+ * Which inputs and outputs the pipeline loads. `inputs:` and `outputs:` name
+ * each one once; the older `integrations.active` loads every id as both an
+ * input and an output, as it always has. The hub-api output is on whenever
+ * secrets.yaml has a hub-api entry.
+ */
+export function pipelineIntegrations(config: Omit<FamilyConfig, "pipeline">): { inputs: string[]; outputs: string[] } {
+  const legacy = config.integrations?.active ?? [];
+  const inputs = new Set([...legacy, ...Object.keys(config.inputs ?? {})]);
+  const outputs = new Set([...legacy, ...Object.keys(config.outputs ?? {})]);
+  if (hasSecretsFor("hub-api")) outputs.add("hub-api");
+  return { inputs: [...inputs], outputs: [...outputs] };
+}
+
+function hasSecretsFor(id: string): boolean {
+  if (!existsSync(SECRETS_PATH)) return false;
+  try {
+    const all = yaml.load(readFileSync(SECRETS_PATH, "utf8")) as Record<string, unknown> | null;
+    return !!all && typeof all[id] === "object" && all[id] !== null;
+  } catch {
+    return false;
+  }
 }
 
 export function loadMemberProfiles(): MemberProfile[] {

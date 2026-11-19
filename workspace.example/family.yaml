@@ -30,12 +30,39 @@ members:
     role: "child"
     color: "#16a34a"
 
-# Hub app settings (read by app/build.mjs; the planner ignores them). See app/README.md.
+# Inputs: where the hub's data comes from (docs/inputs.md). Trips, escape rooms,
+# movies, notes, and the grocery list need no entry: they're on when their file exists.
+inputs:
+  google-calendar: {}
+  apple-reminders: {}          # macOS only
+  # icloud-album:              # an iCloud shared album with Public Website on
+  #   album: "https://photos.icloud.com/shared/album/…"   # keep your hub repo private: anyone with the link can view the album
+
+# The planner (docs/architecture.md#the-brain).
+brain:
+  model: "claude-opus-5-5"
+  daysAhead: 14
+
+# The stream every screen rotates through (docs/stream.md). Leave this out for
+# every component, in the default order.
+stream:
+  components: [today, photos, trips, plan, grocery, week, past-trips, escape-rooms, movies, workouts]
+  dwell: { default: 15, today: 30 }
+  max:
+    movies: 2
+    past-trips: 1
+
+# Outputs (docs/outputs.md). Screens work without an entry; list one to change its stream.
+outputs:
+  roku:
+    stream: { photosBetween: 3, dwell: 10 }
+  google-calendar: {}          # writes the planner's notes into events
+  # grocery-email:             # app/extras/grocery-email.gs
+  #   url: "https://script.google.com/macros/s/…/exec"
+
+# Hub app settings (read by app/build.mjs). See app/README.md.
 hub:
   title: "Rivera Family Hub"
-  # groceryEmailUrl: "https://script.google.com/macros/s/.../exec"   # app/extras/grocery-email.gs
-  # photos:                     # an iCloud shared album with Public Website on, for TV screensavers
-  #   icloudAlbum: "https://photos.icloud.com/shared/album/…"   # keep this repo private: anyone with the link can view the album
 
   # People who join trips but aren't family members. An email lets their sign-in
   # pick their player in a trip app; their calendars are never fetched.
@@ -49,22 +76,3 @@ hub:
   #    path: "/beach/"             # the folder, served at this path
   #    appId: "beach-2027"         # window.TRIP.id in its trip-data.js
   #    guests: [grandma]           # who can score besides the family
-
-integrations:
-  # IDs of integrations to activate. Each must have a corresponding module
-  # in integrations/inputs/<id>/ or integrations/outputs/<id>/
-  active:
-    - google-calendar    # input + output
-    - apple-reminders    # input only (macOS)
-    - web-portal         # output only — local file (no server needed)
-    # - hub-api          # output — publishes to your hub app's data API (see app/README.md)
-    # - github-pages     # output — publishes portal to a private GitHub repo (requires GitHub Pro)
-    # - wall-display     # output — uncomment when display app is set up
-    # - mobile-app       # output — uncomment when mobile app is set up
-
-  schedule:
-    # Run the planning routine every day at 6:00 AM
-    planningCron: "0 6 * * *"
-    # Sync calendars every hour
-    syncCron: "0 * * * *"
-    timezone: "America/Los_Angeles"

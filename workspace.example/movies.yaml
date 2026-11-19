@@ -1,0 +1,24 @@
+# Movies you want to watch, and ones you've seen (docs/inputs.md#escape-rooms-and-movies).
+# status: want-to-watch | watched
+
+- id: space-race
+  title: "Space Race"
+  releaseDate: "2027-07-16"
+  status: want-to-watch
+  format: "IMAX"
+  who: [alex, sam]
+
+- id: the-lighthouse-keeper
+  title: "The Lighthouse Keeper"
+  releaseDate: "2027-02-05"
+  status: want-to-watch
+  streaming: "Netflix"
+  who: [alex, jordan, sam, riley]
+
+- id: robot-summer
+  title: "Robot Summer"
+  releaseDate: "2026-08-01"
+  status: watched
+  watchedDate: "2026-08-09"
+  rating: 4
+  who: [riley, sam]

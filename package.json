@@ -13,6 +13,7 @@
     "check-secrets": "node scripts/check-secrets.js",
     "build": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
+    "test": "node --test test/",
     "setup:calendars": "node tools/calendar-setup/setup.js",
     "setup:portal": "tsx integrations/outputs/github-pages/setup.ts",
     "build:family-data": "tsx scripts/build-family-data.ts",
