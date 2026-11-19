@@ -17,10 +17,6 @@ a wall tablet, phones, the Mac menu bar, and the TV.
   Reminders, Strava ──┘         THE STREAM               └──  Grocery email
 ```
 
-> **Status.** These docs describe the hub as designed for v1.0. The current release, v0.11.4,
-> ships most of it. [docs/roadmap.md](docs/roadmap.md) lists what isn't built yet. For docs
-> that match v0.6.0 exactly, read them at
-> [the v0.6.0 tag](https://github.com/mrwalker/cc-family-hub/tree/v0.6.0).
 
 ## The stream
 
@@ -103,7 +99,7 @@ calendars, deploy the hub, schedule the pipeline, and add screens.
 | [Wall tablet](docs/wall-tablet.md) | Kiosk setup and the Google sign-in fix |
 | [Contributing](docs/contributing.md) | Add an input, a component, or an output |
 | [Repository structure](docs/structure.md) | Where things live in this repo |
-| [Roadmap](docs/roadmap.md) | What these docs describe that isn't built yet |
+| [Roadmap](docs/roadmap.md) | What's next |
 
 ## Design principles
 

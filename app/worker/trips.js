@@ -1,21 +1,9 @@
 /**
- * Trip apps at a glance, for screens outside the trip apps (the Roku
- * screensaver, phone and Mac widgets). Under /api/widget/ so the widget service
- * tokens cover it.
- *
- *   GET /api/widget/trips → { trips: [{
- *       id, trip, title, titleAccent, resort, start, end, dates,
- *       status: "upcoming"|"active", daysUntil, day?, days, countdown, team,
- *       hero: "/api/widget/trips/<id>/hero" | null, url,
- *       leaderboard: [{ id, name, color, points, quests }],   // highest first
- *       questsDone, questsTotal,
- *       today: [{ time, emoji, title }]                        // active trips only
- *     }], generatedAt }
- *   GET /api/widget/trips/:id/hero → the trip's hero photo
- *
- * Trips that are over are left out. The data comes from each trip's
- * trip-data.js (summarized at build time by app/build.mjs) plus check-ins in
- * TRIP_KV, scored the same way as the trip app (app/public/trip-app/app.js).
+ * Trip apps at a glance, for the trips and past-trips components: each trip
+ * app's countdown, hero photo, quest leaderboard and today's schedule. The data
+ * comes from each trip's trip-data.js (summarized at build time by app/build.mjs)
+ * plus check-ins in TRIP_KV, scored the same way as the trip app
+ * (app/public/trip-app/app.js).
  */
 
 import { ymd, daysBetween, dateRange, json } from "./util.js";
@@ -23,30 +11,6 @@ import { ymd, daysBetween, dateRange, json } from "./util.js";
 // Scoring reads every check-in with a KV list(), and KV's free tier allows only
 // 1,000 of those a day across the account, so summaries are cached for 5 minutes.
 const CACHE_SECONDS = 300;
-
-export async function handleTrips(request, env, hub, path) {
-  if (request.method !== "GET") return json({ error: "Method not allowed" }, 405);
-  const url = new URL(request.url);
-
-  const hero = path.match(/^\/([a-z0-9-]{1,40})\/hero$/);
-  if (hero) {
-    const app = hub.tripApps.find(t => t.appId === hero[1]);
-    if (!app?.summary?.hero || !env.ASSETS) return json({ error: "No such trip photo" }, 404);
-    return heroResponse(env, app, url.origin);
-  }
-  if (path !== "") return json({ error: "Not found" }, 404);
-
-  const trips = (await tripSummaries(env, hub)).filter(t => t.status !== "past");
-  return json({
-    trips: trips.map(({ endedAgo, ...t }) => ({
-      ...t,
-      hero: t.hero ? `${url.origin}/api/widget/trips/${t.id}/hero` : null,
-      url: `${url.origin}${t.path}`,
-      path: undefined,
-    })),
-    generatedAt: new Date().toISOString(),
-  });
-}
 
 /**
  * Every trip app's summary, upcoming, active and past, soonest first. Cached for

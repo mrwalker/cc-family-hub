@@ -287,7 +287,7 @@
       opacity: 0;
     }
 
-    /* ── Photos module (iCloud shared album via /api/photos) ─────── */
+    /* ── Photos module (the family album's photo cards from the stream) ─ */
     /* No CSS inset or flex gap: the wall tablet's WebView is old. */
     .photo-frame {
       position: relative; height: calc(100vh - 230px); min-height: 360px;
@@ -2350,18 +2350,22 @@ function buildPhotos(container) {
   }, PHOTO_MS);
 }
 
+// The whole album, for the Photos tab when someone opens it: every photo card in the stream.
 function loadPhotoList() {
-  return fetch("/api/photos", { credentials: "same-origin" })
+  return fetch("/api/page/stream?components=photos&all=1", { credentials: "same-origin" })
     .then(r => r.json().then(d => ({ ok: r.ok, d })))
     .then(({ ok, d }) => {
-      if (!ok || !Array.isArray(d.photos) || !d.photos.length) {
+      const photos = ok && Array.isArray(d.cards)
+        ? d.cards.filter(c => c.glance && c.glance.image).map(c => ({ id: c.id, image: c.glance.image }))
+        : [];
+      if (!photos.length) {
         photoState.frame.style.display = "none";
         photoState.empty.style.display = "";
         photoState.empty.textContent = (d && d.error) ||
           "No photos yet. Add some to the family's shared album.";
         return;
       }
-      const list = d.photos.slice();
+      const list = photos;
       for (let i = list.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         const t = list[i]; list[i] = list[j]; list[j] = t;
@@ -2397,7 +2401,7 @@ function nextPhoto() {
   // Pick up newly added photos every 10 minutes.
   if (Date.now() - st.loadedAt > 10 * 60_000) loadPhotoList();
   const photo = st.list[st.i++ % st.list.length];
-  showPhotoUrl("/api/photos/" + encodeURIComponent(photo.id));
+  showPhotoUrl(photo.image);
 }
 
 function buildMovies(container) {
