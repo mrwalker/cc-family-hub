@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import Foundation
 
 /// Fetches the stream (`/api/stream`), keeps the last good response on disk for
@@ -18,6 +19,13 @@ final class HubStore: ObservableObject {
     /// Which headline the menu bar shows when it rotates (see MenuBarText.rotate).
     @Published private(set) var rotation = 0
 
+    /// What the menu bar item shows. Its own object, so the item redraws only when
+    /// its text or icon actually change: redrawing a MenuBarExtra's label while its
+    /// window is open closes the window, and the panel changes the store constantly
+    /// (images loading, refreshes, the rotation's clock).
+    let label = MenuBarLabelModel()
+    private var labelSync: AnyCancellable?
+
     private var imageLoads: Set<String> = []
     private let refreshEvery: TimeInterval = 5 * 60
     private let retryEvery: TimeInterval = 60
@@ -34,6 +42,11 @@ final class HubStore: ObservableObject {
     init(settings: HubSettings = .load(), live: Bool = true) {
         self.settings = settings
         data = Cache.read(view: settings.view)
+        // objectWillChange fires before a change lands; read the result on the next turn.
+        labelSync = objectWillChange
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in self?.syncLabel() }
+        syncLabel()
         guard live else { return }
         // Every 30 seconds: the menu bar's rotation step, and the refresh check.
         timer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
@@ -150,6 +163,13 @@ final class HubStore: ObservableObject {
     }
 
     var menuBarText: String { menuBarText(settings.menuBarText) }
+
+    private func syncLabel() {
+        let text = menuBarText
+        let icon = data == nil && problem != nil ? "exclamationmark.triangle" : "house.fill"
+        if label.text != text { label.text = text }
+        if label.icon != icon { label.icon = icon }
+    }
 
     func menuBarText(_ mode: MenuBarText) -> String {
         guard isConfigured, data != nil else { return "" }
@@ -283,4 +303,11 @@ enum Cache {
         // The /api/widget cache from before the stream.
         try? FileManager.default.removeItem(at: folder.appendingPathComponent("widget-\(safe(view)).json"))
     }
+}
+
+/// The menu bar item's text and icon (see HubStore.label).
+@MainActor
+final class MenuBarLabelModel: ObservableObject {
+    @Published var text = ""
+    @Published var icon = "house.fill"
 }

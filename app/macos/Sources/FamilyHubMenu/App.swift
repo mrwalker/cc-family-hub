@@ -18,18 +18,18 @@ struct FamilyHubApp: App {
                 .environmentObject(store)
                 .onAppear { Task { await store.refreshIfOld() } }
         } label: {
-            MenuBarLabel(store: store)
+            MenuBarLabel(model: store.label)
         }
         .menuBarExtraStyle(.window)
     }
 }
 
 struct MenuBarLabel: View {
-    @ObservedObject var store: HubStore
+    @ObservedObject var model: MenuBarLabelModel
 
     var body: some View {
-        let text = store.menuBarText
-        let icon = store.data == nil && store.problem != nil ? "exclamationmark.triangle" : "house.fill"
+        let text = model.text
+        let icon = model.icon
         if text.isEmpty {
             Image(systemName: icon)
         } else {
