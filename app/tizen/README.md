@@ -74,6 +74,29 @@ To add a TV later, create a new profile that **reuses the existing author certif
 lists every TV's id, point `TIZEN_PROFILE` at it, and reinstall everywhere. With the same
 author, installed apps update in place.
 
+## TVs in more than one place
+
+A certificate only has to list the TVs it installs on, so give each location its own. In
+`~/.config/family-hub/`, next to `tizen.env`, add `tizen-<site>.env`:
+
+```bash
+# tizen-home.env
+TIZEN_TVS="192.168.1.40 192.168.1.41"
+TIZEN_PROFILE=family-hub-home
+```
+
+For each site, create a certificate profile in Certificate Manager that **reuses the same
+author certificate** and lists that site's TVs. Then, on that site's network:
+
+```bash
+./build.sh --my-ip                      # what to enter as each TV's Developer Mode host
+./build.sh --find                       # the TVs on this network in Developer Mode
+./build.sh --site home --duid 192.168.1.40
+./build.sh --site home --install
+```
+
+Every site's builds share the author, so any TV can take an update from any of them.
+
 ## Install
 
 ```bash
