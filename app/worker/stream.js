@@ -1,8 +1,10 @@
 /**
  * The stream: what the brain hands every output (docs/stream.md).
  *
- *   GET /api/stream?view=family|<member id>&output=<output id>
+ *   GET /api/stream?view=family|<member id>&output=<output id>[&components=a,b][&all=1]
  *     → { title, view, output, members, hubUrl, generatedAt, cards: [card…], errors? }
+ *   components= narrows the stream to those components (in that order); all=1 returns
+ *   every card, without taking turns or photos between.
  *   GET /api/stream/image/<card id>   → the card's photo (album photo or trip hero)
  *
  * Each component (components/) turns data into cards. compose() then applies the
@@ -141,6 +143,16 @@ export async function handleStream(request, env, hub, loadEvents, path) {
   }
   const output = url.searchParams.get("output") || null;
   const cfg = resolveConfig(hub, output);
+  const only = (url.searchParams.get("components") || "").split(",").map(s => s.trim()).filter(Boolean);
+  const unknown = only.filter(c => !byId[c]);
+  if (unknown.length) {
+    return json({ error: `Unknown component "${unknown[0]}". Known: ${Object.keys(byId).join(", ")}` }, 400);
+  }
+  if (only.length) cfg.components = only;
+  if (url.searchParams.get("all") === "1") {
+    cfg.photosBetween = 0;
+    cfg.max = Object.fromEntries(Object.keys(byId).map(c => [c, Infinity]));
+  }
   const ctx = makeContext({ request, env, hub, loadEvents, view });
 
   const wanted = new Set(cfg.components);

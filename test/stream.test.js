@@ -64,3 +64,17 @@ test("photos between cards with an empty album is just the cards", () => {
   const cfg = { components: ["today"], dwell: 10, photosBetween: 3, max: {} };
   assert.deepEqual(compose({ cfg, cardsBy: { today: [card("today", "t")] } }).map(c => c.id), ["today:t"]);
 });
+
+test("components= narrows the stream and all=1 returns every card", async () => {
+  const { handleStream } = await import("../app/worker/stream.js");
+  const { memoryKV } = await import("./helpers.js");
+  const trips = Array.from({ length: 5 }, (_, i) => ({ id: `t${i}`, name: `Trip ${i}`, startDate: `2099-0${i + 1}-01`, endDate: `2099-0${i + 1}-03` }));
+  const env = { HUB_DATA: memoryKV({ "data:family": { trips } }) };
+  const get = async q => (await handleStream(new Request(`https://hub.example.com/api/stream?${q}`), env, HUB, async () => [], "")).json();
+  let d = await get("components=trips");
+  assert.deepEqual(d.cards.map(c => c.component), ["trips", "trips", "trips"]);
+  d = await get("components=trips,today&all=1");
+  assert.deepEqual(d.cards.map(c => c.id), ["trips:t0", "trips:t1", "trips:t2", "trips:t3", "trips:t4", "today"]);
+  d = await get("components=gossip");
+  assert.match(d.error, /Unknown component "gossip"/);
+});
