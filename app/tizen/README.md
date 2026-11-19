@@ -84,7 +84,6 @@ gitignored.
 | `couldn't connect` | Developer Mode must be on with this computer's IP as the host, and the TV restarted since. The TV and computer must be on the same network. |
 | The app installs but doesn't appear | The certificate doesn't include that TV's DUID. |
 | "The hub didn't accept this TV's service token" | Check the token in `tizen.env`, that it's in the Hub Screens policy, and rebuild. |
-| The app shows nothing, or only "Loading…" | If the hub is behind Cloudflare Access, turn on **Bypass OPTIONS requests to origin** in the `/api/stream` application's CORS settings. |
 | The app is gone after the TV restarts | Samsung's documentation says SDK-installed apps can be removed on reboot. Run `./build.sh --install` again. |
 
 ## Developing

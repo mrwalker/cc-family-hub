@@ -58,8 +58,14 @@ stage() {
 package() {
   need_tizen
   rm -f build/*.wgt
-  "$TIZEN" package -t wgt -s "$TIZEN_PROFILE" -o build -- build/stage >/dev/null
-  mv build/*.wgt build/FamilyHub.wgt
+  # The tizen tool resolves relative paths from its own folder, so pass absolute ones.
+  local out
+  if ! out="$("$TIZEN" package -t wgt -s "$TIZEN_PROFILE" -o "$PWD/build" -- "$PWD/build/stage" 2>&1)"; then
+    echo "$out" >&2; exit 1
+  fi
+  local wgt; wgt="$(ls build/*.wgt 2>/dev/null | head -1)"
+  if [[ -z "$wgt" ]]; then echo "$out" >&2; echo "Signing produced no package. Is the \"$TIZEN_PROFILE\" certificate profile set up?" >&2; exit 1; fi
+  [[ "$wgt" != build/FamilyHub.wgt ]] && mv "$wgt" build/FamilyHub.wgt
   echo "Signed build/FamilyHub.wgt with certificate profile \"$TIZEN_PROFILE\""
 }
 
@@ -70,8 +76,11 @@ install_on() {
     echo "✗ $ip: couldn't connect. Is Developer Mode on with this computer's IP as the host, and was the TV restarted?" >&2
     return 1
   fi
-  "$TIZEN" install -n build/FamilyHub.wgt -t "$serial" >/dev/null
-  "$TIZEN" run -p "$TIZEN_PACKAGE.FamilyHub" -t "$serial" >/dev/null || true
+  local out
+  if ! out="$("$TIZEN" install -n "$PWD/build/FamilyHub.wgt" -s "$serial" 2>&1)" || grep -qiE "fail|error" <<< "$out"; then
+    echo "✗ $ip: install failed:" >&2; echo "$out" | tail -5 >&2; return 1
+  fi
+  "$TIZEN" run -p "$TIZEN_PACKAGE.FamilyHub" -s "$serial" >/dev/null 2>&1 || true
   echo "✓ $ip: installed and started"
 }
 

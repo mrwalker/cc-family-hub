@@ -118,8 +118,9 @@
     return (need ? image(need) : Promise.resolve(null)).then(function (src) {
       var back = document.getElementById(state.front === 0 ? "slide-b" : "slide-a");
       var front = document.getElementById(state.front === 0 ? "slide-a" : "slide-b");
-      back.style.backgroundImage = src ? 'url("' + src + '")' : "";
-      back.innerHTML = render(card, !!src);
+      // A photo is shown whole (render() draws it); other cards fill the screen with their image.
+      back.style.backgroundImage = src && card.component !== "photos" ? 'url("' + src + '")' : "";
+      back.innerHTML = render(card, !!src, src);
       drift(back);
       back.className = "slide shown";
       front.className = "slide";
@@ -153,11 +154,11 @@
   }
 
   // ─── Layouts ────────────────────────────────────────────────────────────
-  function render(card, hasImage) {
+  function render(card, hasImage, src) {
     var d = card.data || {};
     switch (card.component) {
       case "today": return today(card, d);
-      case "photos": return photo(card);
+      case "photos": return photo(card, src);
       case "trips": return trip(card, d, false, hasImage);
       case "past-trips": return trip(card, d, true, hasImage);
       case "grocery": return grocery(card, d);
@@ -188,7 +189,8 @@
     return html + "</div>";
   }
 
-  function photo(card) {
+  /** The whole photo, centered over a blurred copy of itself, so portrait photos aren't cropped. */
+  function photo(card, src) {
     var today = todayCard();
     var nextEvent = today && today.glance ? today.glance.headline : "";
     var tripCard = firstTrip();
@@ -196,7 +198,9 @@
     if (nextEvent) bits.push('<span class="sep">·</span><span>' + esc(nextEvent) + "</span>");
     if (tripCard) bits.push('<span class="sep">·</span><span>' + esc(tripCard.title + " " + tripCard.glance.headline) + "</span>");
     var when = card.glance && card.glance.headline ? '<span class="sep">·</span><span class="small">' + esc(card.glance.headline) + "</span>" : "";
-    return '<div class="strip">' + bits.join("") + when + "</div>";
+    var pic = src ? '<div class="backdrop" style="background-image:url(&quot;' + src + '&quot;)"></div>' +
+      '<div class="whole" style="background-image:url(&quot;' + src + '&quot;)"></div>' : "";
+    return pic + '<div class="strip">' + bits.join("") + when + "</div>";
   }
 
   function trip(card, d, past, hasImage) {

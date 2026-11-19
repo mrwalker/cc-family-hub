@@ -22,8 +22,8 @@ KV, which suits data that's written rarely and read constantly.
 
 ### Samsung TVs
 
-The app is in `app/tizen/`. Still to learn on real TVs: whether it survives a restart, and
-whether SmartThings routines can open it on a schedule.
+The app is in `app/tizen/` and runs on a 2025 Samsung TV. Still to learn: whether it
+survives a restart, and whether SmartThings routines can open it on a schedule.
 
 ## Later
 

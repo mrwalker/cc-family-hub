@@ -39,7 +39,10 @@ html, body { width: 1920px; height: 1080px; overflow: hidden; background: #000; 
 .chip { display: inline-block; font-size: 28px; padding: 8px 20px; margin: 0 14px 14px 0; border-radius: 30px;
   background: rgba(255,255,255,.14); }
 
-/* photos */
+/* photos: the whole photo over a blurred, darkened copy that fills the screen */
+.backdrop { position: absolute; top: -60px; right: -60px; bottom: -60px; left: -60px;
+  background: center / cover no-repeat; filter: blur(40px) brightness(.45); }
+.whole { position: absolute; top: 0; right: 0; bottom: 120px; left: 0; background: center / contain no-repeat; }
 .strip { position: absolute; left: 0; right: 0; bottom: 0; height: 120px; padding: 30px 120px;
   display: flex; align-items: center; font-size: 34px; background: rgba(0,0,0,.45); }
 .strip .sep { margin: 0 28px; opacity: .5; }
