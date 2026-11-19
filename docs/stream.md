@@ -185,8 +185,12 @@ to draw it more richly over time.
 | `week` | `days[]`, each with `date`, `label`, `events[]` |
 | `plan` | `weekStarting`, `summary`, `flags[]`, `actionItems[]` |
 | `photos` | `photo`: `id`, `width`, `height`, `takenAt` |
-| `trips` | `trip`, `name`, `destination`, `resort`, `start`, `end`, `dates`, `status`, `daysUntil`, `day`, `days`, `countdown`, `who[]`, `leaderboard[]`, `questsDone`, `questsTotal`, `today[]` |
-| `past-trips` | `trip`, `name`, `destination`, `start`, `end`, `dates`, `who[]`, `highlights[]`, `leaderboard[]` |
+| `trips` | `trip`, `name`, `destination`, `resort`, `start`, `end`, `dates`, `status`, `daysUntil`, `day`, `days`, `countdown`, `who[]`, `leaderboard[]`, `questsDone`, `questsTotal`, `today[]`, `album` |
+| `past-trips` | `trip`, `name`, `destination`, `start`, `end`, `dates`, `who[]`, `highlights[]`, `leaderboard[]`, `album` |
+
+A trip with its own shared album has `album: { count, photos: [image URL…] }` (up to 12,
+shuffled each minute), and its `glance.image` is one of them. Without one, `album` is
+`null` and the image is the trip app's hero photo, if any.
 | `grocery` | `items[]`, each with `id`, `name`, `quantity`, `store`, `addedBy`, `done` |
 | `escape-rooms` | `record`: `escaped`, `total`. `room`: `venue`, `room`, `city`, `date`, `solved`, `escapeTime`, `who[]` |
 | `movies` | `movie`: `title`, `releaseDate`, `format`, `streaming`, `who[]`, `status` |

@@ -10,6 +10,8 @@ Then add an entry like the others in `workspace/trips.yaml`:
 - `who`: member ids from `workspace/family.yaml`
 - `type`: `family` (shown everywhere) or `work` (left out of the stream)
 - optional: `destination`, `emoji`, `description`, `highlights` (`emoji`, `label`, `caption`)
+- optional: `album`, the trip's iCloud shared album link (Public Website on). Add it as soon
+  as the trip's album exists: the trip's card on every screen then shows its photos.
 
 Run `npx family-hub check`. The trip reaches the hub on the next pipeline run, or right
 away with `npx family-hub publish` if a plan has been written.

@@ -1360,7 +1360,8 @@ const FALLBACK_DWELL_MS = 15_000;      // if the stream can't be reached
 let currentModule = 0;
 const rot = { slots: [], i: -1, timer: null, idle: null, paused: false };
 // Trip cards for the Trips and Past Trips views, and the shared grocery list.
-const tripsState = { cards: [], loaded: false, trips: null, past: null, focus: { trips: null, "past-trips": null } };
+const tripsState = { cards: [], loaded: false, trips: null, past: null, focus: { trips: null, "past-trips": null }, slides: {} };
+const TRIP_SLIDE_MS = 5000;
 const OLD_GROCERY_KEY = 'hub-grocery-list';   // v0.7 and earlier kept a list on each device
 const grocery = { items: [], listEl: null, statusEl: null };
 
@@ -2038,6 +2039,7 @@ function renderPastTrips(focusId, card) { renderTripList("past-trips", tripsStat
 
 function renderTripList(component, el, focusId, focusCard) {
   if (!el) return;
+  clearInterval(tripsState.slides[component]);
   tripsState.focus[component] = focusId;
   let cards = tripsState.cards.filter(c => c.component === component);
   if (focusCard && !cards.some(c => c.id === focusCard.id)) cards = [focusCard].concat(cards);
@@ -2049,7 +2051,20 @@ function renderTripList(component, el, focusId, focusCard) {
     return;
   }
   const focus = cards.find(c => c.id === focusId) || cards[0];
-  el.appendChild(tripCardEl(focus, true));
+  const spot = tripCardEl(focus, true);
+  el.appendChild(spot);
+  // A trip with its own shared album shows a new photo from it every few seconds.
+  const album = (focus.data.album && focus.data.album.photos) || [];
+  if (album.length > 1) {
+    let n = 0;
+    tripsState.slides[component] = setInterval(() => {
+      if (el.parentNode && el.closest(".mod-hidden")) return;
+      const next = album[++n % album.length];
+      const img = new Image();
+      img.onload = () => { spot.style.backgroundImage = `url("${next}")`; };
+      img.src = next;
+    }, TRIP_SLIDE_MS);
+  }
   const t = (family.trips || []).find(x => x.id === focus.data.trip);
   if (t) {
     if (t.description) {
@@ -2089,8 +2104,9 @@ function tripCardEl(card, spot) {
        <div class="tc-board">${rows.map(r => `<div class="tc-row">${dot(r.name, r.color, 18)}<span>${esc(r.name)}</span><span class="pts">${r.points}</span></div>`).join("")}</div>`
     : "";
   const today = (d.today || []).map(i => `<div>${i.time ? `<b>${esc(i.time)}</b> ` : ""}${esc(i.emoji || "")} ${esc(i.title)}</div>`).join("");
-  const highlights = past ? (d.highlights || []).slice(0, spot ? 8 : 3)
-    .map(h => `<span class="tc-chip">${esc(h.emoji || "")} ${esc(h.label)}</span>`).join("") : "";
+  const highlights = (d.album ? `<span class="tc-chip">📷 ${d.album.count} photo${d.album.count === 1 ? "" : "s"}</span>` : "") +
+    (past ? (d.highlights || []).slice(0, spot ? 8 : 3)
+      .map(h => `<span class="tc-chip">${esc(h.emoji || "")} ${esc(h.label)}</span>`).join("") : "");
   el.innerHTML = `<div class="tc-body">
     ${past ? "" : `<span class="tc-badge">${d.status === "active" ? "Happening now" : "Coming up"}</span>`}
     <div class="tc-count">${past ? esc(g.emoji || "✈️") : esc(g.headline)}</div>

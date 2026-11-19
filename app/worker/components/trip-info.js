@@ -4,7 +4,7 @@
  * leaderboard, today's schedule).
  */
 
-import { daysBetween, dateRange } from "../util.js";
+import { daysBetween, dateRange, shuffled } from "../util.js";
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -41,6 +41,7 @@ function trip(ctx, t, app, start, end) {
     name: t.name || app?.title || t.id,
     destination: t.destination ?? app?.resort ?? null,
     emoji: t.emoji ?? null,
+    album: typeof t.album === "string" ? t.album : null,   // the link stays on the server
     who: Array.isArray(t.who) ? t.who : null,
     highlights: (t.highlights ?? []).map(h => ({ emoji: h.emoji ?? null, label: h.label ?? "", caption: h.caption ?? "" })),
     start, end,
@@ -55,4 +56,24 @@ function trip(ctx, t, app, start, end) {
 
 export function heroImage(ctx, cardId, t) {
   return t.app?.hero ? ctx.image(cardId) : undefined;
+}
+
+const ALBUM_PHOTOS = 12;
+
+/**
+ * A trip's shared album, if trips.yaml gives it one: { count, photos: [image URL…] }
+ * in a shuffled order that changes each minute, or null. An album that can't be
+ * read counts as none, so a trip still gets its card.
+ */
+export async function tripAlbum(ctx, t) {
+  if (!t.album) return null;
+  let photos;
+  try { photos = (await ctx.album(t.album)) ?? []; } catch { return null; }
+  if (!photos.length) return null;
+  let seed = ctx.photoSeed;
+  for (const c of t.id) seed = (seed * 31 + c.charCodeAt(0)) >>> 0;
+  return {
+    count: photos.length,
+    photos: shuffled(photos, seed).slice(0, ALBUM_PHOTOS).map(p => ctx.image(`trip-photo:${t.id}:${p.id}`)),
+  };
 }

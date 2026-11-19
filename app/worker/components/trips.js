@@ -4,10 +4,11 @@
  *
  *   data: { trip, resort, start, end, dates, status: "upcoming"|"active",
  *           daysUntil, day, days, countdown, leaderboard: [{ id, name, color, points, quests }],
- *           questsDone, questsTotal, today: [{ time, emoji, title }] }
+ *           questsDone, questsTotal, today: [{ time, emoji, title }],
+ *           album: { count, photos: [image URL…] } | null }   (trips.yaml → album)
  */
 
-import { familyTrips, heroImage } from "./trip-info.js";
+import { familyTrips, heroImage, tripAlbum } from "./trip-info.js";
 
 export const id = "trips";
 
@@ -15,7 +16,11 @@ export async function cards(ctx) {
   const trips = (await familyTrips(ctx))
     .filter(t => t.status !== "past")
     .sort((a, b) => (a.start < b.start ? -1 : 1));
-  return trips.map(t => {
+  const albums = await Promise.all(trips.map(t => tripAlbum(ctx, t)));
+  return trips.map((t, i) => {
+    const album = albums[i];
+    // The trip's own photos when it has an album, else the trip app's hero.
+    const image = album ? album.photos[0] : heroImage(ctx, `trips:${t.id}`, t);
     const cardId = `trips:${t.id}`;
     const app = t.app;
     const headline = t.status === "active"
@@ -30,7 +35,7 @@ export async function cards(ctx) {
         headline,
         detail: `${t.name} · ${t.dates}`,
         ...(t.emoji ? { emoji: t.emoji } : {}),
-        ...(heroImage(ctx, cardId, t) ? { image: heroImage(ctx, cardId, t) } : {}),
+        ...(image ? { image } : {}),
       },
       data: {
         trip: t.id,
@@ -48,6 +53,7 @@ export async function cards(ctx) {
         questsDone: app?.questsDone ?? 0,
         questsTotal: app?.questsTotal ?? 0,
         today: app?.today ?? [],
+        album,
       },
     };
   });
