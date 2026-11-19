@@ -15,15 +15,42 @@ which means writing as well as reading:
   smoke detectors), and routine fixes.
 
 Each is a component, so it shows on every screen as cards ("Rabies shot due in 9 days",
-"Dishes: Oliver, tonight", "HVAC filter overdue"), and the planner reads it when it plans
+"Dishes: Sam, tonight", "HVAC filter overdue"), and the planner reads it when it plans
 the week. What's new is a place to write: small edit views on the hub page and phones, and
 storage that suits records several people edit. That's Cloudflare D1 (SQLite) rather than
 KV, which suits data that's written rarely and read constantly.
 
+The design is in [architecture.md](architecture.md#household-records). In short:
+
+- **One kind of record.** A task is something due on a date. It may repeat, and it keeps a
+  history. A vaccination, a filter change and a chore are all tasks.
+- **Who can write.** Adults manage everything. Kids can mark their own chores done. Guests
+  and screens can't write. The Worker checks the Access sign-in itself before any write.
+- **Where you write.** One small page, `/household/`, made for phones and safe for the wall
+  tablet. Cards on the hub page link to it.
+- **Nothing to turn off.** A hub without a D1 database gets no cards and no changes.
+
+It ships in steps, one area or layer at a time:
+
+| Release | What it adds |
+|---------|--------------|
+| v2.0.0 | D1, the write API, sign-in checks, the `/household/` page, and **pets** |
+| v2.1.0 | The planner reads household records |
+| v2.2.0 | **The house:** services, maintenance, fixes |
+| v2.3.0 | **Chores:** assigned to kids, daily and weekly, taking turns |
+| v2.4.0 | **Activities:** completing what the calendar leaves out |
+
+Activities stay in the calendar, where families already put them. But a practice typed in
+a hurry is often missing its address, a phone number or a link. The hub keeps what it
+knows about each activity, fills those gaps on the Today and Week cards, and asks on a
+card when it can't ("Where is Saturday's recital?"). An answer is kept and used again.
+
+Allowances come after chores, built on the record of what each kid has done.
+
 ### Samsung TVs
 
-The app is in `app/tizen/`. It runs on a 2025 Samsung TV and survives restarts. Still to
-learn: whether SmartThings routines can open it on a schedule.
+The app is in `app/tizen/`. It runs on four Samsung TVs at two sites, and survives
+restarts. Still to learn: whether SmartThings routines can open it on a schedule.
 
 ## Later
 

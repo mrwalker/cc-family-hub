@@ -151,6 +151,92 @@ Secrets live in three places, none of them a repo:
 
 Nothing else is stateful. You can rebuild the Worker and re-run the pipeline at any time.
 
+## Household records
+
+*Planned for v2. This section is the design; [roadmap.md](roadmap.md#managing-the-household)
+has the release order. Each release replaces part of it with what was built.*
+
+Household records are the hub's own data: the pets' care, the kids' chores, the upkeep of
+the house. They're an interactive input, like the grocery list, with three differences.
+Several people edit them, they keep a history, and who may change what depends on who's
+signed in.
+
+### Storage
+
+Records live in Cloudflare D1, bound as `HUB_DB`. The binding is optional. Without it there
+are no household cards, the page says it isn't set up, and nothing else changes.
+
+| Table | Holds |
+|-------|-------|
+| `pets` | Each pet: name, species, birthday, notes |
+| `tasks` | Anything due on a date: its area (`pets`, `house`, `kids`), kind, title, who or which pet it's for, when it's next due, how it repeats, how early its card appears, and a provider, phone number and link |
+| `task_log` | One row each time a task is done: when, by whom, and the due date it replaced |
+
+A task repeats in one of two ways. A filter is due three months after you change it, so
+its next date counts from the day it was done. A monthly medication is due on the 1st
+whenever you gave the last one, so its next date counts from the day it was due.
+
+Marking a repeating task done adds a log row and moves its due date. A one-off is
+archived. Undo removes the row and restores the date. Nothing is deleted, only archived.
+
+The Worker applies its own migrations. The first time it uses the database after a
+release, it runs any that are new, in one transaction. You create the database once and
+never run a migration by hand.
+
+### Reading and writing
+
+| Method | Path | Who | Does |
+|--------|------|-----|------|
+| GET | `/api/household` | Family | Everything the page needs, and who's asking |
+| POST | `/api/household/pets` | Adults | Add or change a pet |
+| POST | `/api/household/tasks` | Adults | Add or change a task |
+| POST | `/api/household/tasks/:id/done` | Adults, and a kid for their own chore | Mark it done |
+| POST | `/api/household/tasks/:id/undo` | The same | Take back the last time it was done |
+| POST | `/api/household/tasks/:id/archive` | Adults | Archive or restore it |
+| GET | `/api/household/export` | The pipeline | What's due, overdue and lately done |
+
+Every write is validated in the Worker and answers with the fresh list.
+
+### Who may write
+
+Access decides who reaches the hub. For household writes the Worker also checks the
+sign-in itself: it verifies the token Access attaches to each request (its signature,
+audience and expiry), finds the member with that email, and reads their role.
+
+| Caller | May |
+|--------|-----|
+| Adults | Add, change, complete and archive anything |
+| Kids | Mark their own chores done, and undo that |
+| Trip guests | Read |
+| Screens | Read the stream. Their tokens carry no identity. |
+| The pipeline | Read the export |
+
+To verify a token the Worker needs your Access team domain and the hub application's
+audience tag, set as `hub.access` in `family.yaml`. Neither is a secret. Until they're set,
+the Worker refuses household writes and says why. Who made each change is taken from the
+sign-in, never from the request.
+
+### Where you write
+
+`/household/` is one small page with a tab for each area. It's made for a phone and works
+on the wall tablet. Each task can be marked done, edited, and shows its history. Adults
+can add and archive. Kids see their own chores.
+
+The other screens don't write. A widget, the Mac app and the TVs show the cards, and the
+hub page links each one to `/household/`.
+
+### Cards and the planner
+
+Each area is a component: `pets`, `house` and `chores`. A task becomes a card when it's
+overdue or close enough to its due date, with overdue tasks first. A member's view shows
+what's assigned to them. With nothing due, a component adds no cards.
+
+The stream reads the database once per request, with one indexed query.
+
+The pipeline fetches `/api/household/export` when it builds the planner's context, so the
+plan can work around a vet visit or remind someone of a chore. If the fetch fails, the
+plan is made without it.
+
 ## Scheduling
 
 The pipeline has no scheduler of its own. Use whatever the machine has: cron, launchd, or a
