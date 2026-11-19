@@ -53,15 +53,25 @@ export async function handlePhotos(request, env, hub, path) {
 
 // ─── The album ────────────────────────────────────────────────────────────────
 
-/** The album's photos (newest first), or null when no album is set up. Throws if iCloud fails. */
+/** The family album's photos (newest first), or null when no album is set up. Throws if iCloud fails. */
 export async function albumPhotos(hub) {
-  const key = albumKey(hub.photosAlbum);
+  return albumPhotosFor(hub.photosAlbum);
+}
+
+/** Any shared album's photos (a trip's, say), or null for no link. Throws if iCloud fails. */
+export async function albumPhotosFor(link) {
+  const key = albumKey(link);
   return key ? cachedAlbum(key) : null;
 }
 
-/** One album photo as a JPEG response. */
+/** One family album photo as a JPEG response. */
 export async function photoById(hub, id) {
-  const key = albumKey(hub.photosAlbum);
+  return photoFromAlbum(hub.photosAlbum, id);
+}
+
+/** One photo from any shared album, as a JPEG response. */
+export async function photoFromAlbum(link, id) {
+  const key = albumKey(link);
   if (!key) return json({ error: "No photo album is set up." }, 404);
   const album = await cachedAlbum(key);
   const photo = album.find(p => p.id === id);

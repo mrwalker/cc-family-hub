@@ -223,7 +223,13 @@ function tripSummary(path, at) {
   };
 }
 
-const trips = tripApps.length ? load("trips.yaml") : [];
+const trips = tripApps.length || existsSync(ws("trips.yaml")) ? load("trips.yaml") : [];
+// A trip's shared album (trips.yaml → album) has to be a link the Worker can read.
+(Array.isArray(trips) ? trips : []).forEach((t, i) => {
+  if (t?.album != null && !albumKey(t.album)) {
+    fail("trips.yaml", `[${i}] (${t.id ?? "?"}).album`, "expected an iCloud shared album link (https://photos.icloud.com/shared/album/…) with Public Website on");
+  }
+});
 const knownTrips = new Set((Array.isArray(trips) ? trips : []).map(t => t?.id));
 for (const [i, t] of tripApps.entries()) {
   if (t.trip && !knownTrips.has(t.trip)) fail("family.yaml", `hub.tripApps[${i}].trip`, `"${t.trip}" is not an id in trips.yaml`);

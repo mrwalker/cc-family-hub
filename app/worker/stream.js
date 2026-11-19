@@ -18,7 +18,7 @@
 
 import { COMPONENT_IDS, byId } from "./components/index.js";
 import { tripSummaries, heroResponse } from "./trips.js";
-import { albumPhotos, photoById } from "./photos.js";
+import { albumPhotos, albumPhotosFor, photoById, photoFromAlbum } from "./photos.js";
 import { listGrocery } from "./grocery.js";
 import { ymd, addDays, json } from "./util.js";
 
@@ -112,6 +112,7 @@ export function makeContext({ request, env, hub, loadEvents, now = new Date(), v
   const today = ymd(now, tz);
   const once = fn => { let p; return () => (p ??= Promise.resolve().then(fn)); };
   const dataCache = {};
+  const albums = {};
   const ctx = {
     env, hub, now, tz, view,
     locale: hub.locale || "en-US",
@@ -126,6 +127,8 @@ export function makeContext({ request, env, hub, loadEvents, now = new Date(), v
     trips: once(() => tripSummaries(env, hub)),
     photos: once(() => albumPhotos(hub)),
     grocery: once(() => listGrocery(env)),
+    // A trip's own shared album (trips.yaml → album), by link.
+    album: link => (albums[link] ??= albumPhotosFor(link)),
     image: cardId => `${url.origin}${base}/image/${encodeURIComponent(cardId)}`,
   };
   return ctx;
@@ -188,6 +191,14 @@ async function streamImage(env, hub, cardId, origin) {
   const [component, ...rest] = cardId.split(":");
   const id = rest.join(":");
   if (component === "photos" && id) return photoById(hub, id);
+  // trip-photo:<trip id>:<photo id> — a photo from that trip's shared album.
+  if (component === "trip-photo" && id) {
+    const [tripId, ...photo] = id.split(":");
+    const family = env.HUB_DATA ? await env.HUB_DATA.get("data:family", "json") : null;
+    const trip = (family?.trips ?? []).find(t => t?.id === tripId);
+    if (!trip?.album || !photo.length) return json({ error: `No album for trip "${tripId}"` }, 404);
+    return photoFromAlbum(trip.album, photo.join(":"));
+  }
   if ((component === "trips" || component === "past-trips") && id) {
     return heroResponse(env, hub.tripApps.find(t => t.trip === id), origin);
   }

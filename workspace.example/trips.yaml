@@ -25,6 +25,8 @@
   type: family
   highlights:
     - { emoji: "🎿", label: First blue run, caption: Riley went first }
+  # The trip's shared photo album (Public Website on). Its photos appear on the trip's card.
+  # album: "https://photos.icloud.com/shared/album/…"
 
 - id: chicago-conf-2027
   name: Chicago (work)

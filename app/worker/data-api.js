@@ -16,6 +16,7 @@
  */
 
 import { mergePlanShopping } from "./grocery.js";
+import { albumKey } from "./photos.js";
 
 const MAX_BYTES = 1_000_000;
 
@@ -48,7 +49,7 @@ export async function handleDataApi(request, env) {
   if (request.method === "GET") {
     const { value, metadata } = await env.HUB_DATA.getWithMetadata(key(kind), "json");
     if (value == null) return json({ error: `No ${kind} data has been published yet` }, 404);
-    return json({ kind, publishedAt: metadata?.publishedAt ?? null, data: value });
+    return json({ kind, publishedAt: metadata?.publishedAt ?? null, data: forPages(kind, value) });
   }
   return text("Method not allowed", 405);
 }
@@ -95,7 +96,8 @@ async function putData(request, env, kind) {
 async function dataScript(env) {
   const parts = ["// Published hub data (see data-api.js)"];
   for (const [kind, { global }] of Object.entries(DATA_KINDS)) {
-    const stored = env.HUB_DATA ? await env.HUB_DATA.get(key(kind), "text") : null;
+    const raw = env.HUB_DATA ? await env.HUB_DATA.get(key(kind), "json") : null;
+    const stored = raw == null ? null : JSON.stringify(forPages(kind, raw));
     // JSON is valid JS; escape "</" so the payload can't close a <script> element.
     parts.push(stored != null
       ? `window.${global} = ${stored.replace(/<\//g, "<\\/")};`
@@ -104,6 +106,20 @@ async function dataScript(env) {
   return new Response(parts.join("\n"), {
     headers: { "Content-Type": "application/javascript; charset=utf-8", "Cache-Control": "no-store" },
   });
+}
+
+/**
+ * What pages may see of published data: everything but trips' album links,
+ * which stay on the server like the family album's (screens get the photos
+ * through /api/stream).
+ */
+function forPages(kind, value) {
+  if (kind !== "family" || !Array.isArray(value?.trips)) return value;
+  return { ...value, trips: value.trips.map(t => {
+    if (!t || typeof t !== "object" || !("album" in t)) return t;
+    const { album, ...rest } = t;
+    return { ...rest, hasAlbum: true };
+  }) };
 }
 
 // ─── Validation ───────────────────────────────────────────────────────────────
@@ -187,6 +203,9 @@ function validateFamily(d, path, errors) {
     need(errors, t.name, `${p}.name`, "string");
     needDate(errors, t.startDate, `${p}.startDate`);
     needDate(errors, t.endDate, `${p}.endDate`);
+    if (t.album != null && !albumKey(t.album)) {
+      errors.push(`${p}.album: expected an iCloud shared album link (https://photos.icloud.com/shared/album/…), got ${show(t.album)}`);
+    }
   }, { optional: false });
   eachObj(errors, d.escapeRooms, `${path}.escapeRooms`, () => {});
   eachObj(errors, d.movies, `${path}.movies`, () => {});

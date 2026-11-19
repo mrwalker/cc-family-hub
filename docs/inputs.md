@@ -76,9 +76,17 @@ within about 15 minutes.
   description: A week on the sound side.
   highlights:
     - { emoji: "🪁", label: Kite day, caption: Jockey's Ridge at sunset }
+  album: "https://photos.icloud.com/shared/album/…"   # optional: the trip's shared album
 ```
 
-A trip is upcoming, active, or past according to its dates. Upcoming and active trips make
+A trip is upcoming, active, or past according to its dates.
+
+**Trip albums.** Most trips get a shared photo album. Add its link as `album:` once the
+trip starts (turn on Public Website for the album, as for the family album), and the
+trip's card on every screen shows its photos: a new one each minute, and a slideshow on
+the hub page's spotlight. After the trip, its past-trip card keeps them. The link stays
+on the server, so keep your hub repo private. `family-hub check` makes sure it's an
+album link. Upcoming and active trips make
 `trips` cards, and past ones make `past-trips` cards. `who` decides whose view a trip appears in.
 
 ## trip-apps

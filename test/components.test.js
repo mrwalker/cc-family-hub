@@ -133,3 +133,35 @@ test("grocery shows what's left to buy", async () => {
   assert.deepEqual(card.data.items.map(i => i.name), ["Milk", "Bread", "Eggs"]);
   assert.deepEqual(await byId.grocery.cards(ctxWith({ grocery: [grocery[0]] })), []);
 });
+
+const ALBUM = "https://photos.icloud.com/shared/album/B0aaaaaaaaaaaa";
+
+test("a trip's own album gives its card photos, and the link never leaves the server", async () => {
+  const family = { trips: [
+    { id: "ski", name: "Ski", startDate: "2027-01-02", endDate: "2027-01-05", album: ALBUM },
+    { id: "lake", name: "Lake", startDate: "2027-06-20", endDate: "2027-06-23", album: ALBUM },
+    { id: "old", name: "Old", startDate: "2026-01-02", endDate: "2026-01-05" },
+  ] };
+  const photos = Array.from({ length: 20 }, (_, i) => ({ id: `P${i}`, width: 10, height: 10, takenAt: null }));
+  const ctx = ctxWith({ data: { family }, albums: { [ALBUM]: photos } });
+  const past = await byId["past-trips"].cards(ctx);
+  const ski = past.find(c => c.id === "past-trips:ski");
+  assert.match(ski.glance.image, /^https:\/\/hub\.example\.com\/api\/stream\/image\/trip-photo%3Aski%3AP\d+$/);
+  assert.equal(ski.data.album.count, 20);
+  assert.equal(ski.data.album.photos.length, 12);
+  assert.equal(ski.data.album.photos[0], ski.glance.image);
+  assert.equal(past.find(c => c.id === "past-trips:old").data.album, null, "a trip without an album has none");
+  const [active] = await byId.trips.cards(ctx);
+  assert.match(active.glance.image, /trip-photo%3Alake%3A/, "a trip that's on shows its album too");
+  const all = JSON.stringify([past, active]);
+  assert.ok(!all.includes("photos.icloud.com"), "no album link in any card");
+});
+
+test("an album that can't be read leaves the trip's card as it was", async () => {
+  const family = { trips: [{ id: "ski", name: "Ski", startDate: "2027-01-02", endDate: "2027-01-05", album: ALBUM }] };
+  const ctx = ctxWith({ data: { family } });
+  ctx.album = async () => { throw new Error("iCloud answered 500"); };
+  const [card] = await byId["past-trips"].cards(ctx);
+  assert.equal(card.data.album, null);
+  assert.equal(card.glance.image, undefined);
+});

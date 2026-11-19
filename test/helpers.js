@@ -40,11 +40,12 @@ export const HUB = {
 };
 
 /** A context at `now` (default: noon Pacific on 2027-06-21) with the given data. */
-export function ctxWith({ data = {}, events = [], trips = [], photos = null, grocery = [], view = null, now = new Date("2027-06-21T19:00:00Z"), hub = HUB } = {}) {
+export function ctxWith({ data = {}, events = [], trips = [], photos = null, grocery = [], albums = {}, view = null, now = new Date("2027-06-21T19:00:00Z"), hub = HUB } = {}) {
   const env = { HUB_DATA: memoryKV(Object.fromEntries(Object.entries(data).map(([k, v]) => [`data:${k}`, v]))) };
   const ctx = makeContext({ request: new Request("https://hub.example.com/api/stream"), env, hub, loadEvents: async () => events, now, view });
   ctx.trips = async () => trips;
   ctx.photos = async () => photos;
   ctx.grocery = async () => grocery;
+  ctx.album = async link => albums[link] ?? null;
   return ctx;
 }
