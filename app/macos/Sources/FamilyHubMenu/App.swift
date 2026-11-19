@@ -28,17 +28,12 @@ struct FamilyHubApp: App {
 struct MenuBarLabel: View {
     @ObservedObject var model: MenuBarLabelModel
 
+    /// Always one Text with the icon inside it. A MenuBarExtra's label that switches
+    /// between different views (an icon alone, then an icon and text) can leave the
+    /// menu bar item empty and invisible.
     var body: some View {
-        let text = model.text
-        let icon = model.icon
-        if text.isEmpty {
-            Image(systemName: icon)
-        } else {
-            HStack(spacing: 4) {
-                Image(systemName: icon)
-                Text(text)
-            }
-        }
+        let icon = Text(Image(systemName: model.icon))
+        model.text.isEmpty ? icon : icon + Text(" " + model.text)
     }
 }
 
