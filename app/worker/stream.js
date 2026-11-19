@@ -33,6 +33,7 @@ export const OUTPUT_DEFAULTS = {
   "phone-widget": {},
   "mac-menu-bar": {},
   roku: { photosBetween: 3, dwell: 10 },
+  "tizen-tv": { photosBetween: 3, dwell: 10 },   // Samsung TVs (app/tizen)
 };
 
 /**

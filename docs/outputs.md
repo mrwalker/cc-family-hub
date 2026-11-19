@@ -10,6 +10,7 @@ of the plan to another service.
 | [`phone-widget`](#phone-widget) | Screen | iPhone home and lock screens | [`app/widgets/`](../app/widgets/README.md) |
 | [`mac-menu-bar`](#mac-menu-bar) | Screen | The Mac menu bar | [`app/macos/`](../app/macos/README.md) |
 | [`roku`](#roku) | Screen | A TV: channel and screensaver | [`app/roku/`](../app/roku/README.md) |
+| [`tizen-tv`](#tizen-tv) | Screen | A Samsung TV: an app | [`app/tizen/`](../app/tizen/README.md) |
 | [`trip-apps`](#trip-apps) | App | Phones, offline | [trip-apps.md](trip-apps.md) |
 | [`google-calendar`](#google-calendar) | Push | Event descriptions in Google Calendar | Below |
 | [`grocery-email`](#grocery-email) | Push | An email of the shopping list | Below |
@@ -83,6 +84,12 @@ A Roku channel that doubles as a screensaver. As a screensaver it's the stream w
 `photosBetween: 3` by default: a hub card, three photos, the next hub card, three more
 photos. It drifts slowly so nothing burns in. It's sideloaded in developer mode, so it's
 private to your Roku and never goes through the Channel Store.
+
+## tizen-tv
+
+A Samsung TV app that rotates the stream the way the Roku does, with three photos between
+cards by default. It's installed in the TV's developer mode with one command per TV. Tizen
+doesn't allow third-party screensavers, so it runs as an app.
 
 ## trip-apps
 
