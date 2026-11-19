@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Fetches GET /api/widget off the render thread. Result: { data } or { error }. -->
+<!-- Requests to the hub off the render thread: the stream, or a card image. See FetchTask.brs. -->
 <component name="FetchTask" extends="Task">
   <interface>
     <field id="config" type="assocarray"/>

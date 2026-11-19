@@ -3,11 +3,12 @@
 The hub next to the clock.
 
 - **In the menu bar:** a card's headline. By default it's the next event today ("in 25m ·
-  Soccer practice"), and the next trip's countdown ("🏖️ 6d") when nothing timed is left today.
-- **Click it:** a panel that rotates through [the stream](../../docs/stream.md): today and
-  tomorrow in each person's color, a photo from the family album, a card for each upcoming
-  trip with its countdown and leaderboard, the grocery list, and the rest. Click a card to
-  open the hub, or a trip's app.
+  Soccer practice"), and the next trip's countdown ("🏖️ 6 days") when nothing timed is left today.
+- **Click it:** a panel with today and tomorrow at the top, in each person's color, and
+  below them [the stream](../../docs/stream.md), one card at a time: a photo from the family
+  album, a card for each upcoming trip with its countdown and leaderboard, the grocery list,
+  and the rest. Each card stays up for its `dwell`; hover to hold one, or use the arrows and
+  dots. Click a card to open the hub, or a trip's app.
 - **Rotate:** set Menu bar to "Rotate" in Settings, and the menu bar steps through the
   stream's headlines, changing every 30 seconds.
 - **Offline:** it keeps showing the last stream it got, marked "Offline · as of …".
@@ -79,5 +80,17 @@ binary inside the app. It fetches once with the saved settings, writes `menu-lig
 FAMILY_HUB_SNAPSHOT=/tmp "build/Family Hub.app/Contents/MacOS/Family Hub"
 ```
 
-Use `BUNDLE_ID=… ./build-app.sh` to build a test copy with its own settings, separate from
-your installed app.
+It also prints what each of the other menu bar settings would show. In a snapshot run only,
+these environment variables stand in for the saved settings, without saving anything:
+`FAMILY_HUB_URL`, `FAMILY_HUB_VIEW`, `FAMILY_HUB_CLIENT_ID`, `FAMILY_HUB_CLIENT_SECRET` and
+`FAMILY_HUB_MENU_BAR` (`auto`, `rotate`, `nextEvent`, `trip` or `iconOnly`). `FAMILY_HUB_CARD`
+picks the card the panel shows: a card id (`trips:beach-2027`), a component (`grocery`), or a
+position in the rotation (`0`).
+
+```bash
+FAMILY_HUB_SNAPSHOT=/tmp FAMILY_HUB_URL=http://localhost:8799 FAMILY_HUB_CARD=grocery \
+  "build/Family Hub.app/Contents/MacOS/Family Hub"
+```
+
+Use `BUNDLE_ID=… ./build-app.sh` to build a test copy with its own settings and its own
+Keychain item, separate from your installed app.

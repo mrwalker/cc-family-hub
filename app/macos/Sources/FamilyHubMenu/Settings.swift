@@ -9,7 +9,7 @@ enum MenuBarText: String, CaseIterable, Identifiable {
     var label: String {
         switch self {
         case .auto: "Next event today, else the trip"
-        case .rotate: "Rotate: next event, then each trip"
+        case .rotate: "Rotate through the stream"
         case .nextEvent: "Next event"
         case .trip: "Trip countdown"
         case .iconOnly: "Icon only"
@@ -55,7 +55,13 @@ struct HubSettings: Equatable {
 }
 
 enum Keychain {
-    private static let service = "family-hub"
+    /// The installed app's item is "family-hub". A copy built with another BUNDLE_ID (or run
+    /// outside a bundle) gets an item of its own, so a test copy never reads or overwrites it.
+    private static let service: String = {
+        let defaultID = "io.github.cc-family-hub.menu"
+        let id = Bundle.main.bundleIdentifier ?? "unbundled"
+        return id == defaultID ? "family-hub" : "family-hub (\(id))"
+    }()
 
     private static func base(_ account: String) -> [String: Any] {
         [

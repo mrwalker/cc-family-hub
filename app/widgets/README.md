@@ -5,12 +5,15 @@ The hub on the iPhone home screen and lock screen. A widget shows one card from
 
 | Size | Shows |
 |------|-------|
-| Small | A card's glance: its headline, detail line, and photo. For `today`, the next event and its people's colors. |
+| Small | `today`: the next event, its people's colors, and an urgent flag from the plan if there is one. Name components in the Parameter to rotate through those instead, each drawn as its glance: headline, detail line, emoji, and photo. |
 | Medium | A card in full where the widget knows the component (`today`, `photos`, `trips`, `grocery`), and its glance otherwise |
-| Large | The same with more room: up to 10 events, a longer grocery list, a trip's whole leaderboard |
-| Lock screen | Always `today`. Rectangular: the next event and the trip countdown. Inline: the next event. Circular: days to the trip. |
+| Large | The same with more room: up to 10 events, up to 24 grocery items, a trip's leaderboard and, while you're on it, today's schedule |
+| Lock screen | Always `today`, whatever components the Parameter names. Rectangular: the next event, then an urgent flag or how many more. Inline: the next event. Circular: how many events are left today. |
 
-Tapping a widget opens what the card is about: the hub, or a trip's app.
+Any card can be drawn from its glance, so a component added to the hub later shows up on the
+widget right away.
+
+Tapping a widget opens what the card is about: the hub at that component, or a trip's app.
 
 The widgets run in [Scriptable](https://scriptable.app), a free iOS app, so you don't need
 Xcode or an Apple Developer account. If the phone is offline, a widget shows the last
@@ -42,6 +45,9 @@ and add it to the **Hub Screens** policy. See
 3. For the lock screen, customize the Lock Screen → add a **Scriptable** widget, and set it
    up the same way.
 
+The Parameter is a view (a member id, or `family`), then any component ids from
+[the stream](../../docs/stream.md#components).
+
 | Parameter | Shows |
 |-----------|-------|
 | `family` | The whole family's stream |
@@ -49,11 +55,28 @@ and add it to the **Hub Screens** policy. See
 | `alex today` | Only the `today` card. It never rotates. |
 | `family photos trips` | Only those components, taking turns |
 
-With no components named, the widget shows the stream set for `phone-widget` in your
-`family.yaml`, or the family's default stream.
+With no components named, a medium or large widget shows the stream set for `phone-widget`
+in your `family.yaml`, or the family's default stream. A small widget shows `today`. An
+empty Parameter is `family`.
+
+Parameters from the older widget still work: `mix` is the default stream, `photos` (or
+`photo`) is the album, and `trips` (or `trip`) is the trip cards. The first word that isn't
+a component is the view, so `photos alex` works too, and a Parameter with no view is
+`family`.
+
+Each widget remembers the last card it showed, so it picks up where it left off. If that
+card has left the stream, it moves on from the same place in the list. Widgets with the same
+Parameter share their place.
 
 iOS decides when widgets refresh, usually every 15 to 30 minutes. The hub caches calendar
 data for 5 minutes, so many widgets don't mean many Google API calls.
+
+### Upgrading from the `/api/widget` script
+
+Earlier versions of this script read `/api/widget`. This one reads `/api/stream`, so the
+phone's token has to be on the `/api/stream` application (step 1). If your **Hub Screens**
+policy is only attached to an `/api/widget` application, attach it to `/api/stream` too,
+then paste in the new script. Your Parameters keep working.
 
 ## Troubleshooting
 
@@ -62,10 +85,15 @@ data for 5 minutes, so many widgets don't mean many Google API calls.
 | "Open this script in Scriptable to sign in" | Run the script in the app, and enter the URL and token. |
 | "The hub didn't accept this widget's service token" | Check the token values (Run → Change hub sign-in), that the **Hub Screens** policy is **Service Auth** and includes the token, and that it's attached to the `/api/stream` application. |
 | "Unknown view …" | Start the Parameter with a member id from your `family.yaml`, or `family`. |
-| "Offline · as of …" | The phone couldn't reach the hub, so the widget shows the last stream it got. |
+| "Unknown component …" | A word after the view isn't a component. The message lists the ones the hub knows. |
+| "This hub has no /api/stream" | The hub is older than the stream. Upgrade its cc-family-hub to v0.9.0 or later and deploy it. |
+| "Nothing in … right now" | Those components have no cards right now, for example an empty grocery list. |
+| "Offline · as of …" | The phone couldn't reach the hub, or the hub turned down the token, so the widget shows the last stream it got. |
+| "Couldn't reach the hub" | The same, before this widget has fetched any stream to fall back on. |
 
 ## Developing
 
 `scriptable/family-hub.js` is one file. Each component it draws in full has a layout
-function per size, and everything else goes through the glance layout. Run it in the
-Scriptable app to preview any size with any parameter.
+function per size (the `NATIVE` table), and everything else goes through the glance layout.
+Run it in the Scriptable app to preview any size with any parameter. Each preview steps to
+the next card, the same as a widget refresh.
