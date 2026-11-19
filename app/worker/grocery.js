@@ -8,14 +8,17 @@
  *
  *   item: { id, name, quantity, store?, addedBy?, done, fromPlan?, updatedAt }
  *
- * Each item is its own KV key with the item in its metadata, so one list() call
- * reads the whole list and two screens editing at once never overwrite each
- * other. An upsert only wins if its updatedAt is newer than what's stored.
+ * The whole list is one KV value, so reading it is a single get(): every screen
+ * reads it on every stream request, and KV's free tier allows 100,000 reads a
+ * day but only 1,000 list() calls. An upsert only wins if its updatedAt is
+ * newer than what's stored. (v0.11 and earlier kept one key per item; the
+ * first read moves those into the single value.)
  */
 
 import { json } from "./util.js";
 
-const PREFIX = "grocery:item:";
+const KEY = "grocery:list";
+const OLD_PREFIX = "grocery:item:";             // v0.11 and earlier: one key per item
 const PLAN_PREFIX = "grocery:plan:";            // names the planner already added
 const PLAN_MEMORY_SECONDS = 30 * 86_400;        // so a deleted item doesn't come back
 const MAX_ITEMS = 300;
@@ -28,7 +31,7 @@ export async function handleGrocery(request, env, hub) {
     try { body = await request.json(); } catch { return json({ error: "Body is not valid JSON" }, 400); }
     const members = new Set(hub.members.map(m => m.id));
     const current = new Map((await listGrocery(env)).map(i => [i.id, i]));
-    const writes = [];
+    let changed = false;
     for (const raw of (Array.isArray(body.upserts) ? body.upserts : []).slice(0, 100)) {
       const item = cleanItem(raw, members);
       if (!item) continue;
@@ -37,14 +40,12 @@ export async function handleGrocery(request, env, hub) {
       if (!old && current.size >= MAX_ITEMS) break;
       if (old?.fromPlan) item.fromPlan = true;
       current.set(item.id, item);
-      writes.push(env.HUB_DATA.put(PREFIX + item.id, "1", { metadata: item }));
+      changed = true;
     }
     for (const id of (Array.isArray(body.deletes) ? body.deletes : []).slice(0, 100)) {
-      if (typeof id === "string" && ID_RE.test(id) && current.delete(id)) {
-        writes.push(env.HUB_DATA.delete(PREFIX + id));
-      }
+      if (typeof id === "string" && ID_RE.test(id) && current.delete(id)) changed = true;
     }
-    await Promise.all(writes);
+    if (changed) await saveGrocery(env, [...current.values()]);
     return json({ items: sortItems([...current.values()]), serverTime: Date.now() });
   }
   if (request.method !== "GET") return json({ error: "Method not allowed" }, 405);
@@ -54,14 +55,28 @@ export async function handleGrocery(request, env, hub) {
 /** Every item on the list (unsorted). */
 export async function listGrocery(env) {
   if (!env.HUB_DATA) return [];
-  const out = [];
+  const stored = await env.HUB_DATA.get(KEY, "json");
+  if (Array.isArray(stored?.items)) return stored.items;
+  return migrateOldItems(env);
+}
+
+async function saveGrocery(env, items) {
+  await env.HUB_DATA.put(KEY, JSON.stringify({ items }));
+}
+
+/** Moves v0.11-and-earlier per-item keys into the single value, once. */
+async function migrateOldItems(env) {
+  const items = [];
+  const keys = [];
   let cursor;
   do {
-    const page = await env.HUB_DATA.list({ prefix: PREFIX, cursor });
-    for (const k of page.keys) if (k.metadata) out.push(k.metadata);
+    const page = await env.HUB_DATA.list({ prefix: OLD_PREFIX, cursor });
+    for (const k of page.keys) { keys.push(k.name); if (k.metadata) items.push(k.metadata); }
     cursor = page.list_complete ? undefined : page.cursor;
   } while (cursor);
-  return out;
+  await saveGrocery(env, items);
+  await Promise.all(keys.map(k => env.HUB_DATA.delete(k)));
+  return items;
 }
 
 /** Still to buy first, in the order they were added; then what's done. */
@@ -76,7 +91,8 @@ export function sortItems(items) {
  */
 export async function mergePlanShopping(env, shoppingList, now = Date.now()) {
   if (!env.HUB_DATA || !Array.isArray(shoppingList) || !shoppingList.length) return 0;
-  const onList = new Set((await listGrocery(env)).filter(i => !i.done).map(i => norm(i.name)));
+  const items = await listGrocery(env);
+  const onList = new Set(items.filter(i => !i.done).map(i => norm(i.name)));
   let added = 0;
   for (const [i, s] of shoppingList.slice(0, 50).entries()) {
     const name = typeof s?.name === "string" ? s.name.trim() : "";
@@ -95,15 +111,16 @@ export async function mergePlanShopping(env, shoppingList, now = Date.now()) {
       addedAt: now + i,          // keeps the planner's order
       updatedAt: now,
     };
-    await env.HUB_DATA.put(PREFIX + item.id, "1", { metadata: item });
+    items.push(item);
     await env.HUB_DATA.put(PLAN_PREFIX + key, "1", { expirationTtl: PLAN_MEMORY_SECONDS });
     onList.add(key);
     added++;
   }
+  if (added) await saveGrocery(env, items);
   return added;
 }
 
-/** Validates an item from a client. KV metadata is capped at 1024 bytes, so fields are short. */
+/** Validates an item from a client. Fields are kept short. */
 export function cleanItem(c, members) {
   if (!c || typeof c.id !== "string" || !ID_RE.test(c.id)) return null;
   const name = typeof c.name === "string" ? c.name.replace(/\s+/g, " ").trim().slice(0, 80) : "";

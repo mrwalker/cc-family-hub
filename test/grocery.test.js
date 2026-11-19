@@ -39,3 +39,17 @@ test("the plan's shopping list joins the grocery list once", async () => {
   await handleGrocery(post({ deletes: [candles.id] }), env, HUB);
   assert.equal(await mergePlanShopping(env, [{ name: "Candles", quantity: "1 box" }], 2000), 0);
 });
+
+test("a list kept one key per item (v0.11 and earlier) moves into the single value once", async () => {
+  const env = { HUB_DATA: memoryKV() };
+  await env.HUB_DATA.put("grocery:item:item-0001", "1", { metadata: { id: "item-0001", name: "Milk", quantity: 1, done: false, addedAt: 1, updatedAt: 1 } });
+  assert.deepEqual((await listGrocery(env)).map(i => i.name), ["Milk"]);
+  assert.equal([...env.HUB_DATA.store.keys()].filter(k => k.startsWith("grocery:item:")).length, 0, "old keys are gone");
+  let lists = 0;
+  const list = env.HUB_DATA.list.bind(env.HUB_DATA);
+  env.HUB_DATA.list = (...a) => { lists++; return list(...a); };
+  await listGrocery(env);
+  await handleGrocery(post({ upserts: [{ id: "item-0002", name: "Eggs", updatedAt: 5 }] }), env, HUB);
+  assert.equal(lists, 0, "reading and writing the list needs no KV list()");
+  assert.deepEqual((await listGrocery(env)).map(i => i.name).sort(), ["Eggs", "Milk"]);
+});

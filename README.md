@@ -17,7 +17,7 @@ a wall tablet, phones, the Mac menu bar, and the TV.
   Reminders, Strava ──┘         THE STREAM               └──  Grocery email
 ```
 
-> **Status.** These docs describe the hub as designed for v1.0. The current release, v0.11.1,
+> **Status.** These docs describe the hub as designed for v1.0. The current release, v0.11.2,
 > ships most of it. [docs/roadmap.md](docs/roadmap.md) lists what isn't built yet. For docs
 > that match v0.6.0 exactly, read them at
 > [the v0.6.0 tag](https://github.com/mrwalker/cc-family-hub/tree/v0.6.0).
