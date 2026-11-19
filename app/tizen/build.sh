@@ -51,7 +51,7 @@ need_tizen() {
 connect() {  # connect sdb to a TV and print its device serial
   local ip="$1"
   "$SDB" connect "$ip:26101" >/dev/null
-  "$SDB" devices | awk -v ip="$ip" 'index($1, ip) == 1 { print $1; exit }'
+  "$SDB" devices | awk -v want="$ip:26101" '$1 == want { print $1; exit }'
 }
 
 stage() {
