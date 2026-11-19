@@ -14,12 +14,12 @@ about what to show.
 
 Read `docs/architecture.md` and `docs/stream.md` before changing anything structural.
 
-## The docs describe v1.0
+## Docs and code move together
 
-The docs are written for the target design. `docs/roadmap.md` lists what they describe that
-isn't built yet. Before relying on something a doc mentions (`/api/stream`, the
-`family-hub` command, `inputs:` in `family.yaml`), check the roadmap and the code. When you
-build a roadmap item, delete it from the roadmap in the same change.
+The docs describe what's built. A change to behavior updates the docs it affects in the
+same change: `docs/stream.md` for the card contract and components, `docs/inputs.md` and
+`docs/outputs.md`, `docs/workspace.md` for `family.yaml`, and the README of any screen it
+touches. `docs/roadmap.md` lists what's next.
 
 ## Two repos
 

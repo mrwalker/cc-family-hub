@@ -71,7 +71,7 @@ Parameter share their place.
 iOS decides when widgets refresh, usually every 15 to 30 minutes. The hub caches calendar
 data for 5 minutes, so many widgets don't mean many Google API calls.
 
-### Upgrading from the `/api/widget` script
+### Upgrading from a script older than v0.9.0
 
 Earlier versions of this script read `/api/widget`. This one reads `/api/stream`, so the
 phone's token has to be on the `/api/stream` application (step 1). If your **Hub Screens**

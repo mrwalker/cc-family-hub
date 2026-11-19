@@ -16,11 +16,6 @@
  *                                      through it, so the page has a path of its own.
  *   GET /api/events?days=N  — live Google Calendar events for every member (default 14 days)
  *   GET /api/config.js      — the page's share of the hub config (names, colors, trip apps)
- *   Until v1.0, for screens installed before the stream:
- *   GET /api/widget?view=…  — compact upcoming events + next trip for phone widgets (widget.js)
- *   GET /api/widget/photos… — photos from the family's iCloud shared album (photos.js);
- *                             also at /api/photos… for the hub page
- *   GET /api/widget/trips…  — trip apps at a glance: countdown, leaderboard (trips.js)
  *   /api/data…              — published plan/family/strava data (see data-api.js)
  *   /api/grocery            — the shared grocery list (grocery.js)
  *   /api/trip/:id/…         — trip app check-ins and packing lists
@@ -38,9 +33,6 @@
  */
 
 import { handleDataApi } from "./data-api.js";
-import { handleWidget } from "./widget.js";
-import { handlePhotos } from "./photos.js";
-import { handleTrips } from "./trips.js";
 import { handleStream } from "./stream.js";
 import { handleGrocery } from "./grocery.js";
 
@@ -98,21 +90,6 @@ async function route(request, env, hub) {
 
   if (url.pathname === "/api/grocery") {
     return handleGrocery(request, env, hub);
-  }
-
-  if (url.pathname === "/api/widget") {
-    return handleWidget(request, env, hub, days => cachedEvents(env, hub, days));
-  }
-
-  // Photos for widgets (service tokens on /api/widget) and for the hub page (family sign-in).
-  const photosPath = url.pathname.match(/^\/api(?:\/widget)?\/photos(\/.*)?$/);
-  if (photosPath) {
-    return handlePhotos(request, env, hub, photosPath[1] ?? "");
-  }
-
-  const tripsPath = url.pathname.match(/^\/api\/widget\/trips(\/.*)?$/);
-  if (tripsPath) {
-    return handleTrips(request, env, hub, tripsPath[1] ?? "");
   }
 
   if (url.pathname === "/api/config.js") {

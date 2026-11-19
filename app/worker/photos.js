@@ -1,10 +1,7 @@
 /**
- * Photos from an iCloud shared album (Apple Photos → Shared Album → Public Website),
- * for TV screensavers and other displays. Under /api/widget/ so the same Access
- * service tokens as the widgets cover it.
- *
- *   GET /api/widget/photos       → { photos: [{ id, width, height, takenAt }], generatedAt }
- *   GET /api/widget/photos/:id   → the photo as a JPEG (about 1536 px on the long side)
+ * Photos from iCloud shared albums (Apple Photos → Shared Album → Public Website):
+ * the family album (the photos component) and trips' own albums. Screens get them
+ * through the stream (stream.js → /api/stream/image/<card>).
  *
  * The album link (family.yaml → inputs.icloud-album, or a trip's album) stays
  * server-side. The Worker reads the album the way icloud.com's own pages do. iCloud
@@ -40,31 +37,6 @@ export function albumKey(link) {
   if (streams) return `s:${streams[1]}`;
   const m = String(link).match(/^(?:https:\/\/(?:photos\.icloud\.com\/shared\/album|share\.icloud\.com\/photos)\/)?([A-Za-z0-9_-]{10,64})\/?(?:[?#].*)?$/);
   return m ? m[1] : null;
-}
-
-export async function handlePhotos(request, env, hub, path) {
-  if (request.method !== "GET") return json({ error: "Method not allowed" }, 405);
-  const key = albumKey(hub.photosAlbum);
-  if (!key) return json({ error: "No photo album is set up (family.yaml → hub.photos.icloudAlbum)." }, 404);
-
-  let album;
-  try {
-    album = await cachedAlbum(key);
-  } catch (err) {
-    return json({ error: `Couldn't read the iCloud album: ${err.message}` }, 502);
-  }
-
-  if (path === "") {
-    return json({
-      photos: album.map(({ id, width, height, takenAt }) => ({ id, width, height, takenAt })),
-      generatedAt: new Date().toISOString(),
-    });
-  }
-
-  const id = decodeURIComponent(path.slice(1));
-  let photo = album.find(p => p.id === id);
-  if (!photo) return json({ error: "No such photo" }, 404);
-  return photoResponse(key, photo);
 }
 
 // ─── The album ────────────────────────────────────────────────────────────────

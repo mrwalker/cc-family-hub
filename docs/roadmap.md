@@ -1,29 +1,37 @@
 # Roadmap
 
-The other docs describe the hub as designed for v1.0. This page lists what they describe
-that the current release doesn't do yet. When an item ships, delete it here.
+What's next for the hub, roughly in order. The other docs describe what's built.
 
-## Where v0.11.4 stands
+## Next
 
-Everything in the docs works except one leftover from before the stream:
+### Managing the household
 
-- Every screen reads the stream: the hub page, the iPhone widget, the Mac app and the Roku.
-- A family runs everything from its hub repo with the `family-hub` command.
+So far the hub shows what the family already keeps elsewhere. Next it helps run the house,
+which means writing as well as reading:
 
-## To build
+- **Pets:** vet visits, vaccinations, medications, grooming.
+- **Kids:** chores and allowances, activities and their schedules.
+- **The house:** services (lawn, cleaning, pest control), maintenance (filters, gutters,
+  smoke detectors), and routine fixes.
 
-### 1. Retire the old screen endpoints
+Each is a component, so it shows on every screen as cards ("Rabies shot due in 9 days",
+"Dishes: Oliver, tonight", "HVAC filter overdue"), and the planner reads it when it plans
+the week. What's new is a place to write: small edit views on the hub page and phones, and
+storage that suits records several people edit. That's Cloudflare D1 (SQLite) rather than
+KV, which suits data that's written rarely and read constantly.
 
-Once every installed widget, Mac app and Roku has been updated to read `/api/stream`,
-remove `/api/widget`, `/api/widget/trips`, `/api/widget/photos` and `/api/photos`
-(`app/worker/widget.js`, and the legacy routes in `trips.js`, `photos.js` and `index.js`),
-and the `/api/widget` Access application. That's v1.0.
+### Samsung TVs
+
+A Tizen web app for Samsung TVs that rotates the stream like the Roku channel, installed in
+developer mode. Tizen doesn't allow third-party screensavers, so it would run as an app;
+SmartThings routines may be able to open it on a schedule.
 
 ## Later
 
 Ideas, not commitments:
 
-- More inputs: weather, school and sports calendars by ICS link, a chores list, Todoist.
+- More inputs: weather, school and sports calendars by ICS link, Todoist.
 - More outputs: a morning summary by email or text, an Apple TV screensaver, an e-ink frame.
 - A family's own components, loaded from its hub repo the way its own inputs are.
 - Photos from Google Photos or a folder, for families that aren't on iCloud.
+- Trip check-ins in D1 or a Durable Object, so phones on a trip never contend over KV.
