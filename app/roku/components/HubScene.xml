@@ -1,5 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- The hub on a TV (1920×1080): clock and next trip on the left, today and tomorrow on the right. -->
+<!--
+  The hub on a TV (1920×1080). It rotates through the cards of /api/stream, one at a
+  time with crossfades. Each layer below draws one kind of card:
+    layout        today: the clock and next trip on the left, today and tomorrow on the right
+    photoLayer    photos: an album photo with a strip (clock, next event, trip countdown)
+    tripLayer     trips and past-trips: hero photo, countdown or highlights, leaderboard
+    groceryLayer  grocery: the shopping list
+    glanceLayer   every other component: its glance (headline, detail, colors, image)
+-->
 <component name="HubScene" extends="Scene">
   <interface>
     <field id="screensaver" type="boolean" value="false" onChange="onModeChange"/>
@@ -41,7 +49,7 @@
       </Label>
 
       <Label id="hint" translation="[100,990]" width="700" color="0xf3f5f75A"
-             text="Left / Right: whose events     OK: refresh">
+             text="Left / Right: whose hub     OK: refresh">
         <Font role="font" uri="font:SystemFontFile" size="26"/>
       </Label>
       <Label id="status" translation="[840,990]" width="980" horizAlign="right" color="0xf3f5f75A">
@@ -49,7 +57,7 @@
       </Label>
     </Group>
 
-    <!-- Screensaver photos (from /api/widget/photos), three between each hub/trip screen. -->
+    <!-- photos cards: two posters that crossfade, and the strip along the bottom. -->
     <Group id="photoLayer" visible="false" opacity="0">
       <Rectangle width="1920" height="1080" color="0x000000FF"/>
       <Poster id="photoA" width="1920" height="1080" loadWidth="1920" loadHeight="1080"
@@ -57,55 +65,107 @@
       <Poster id="photoB" width="1920" height="1080" loadWidth="1920" loadHeight="1080"
               loadDisplayMode="scaleToFit" opacity="0"/>
       <Rectangle translation="[0,930]" width="1920" height="150" color="0x000000A6"/>
-      <Label id="photoClock" translation="[80,958]" width="360" color="0xf3f5f7FF">
-        <Font role="font" uri="font:BoldSystemFontFile" size="64"/>
-      </Label>
-      <Label id="photoDate" translation="[440,962]" width="360" color="0xf3f5f7B3">
-        <Font role="font" uri="font:SystemFontFile" size="30"/>
-      </Label>
-      <Label id="photoNext" translation="[440,1006]" width="900" color="0xf3f5f7FF">
-        <Font role="font" uri="font:SystemFontFile" size="34"/>
-      </Label>
-      <Label id="photoTrip" translation="[1340,980]" width="500" horizAlign="right" color="0x7dd3fcFF">
-        <Font role="font" uri="font:BoldSystemFontFile" size="40"/>
-      </Label>
+      <Group id="photoStrip">
+        <Label id="photoClock" translation="[80,958]" width="360" color="0xf3f5f7FF">
+          <Font role="font" uri="font:BoldSystemFontFile" size="64"/>
+        </Label>
+        <Label id="photoDate" translation="[440,962]" width="360" color="0xf3f5f7B3">
+          <Font role="font" uri="font:SystemFontFile" size="30"/>
+        </Label>
+        <Label id="photoNext" translation="[440,1006]" width="900" color="0xf3f5f7FF">
+          <Font role="font" uri="font:SystemFontFile" size="34"/>
+        </Label>
+        <Label id="photoTrip" translation="[1340,980]" width="500" horizAlign="right" color="0x7dd3fcFF">
+          <Font role="font" uri="font:BoldSystemFontFile" size="40"/>
+        </Label>
+      </Group>
     </Group>
-    <!-- Screensaver trip screens (from /api/widget/trips), between photo runs. -->
+
+    <!-- trips and past-trips cards. -->
     <Group id="tripLayer" visible="false" opacity="0">
       <Rectangle width="1920" height="1080" color="0x08090cFF"/>
       <Poster id="tripHero" width="1920" height="1080" loadWidth="1920" loadHeight="1080"
               loadDisplayMode="scaleToZoom"/>
       <Rectangle width="1920" height="1080" color="0x000000B8"/>
-      <Label id="tripTitle" translation="[100,84]" width="980" color="0xf3f5f7FF">
-        <Font role="font" uri="font:BoldSystemFontFile" size="96"/>
-      </Label>
-      <Label id="tripResort" translation="[104,210]" width="960" color="0xf3f5f7CC">
-        <Font role="font" uri="font:SystemFontFile" size="40"/>
-      </Label>
-      <Label id="tripRange" translation="[104,262]" width="960" color="0xf3f5f7A0">
-        <Font role="font" uri="font:SystemFontFile" size="36"/>
-      </Label>
-      <Label id="tripBig" translation="[94,340]" width="980" color="0xf3f5f7FF">
-        <Font role="font" uri="font:BoldSystemFontFile" size="220"/>
-      </Label>
-      <Label id="tripBigLabel" translation="[104,610]" width="960" color="0x7dd3fcFF">
-        <Font role="font" uri="font:BoldSystemFontFile" size="44"/>
-      </Label>
-      <Group id="tripToday" translation="[104,700]"/>
-      <Label id="tripBoardTitle" translation="[1120,96]" width="700" color="0x7dd3fcFF">
-        <Font role="font" uri="font:BoldSystemFontFile" size="30"/>
-      </Label>
-      <Group id="tripBoard" translation="[1120,160]"/>
+      <Group id="tripContent">
+        <Label id="tripTitle" translation="[100,84]" width="980" color="0xf3f5f7FF">
+          <Font role="font" uri="font:BoldSystemFontFile" size="96"/>
+        </Label>
+        <Label id="tripResort" translation="[104,210]" width="960" color="0xf3f5f7CC">
+          <Font role="font" uri="font:SystemFontFile" size="40"/>
+        </Label>
+        <Label id="tripRange" translation="[104,262]" width="960" color="0xf3f5f7A0">
+          <Font role="font" uri="font:SystemFontFile" size="36"/>
+        </Label>
+        <Label id="tripBig" translation="[94,340]" width="980" color="0xf3f5f7FF">
+          <Font role="font" uri="font:BoldSystemFontFile" size="220"/>
+        </Label>
+        <Label id="tripBigLabel" translation="[104,610]" width="960" color="0x7dd3fcFF">
+          <Font role="font" uri="font:BoldSystemFontFile" size="44"/>
+        </Label>
+        <Group id="tripToday" translation="[104,700]"/>
+        <Group id="tripHighlights" translation="[104,360]"/>
+        <Label id="tripBoardTitle" translation="[1120,96]" width="700" color="0x7dd3fcFF">
+          <Font role="font" uri="font:BoldSystemFontFile" size="30"/>
+        </Label>
+        <Group id="tripBoard" translation="[1120,160]"/>
+      </Group>
     </Group>
+
+    <!-- grocery card. -->
+    <Group id="groceryLayer" visible="false" opacity="0">
+      <Rectangle width="1920" height="1080" color="0x08090cFF"/>
+      <Group id="groceryContent">
+        <Label id="groceryTitle" translation="[100,84]" width="1200" color="0xf3f5f7FF">
+          <Font role="font" uri="font:BoldSystemFontFile" size="96"/>
+        </Label>
+        <Label id="groceryCount" translation="[104,210]" width="1200" color="0x7dd3fcFF">
+          <Font role="font" uri="font:BoldSystemFontFile" size="40"/>
+        </Label>
+        <Group id="groceryItems" translation="[104,310]"/>
+      </Group>
+    </Group>
+
+    <!-- Any other card, drawn from its glance. -->
+    <Group id="glanceLayer" visible="false" opacity="0">
+      <Rectangle width="1920" height="1080" color="0x08090cFF"/>
+      <Poster id="glanceImage" width="1920" height="1080" loadWidth="1920" loadHeight="1080"
+              loadDisplayMode="scaleToZoom"/>
+      <Rectangle id="glanceDim" width="1920" height="1080" color="0x000000B8" visible="false"/>
+      <Group id="glanceContent">
+        <Label id="glanceTitle" translation="[100,96]" width="1720" color="0x7dd3fcFF">
+          <Font role="font" uri="font:BoldSystemFontFile" size="34"/>
+        </Label>
+        <Group id="glanceColors"/>
+        <Label id="glanceHeadline" translation="[136,490]" width="1680" wrap="true" maxLines="3" color="0xf3f5f7FF">
+          <Font role="font" uri="font:BoldSystemFontFile" size="92"/>
+        </Label>
+        <Label id="glanceDetail" translation="[140,620]" width="1640" wrap="true" maxLines="3" color="0xf3f5f7B3">
+          <Font role="font" uri="font:SystemFontFile" size="48"/>
+        </Label>
+      </Group>
+    </Group>
+
+    <!-- Over every layer but the today screen (which has its own status line) while offline. -->
+    <Label id="offline" translation="[920,40]" width="940" horizAlign="right" color="0xf3f5f78C" visible="false">
+      <Font role="font" uri="font:SystemFontFile" size="26"/>
+    </Label>
 
     <Animation id="photoFade" duration="1.5" easeFunction="linear">
       <FloatFieldInterpolator id="fadeIn" key="[0.0, 1.0]" keyValue="[0.0, 1.0]" fieldToInterp="photoB.opacity"/>
       <FloatFieldInterpolator id="fadeOut" key="[0.0, 1.0]" keyValue="[1.0, 0.0]" fieldToInterp="photoA.opacity"/>
     </Animation>
-    <!-- Switches between the hub, photo, and trip layers (targets set in code). -->
+    <!-- Crossfades between layers (targets set in code). -->
     <Animation id="swap" duration="1.5" easeFunction="linear">
       <FloatFieldInterpolator id="swapIn" key="[0.0, 1.0]" keyValue="[0.0, 1.0]" fieldToInterp="photoLayer.opacity"/>
       <FloatFieldInterpolator id="swapOut" key="[0.0, 1.0]" keyValue="[1.0, 0.0]" fieldToInterp="layout.opacity"/>
+    </Animation>
+    <!-- From one card to the next on the same layer: fade out, redraw, fade in. -->
+    <Animation id="dipOut" duration="0.75" easeFunction="linear">
+      <FloatFieldInterpolator id="dipOutInterp" key="[0.0, 1.0]" keyValue="[1.0, 0.0]" fieldToInterp="tripLayer.opacity"/>
+    </Animation>
+    <Animation id="dipIn" duration="0.75" easeFunction="linear">
+      <FloatFieldInterpolator id="dipInInterp" key="[0.0, 1.0]" keyValue="[0.0, 1.0]" fieldToInterp="tripLayer.opacity"/>
     </Animation>
   </children>
 </component>

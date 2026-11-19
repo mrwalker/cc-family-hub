@@ -1,27 +1,24 @@
 import AppKit
 import Foundation
 
-/// Fetches `/api/widget`, keeps the last good response on disk for offline use,
-/// and derives what the menu bar shows.
+/// Fetches the stream (`/api/stream`), keeps the last good response on disk for
+/// offline use, loads card images, and derives what the menu bar shows.
 @MainActor
 final class HubStore: ObservableObject {
-    typealias Event = WidgetData.Event
+    typealias Event = TodayData.Event
 
     @Published private(set) var settings: HubSettings
-    @Published private(set) var data: WidgetData?
+    @Published private(set) var data: StreamResponse?
     @Published private(set) var problem: String?
     @Published private(set) var isOffline = false
     @Published private(set) var isLoading = false
     @Published private(set) var now = Date()
-    @Published private(set) var trips: [TripSummary] = []
-    @Published private(set) var photo: NSImage?
-    /// Which item the menu bar shows when it rotates (see MenuBarText.rotate).
+    /// Card images by URL (`glance.image`), for the cards in the current stream.
+    @Published private(set) var images: [String: NSImage] = [:]
+    /// Which headline the menu bar shows when it rotates (see MenuBarText.rotate).
     @Published private(set) var rotation = 0
 
-    private var photoIDs: [String] = []
-    private var photoListAt = Date.distantPast
-    private var photoID: String?
-
+    private var imageLoads: Set<String> = []
     private let refreshEvery: TimeInterval = 5 * 60
     private let retryEvery: TimeInterval = 60
     private var nextRefresh = Date.distantPast
@@ -33,9 +30,12 @@ final class HubStore: ObservableObject {
         return URLSession(configuration: c)
     }()
 
-    init() {
-        settings = HubSettings.load()
+    /// `live: false` (snapshots) skips the timers, the wake refresh and the first-run Settings window.
+    init(settings: HubSettings = .load(), live: Bool = true) {
+        self.settings = settings
         data = Cache.read(view: settings.view)
+        guard live else { return }
+        // Every 30 seconds: the menu bar's rotation step, and the refresh check.
         timer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.tick() }
         }
@@ -57,16 +57,32 @@ final class HubStore: ObservableObject {
 
     /// Opening the menu refreshes data more than a couple of minutes old.
     func refreshIfOld() async {
-        if let at = data.flatMap({ Dates.parse($0.generatedAt) }), Date().timeIntervalSince(at) < 120, problem == nil { return }
+        if let at = generatedAt, Date().timeIntervalSince(at) < 120, problem == nil { return }
         await refresh()
     }
 
     var isConfigured: Bool { !settings.url.isEmpty }
 
-    var hubURL: URL? { URL(string: data?.hubUrl ?? (settings.url.isEmpty ? "" : settings.url + "/")) }
+    var generatedAt: Date? { data.flatMap { Dates.parse($0.generatedAt) } }
 
-    /// Events that haven't finished yet (the list goes stale between refreshes).
-    var events: [Event] { (data?.events ?? []).filter { !$0.isOver(at: now) } }
+    var hubURL: URL? {
+        let hub = data?.hubUrl ?? ""
+        return URL(string: !hub.isEmpty ? hub : (settings.url.isEmpty ? "" : settings.url + "/"))
+    }
+
+    var cards: [Card] { data?.cards ?? [] }
+
+    /// The `today` card, which the panel keeps in view above the rotation.
+    var todayCard: Card? { cards.first { $0.component == "today" && $0.today != nil } }
+
+    /// The cards the panel rotates through: the whole stream, less the `today` anchor.
+    var panelCards: [Card] {
+        guard let anchor = todayCard else { return cards }
+        return cards.filter { $0.id != anchor.id }
+    }
+
+    /// Today's and tomorrow's events that haven't finished yet (the list goes stale between refreshes).
+    var events: [Event] { (todayCard?.today?.events ?? []).filter { !$0.isOver(at: now) } }
 
     func update(_ new: HubSettings) {
         let reload = new.url != settings.url || new.view != settings.view
@@ -75,6 +91,7 @@ final class HubStore: ObservableObject {
         settings = new
         if reload {
             data = Cache.read(view: new.view)
+            images = [:]
             problem = nil
             isOffline = false
             Task { await refresh() }
@@ -87,43 +104,34 @@ final class HubStore: ObservableObject {
         defer { isLoading = false; now = Date() }
         nextRefresh = Date().addingTimeInterval(retryEvery)
         do {
-            let fresh = try await HubClient.fetch(settings, session: session)
+            let (fresh, body) = try await HubClient.fetchStream(settings, session: session)
             data = fresh
             problem = nil
             isOffline = false
-            Cache.write(fresh, view: settings.view)
+            Cache.write(body, view: settings.view)
             nextRefresh = Date().addingTimeInterval(refreshEvery)
-            await refreshExtras()
+            // Keep only the images this stream still uses.
+            let wanted = Set(fresh.cards.compactMap(\.glance.image))
+            images = images.filter { wanted.contains($0.key) }
         } catch {
             problem = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
             isOffline = data != nil
         }
     }
 
-    /// Trips (every refresh) and the photo list (every 10 minutes). Failures just
-    /// leave the old values: these are extras on top of the calendar.
-    private func refreshExtras() async {
-        if let body = try? await HubClient.get(settings, path: "/api/widget/trips", session: session),
-           let list = try? JSONDecoder().decode(TripsResponse.self, from: body) {
-            trips = list.trips
-        }
-        if Date().timeIntervalSince(photoListAt) > 600,
-           let body = try? await HubClient.get(settings, path: "/api/widget/photos", session: session),
-           let list = try? JSONDecoder().decode(PhotoList.self, from: body) {
-            photoIDs = list.photos.map(\.id)
-            photoListAt = Date()
-            if photo == nil { await nextPhoto() }
-        }
+    func image(for card: Card) -> NSImage? {
+        card.glance.image.flatMap { images[$0] }
     }
 
-    /// Shows a different random photo from the album.
-    func nextPhoto() async {
-        let choices = photoIDs.filter { $0 != photoID }
-        guard let id = choices.randomElement() ?? photoIDs.first else { return }
-        let path = "/api/widget/photos/" + (id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id)
-        if let body = try? await HubClient.get(settings, path: path, session: session), let image = NSImage(data: body) {
-            photo = image
-            photoID = id
+    /// Loads a card's image if it has one and it isn't loaded yet. A failure leaves the
+    /// card on its glance layout.
+    func loadImage(for card: Card) async {
+        guard let url = card.glance.image, images[url] == nil, !imageLoads.contains(url) else { return }
+        imageLoads.insert(url)
+        defer { imageLoads.remove(url) }
+        if let body = try? await HubClient.getImage(settings, url: url, session: session),
+           let image = NSImage(data: body) {
+            images[url] = image
         }
     }
 
@@ -141,9 +149,11 @@ final class HubStore: ObservableObject {
         return timed.first { ($0.start ?? now) > now } ?? timed.first ?? events.first
     }
 
-    var menuBarText: String {
+    var menuBarText: String { menuBarText(settings.menuBarText) }
+
+    func menuBarText(_ mode: MenuBarText) -> String {
         guard isConfigured, data != nil else { return "" }
-        switch settings.menuBarText {
+        switch mode {
         case .iconOnly:
             return ""
         case .nextEvent:
@@ -154,14 +164,13 @@ final class HubStore: ObservableObject {
             if let e = nextEvent, e.day == "Today", !e.allDay { return eventText(e) }
             return tripText ?? ""
         case .rotate:
-            // Next event today, then each trip's countdown; one step per 30-second tick.
-            var items: [String] = []
-            if let e = nextEvent, e.day == "Today", !e.allDay { items.append(eventText(e)) }
-            items += trips.map(tripShort)
-            if items.isEmpty, let t = tripText { items.append(t) }
+            let items = rotateItems
             return items.isEmpty ? "" : items[rotation % items.count]
         }
     }
+
+    /// Every card's headline, in stream order: what Rotate steps through.
+    var rotateItems: [String] { cards.map(\.shortText).filter { !$0.isEmpty } }
 
     private func eventText(_ e: Event) -> String {
         let title = e.title.truncated(24)
@@ -175,18 +184,10 @@ final class HubStore: ObservableObject {
         return "\(e.time) · \(title)"
     }
 
-    private func tripShort(_ t: TripSummary) -> String {
-        if t.isActive { return "\(t.title) day \(t.day ?? 1)/\(t.days)" }
-        if t.daysUntil <= 1 { return "\(t.title) tomorrow" }
-        return "\(t.title) \(t.daysUntil)d"
-    }
-
+    /// The first trip card's headline ("🏖️ 12 days", "🏖️ Day 2 of 5"). An active trip leads the stream.
     private var tripText: String? {
-        guard let t = data?.nextTrip else { return nil }
-        let mark = t.emoji ?? "✈︎"
-        if t.isActive { return "\(mark) Day \(t.day ?? 1)/\(t.days)" }
-        if t.daysUntil <= 1 { return "\(mark) tomorrow" }
-        return "\(mark) \(t.daysUntil)d"
+        guard let trip = cards.first(where: { $0.component == "trips" }), !trip.glance.headline.isEmpty else { return nil }
+        return "\(trip.glance.emoji ?? "✈︎") \(trip.glance.headline.truncated(28))"
     }
 }
 
@@ -200,49 +201,56 @@ enum HubError: LocalizedError {
 }
 
 enum HubClient {
-    /// GET a path on the hub with the service token; the body on 200, else throws.
-    static func get(_ settings: HubSettings, path: String, session: URLSession) async throws -> Data {
-        guard let url = URL(string: settings.url + path) else { throw HubError.message("Bad URL") }
+    private static func request(_ settings: HubSettings, _ url: URL) -> URLRequest {
         var request = URLRequest(url: url)
-        if !settings.clientId.isEmpty {
+        // The service token goes only to the hub itself.
+        if !settings.clientId.isEmpty, let hub = URL(string: settings.url),
+           url.host == hub.host, url.port == hub.port, url.scheme == hub.scheme {
             request.setValue(settings.clientId, forHTTPHeaderField: "CF-Access-Client-Id")
             request.setValue(settings.clientSecret, forHTTPHeaderField: "CF-Access-Client-Secret")
         }
-        let (body, response) = try await session.data(for: request)
+        return request
+    }
+
+    /// A card image (`glance.image`, under `/api/stream/image/…`).
+    static func getImage(_ settings: HubSettings, url: String, session: URLSession) async throws -> Data {
+        guard let url = URL(string: url) else { throw HubError.message("Bad URL") }
+        let (body, response) = try await session.data(for: request(settings, url))
         guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw HubError.message("HTTP error") }
         return body
     }
 
-    static func fetch(_ settings: HubSettings, session: URLSession) async throws -> WidgetData {
-        guard var components = URLComponents(string: settings.url + "/api/widget") else {
+    /// The stream for this Mac, and its raw body for the offline cache.
+    static func fetchStream(_ settings: HubSettings, session: URLSession) async throws -> (StreamResponse, Data) {
+        guard var components = URLComponents(string: settings.url + "/api/stream") else {
             throw HubError.message("The hub URL isn't valid. Check it in Settings.")
         }
-        components.queryItems = [URLQueryItem(name: "view", value: settings.view)]
+        components.queryItems = [
+            URLQueryItem(name: "view", value: settings.view),
+            URLQueryItem(name: "output", value: "mac-menu-bar"),
+        ]
         guard let url = components.url else { throw HubError.message("The hub URL isn't valid. Check it in Settings.") }
 
-        var request = URLRequest(url: url)
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        if !settings.clientId.isEmpty {
-            request.setValue(settings.clientId, forHTTPHeaderField: "CF-Access-Client-Id")
-            request.setValue(settings.clientSecret, forHTTPHeaderField: "CF-Access-Client-Secret")
-        }
-
-        let (body, response) = try await session.data(for: request)
+        var req = request(settings, url)
+        req.setValue("application/json", forHTTPHeaderField: "Accept")
+        let (body, response) = try await session.data(for: req)
         let http = response as? HTTPURLResponse
         let status = http?.statusCode ?? 0
-        if status == 200, let data = try? JSONDecoder().decode(WidgetData.self, from: body) {
-            return data
-        }
-        if let object = try? JSONSerialization.jsonObject(with: body) as? [String: Any],
-           let message = object["error"] as? String {
-            throw HubError.message(message)
-        }
         // Access answers a missing or wrong token with 401/403, or a redirect to its login page.
         if status == 401 || status == 403 || http?.url?.host?.contains("cloudflareaccess") == true {
             throw HubError.message("The hub didn't accept this app's service token. Check it in Settings.")
         }
+        if status == 200 {
+            if let stream = try? JSONDecoder().decode(StreamResponse.self, from: body) { return (stream, body) }
+            throw HubError.message("The hub's answer wasn't a stream. Check the hub URL in Settings.")
+        }
         if status == 404 {
-            throw HubError.message("This hub has no /api/widget. It needs cc-family-hub v0.3.0 or later.")
+            throw HubError.message("This hub has no /api/stream. Upgrade its cc-family-hub to v0.9.0 or later.")
+        }
+        // The hub explains other refusals, e.g. an unknown view.
+        if let object = try? JSONSerialization.jsonObject(with: body) as? [String: Any],
+           let message = object["error"] as? String {
+            throw HubError.message(message)
         }
         throw HubError.message("The hub answered \(status).")
     }
@@ -250,22 +258,29 @@ enum HubClient {
 
 // ─── Offline cache ──────────────────────────────────────────────────────────
 
+/// The last stream response for each view, as the hub sent it.
 enum Cache {
-    private static func file(_ view: String) -> URL? {
+    private static var folder: URL? {
         guard let dir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first else { return nil }
         let folder = dir.appendingPathComponent(Bundle.main.bundleIdentifier ?? "family-hub", isDirectory: true)
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        let safe = view.filter { $0.isLetter || $0.isNumber || $0 == "-" }
-        return folder.appendingPathComponent("widget-\(safe).json")
+        return folder
     }
 
-    static func read(view: String) -> WidgetData? {
-        guard let url = file(view), let data = try? Data(contentsOf: url) else { return nil }
-        return try? JSONDecoder().decode(WidgetData.self, from: data)
+    private static func safe(_ view: String) -> String {
+        view.filter { $0.isLetter || $0.isNumber || $0 == "-" }
     }
 
-    static func write(_ value: WidgetData, view: String) {
-        guard let url = file(view), let data = try? JSONEncoder().encode(value) else { return }
-        try? data.write(to: url, options: .atomic)
+    static func read(view: String) -> StreamResponse? {
+        guard let url = folder?.appendingPathComponent("stream-\(safe(view)).json"),
+              let body = try? Data(contentsOf: url) else { return nil }
+        return try? JSONDecoder().decode(StreamResponse.self, from: body)
+    }
+
+    static func write(_ body: Data, view: String) {
+        guard let folder else { return }
+        try? body.write(to: folder.appendingPathComponent("stream-\(safe(view)).json"), options: .atomic)
+        // The /api/widget cache from before the stream.
+        try? FileManager.default.removeItem(at: folder.appendingPathComponent("widget-\(safe(view)).json"))
     }
 }

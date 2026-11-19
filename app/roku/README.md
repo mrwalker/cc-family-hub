@@ -5,10 +5,11 @@ time, with crossfades: today and tomorrow beside a big clock, each upcoming trip
 hero photo and leaderboard, trips you've taken, the grocery list, and photos from the family
 album.
 
-The same screen works as a Roku **screensaver**, and it drifts slowly so nothing burns in.
-As a screensaver it shows three album photos between every other card by default, each with
-a strip along the bottom showing the clock, the next event, and the trip countdown. Add a
-photo to the album on your phone and it joins within about 15 minutes.
+The same screen works as a Roku **screensaver**, and as a screensaver it drifts slowly so
+nothing burns in. The channel and the screensaver show the same stream: by default, three
+album photos between every other card, each with a strip along the bottom showing the clock,
+the next event, and the trip countdown. Add a photo to the album on your phone and it joins
+within about 15 minutes.
 
 - **Left and right** on the remote switch between the whole family and each person. The Roku remembers your choice.
 - **OK** refreshes. The channel also refreshes every 5 minutes on its own.
@@ -71,7 +72,8 @@ Roku lists a sideloaded screensaver only when the package is screensaver-only, s
 screensaver with `--screensaver`. Then go to Settings → Theme → Screensavers, choose **Family
 Hub**, and use **Preview** to check it.
 
-`./build.sh --preview --install` installs a channel that runs the screensaver, photos included.
+`./build.sh --preview --install` installs a channel that runs as the screensaver does: it drifts,
+and it leaves out the remote hint.
 You can launch it from the Home screen, or with `curl -X POST http://<roku-ip>:8060/launch/dev`,
 to check the rotation without waiting for the screensaver.
 
@@ -82,12 +84,16 @@ to check the rotation without waiting for the screensaver.
 | "The hub didn't accept this channel's service token" | Check the token in `roku.env`, that it's in the **Hub Screens** policy, and that the policy is attached to the `/api/stream` application. Then run `./build.sh --install` again. |
 | "No hub is set up" | `HUB_URL` was empty at build time. |
 | "Unknown view …" | Press left or right to pick someone else. |
-| "Offline since …" | The Roku couldn't reach the hub, so it keeps showing the last stream and retries. |
+| "This hub has no /api/stream" | The hub runs a cc-family-hub older than v0.9.0. Upgrade it and deploy. |
+| "Offline since …" | The Roku couldn't reach the hub, so it keeps showing the last stream and retries every minute. |
 
 ## Developing
 
-- `components/HubScene.brs`: layout, rotation, and remote keys.
-- `components/FetchTask.brs`: the HTTP request.
+- `components/HubScene.brs`: rotation, a layout for each kind of card, and remote keys.
+  `today`, `photos`, `trips`, `past-trips`, and `grocery` have their own layouts. Any other
+  card is drawn from its glance.
+- `components/FetchTask.brs`: the HTTP requests: `/api/stream?output=roku`, and card images,
+  which it downloads to `tmp:/` with the same token.
 - `source/`: entry points for the channel and the screensaver.
 
 To check the layout from your computer, run `./build.sh --screenshot shot.jpg`. To send remote

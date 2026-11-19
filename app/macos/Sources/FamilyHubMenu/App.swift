@@ -3,7 +3,8 @@ import SwiftUI
 
 @main
 struct FamilyHubApp: App {
-    @StateObject private var store = HubStore()
+    // A snapshot run draws its own store (Snapshot.swift); this one stays idle.
+    @StateObject private var store = HubStore(live: !Snapshot.isRequested)
 
     init() {
         // Info.plist sets LSUIElement; this covers `swift run` without a bundle.

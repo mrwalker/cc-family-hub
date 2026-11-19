@@ -23,7 +23,7 @@ struct SettingsView: View {
                 } header: {
                     Text("Hub")
                 } footer: {
-                    Text("A Cloudflare Access service token allowed on /api/widget, the same kind the phone widgets use. Leave both empty if your hub isn't behind Access.")
+                    Text("A Cloudflare Access service token allowed on /api/stream, the same kind the other screens use. Leave both empty if your hub isn't behind Access.")
                         .font(.caption).foregroundStyle(.secondary)
                 }
 
@@ -68,7 +68,7 @@ struct SettingsView: View {
         .onAppear(perform: load)
     }
 
-    private var members: [WidgetData.Member] { store.data?.members ?? [] }
+    private var members: [StreamResponse.Member] { store.data?.members ?? [] }
 
     private func load() {
         let s = store.settings
