@@ -6,11 +6,18 @@
  *   GET /api/widget/photos       → { photos: [{ id, width, height, takenAt }], generatedAt }
  *   GET /api/widget/photos/:id   → the photo as a JPEG (about 1536 px on the long side)
  *
- * The album link (family.yaml → hub.photos.icloudAlbum) stays server-side. The
- * Worker reads the album the way icloud.com's own album page does: it resolves
- * the link to an anonymous CloudKit token, lists the album's photo records, and
- * downloads each photo's medium JPEG rendition. This isn't a documented Apple API,
- * so it may need updating if Apple changes the page.
+ * The album link (family.yaml → inputs.icloud-album, or a trip's album) stays
+ * server-side. The Worker reads the album the way icloud.com's own pages do. iCloud
+ * has two kinds of shared-album link:
+ *
+ *   https://photos.icloud.com/shared/album/<key>   resolved to an anonymous CloudKit
+ *                                                  token; photo records list the
+ *                                                  medium JPEG's download URL.
+ *   https://www.icloud.com/sharedalbum/#<token>    "shared streams": webstream lists
+ *                                                  the photos, and webasseturls gives
+ *                                                  one photo's download URL on demand.
+ *
+ * Neither is a documented Apple API, so they may need updating if Apple changes them.
  */
 
 const LIST_CACHE_SECONDS = 300;
@@ -19,9 +26,18 @@ const MAX_PHOTOS = 500;
 const CK = "https://ckdatabasews.icloud.com/database/1/com.apple.photos.cloud/production";
 const ORIGIN = { "content-type": "text/plain", Origin: "https://photos.icloud.com" };
 
-/** "https://photos.icloud.com/shared/album/<key>" (or a bare key) → key, else null. */
+const STREAMS_FIRST_HOST = "p23-sharedstreams.icloud.com";   // iCloud redirects to the album's own host
+const STREAMS_HEADERS = { "Content-Type": "text/plain", Origin: "https://www.icloud.com" };
+
+/**
+ * A shared-album link → the key the reader uses, else null:
+ *   "https://photos.icloud.com/shared/album/<key>" (or a bare key)  → "<key>"
+ *   "https://www.icloud.com/sharedalbum/#<token>"                   → "s:<token>"
+ */
 export function albumKey(link) {
   if (!link) return null;
+  const streams = String(link).match(/^https:\/\/www\.icloud\.com\/sharedalbum\/(?:[a-z-]+\/)?#([A-Za-z0-9_-]{10,120})\/?$/);
+  if (streams) return `s:${streams[1]}`;
   const m = String(link).match(/^(?:https:\/\/(?:photos\.icloud\.com\/shared\/album|share\.icloud\.com\/photos)\/)?([A-Za-z0-9_-]{10,64})\/?(?:[?#].*)?$/);
   return m ? m[1] : null;
 }
@@ -81,7 +97,7 @@ export async function photoFromAlbum(link, id) {
 
 async function cachedAlbum(key) {
   const cache = typeof caches !== "undefined" ? caches.default : null;
-  const cacheKey = new Request(`https://family-hub.internal/photos/${key}`);
+  const cacheKey = new Request(`https://family-hub.internal/photos/${encodeURIComponent(key)}`);
   const hit = cache && (await cache.match(cacheKey));
   if (hit) return hit.json();
 
@@ -94,8 +110,14 @@ async function cachedAlbum(key) {
   return album;
 }
 
-/** Every photo in the album, newest first, with a (short-lived) download URL each. */
+/** Every photo in the album, newest first. */
 async function readAlbum(key) {
+  if (key.startsWith("s:")) return readStreamsAlbum(key.slice(2));
+  return readCloudKitAlbum(key);
+}
+
+/** A photos.icloud.com album: every photo with a (short-lived) download URL each. */
+async function readCloudKitAlbum(key) {
   const resolved = await ck(`${CK}/public/records/resolve?${params({ sharing_url_key: key })}`, {
     shortGUIDs: [{ value: key }],
   });
@@ -153,14 +175,73 @@ async function readAlbum(key) {
   return photos;
 }
 
+// ─── Shared streams (www.icloud.com/sharedalbum/#…) ───────────────────────────
+
+/** POSTs to a shared-streams endpoint, following iCloud's redirect (330) to the album's host. */
+async function streamsPost(host, token, path, body) {
+  for (let i = 0; i < 3; i++) {
+    const res = await fetch(`https://${host}/${token}/sharedstreams/${path}`, {
+      method: "POST", headers: STREAMS_HEADERS, body: JSON.stringify(body),
+    });
+    if (res.status === 330) {
+      const d = await res.json().catch(() => ({}));
+      host = res.headers.get("X-Apple-MMe-Host") || d["X-Apple-MMe-Host"];
+      if (!host) throw new Error("iCloud redirected without saying where");
+      continue;
+    }
+    if (res.status === 404) throw new Error("the album link didn't resolve. Is Public Website on?");
+    if (!res.ok) throw new Error(`iCloud answered ${res.status}`);
+    return { host, data: await res.json() };
+  }
+  throw new Error("iCloud kept redirecting");
+}
+
+/** A shared-streams album's photos (videos left out), each with its largest rendition up to about 2048 px. */
+async function readStreamsAlbum(token) {
+  const { host, data } = await streamsPost(STREAMS_FIRST_HOST, token, "webstream", { streamCtag: null });
+  const photos = [];
+  for (const p of data.photos ?? []) {
+    if (p.mediaAssetType === "video" || !p.photoGuid) continue;
+    const sizes = Object.values(p.derivatives ?? {})
+      .filter(d => d?.checksum)
+      .sort((a, b) => Number(b.width) * Number(b.height) - Number(a.width) * Number(a.height));
+    const d = sizes.find(d => Math.max(Number(d.width), Number(d.height)) <= 2100) ?? sizes[sizes.length - 1];
+    if (!d) continue;
+    photos.push({
+      id: p.photoGuid,
+      width: Number(d.width) || null,
+      height: Number(d.height) || null,
+      takenAt: p.dateCreated ?? p.batchDateCreated ?? null,
+      fingerprint: d.checksum,
+      host,
+    });
+  }
+  photos.sort((a, b) => String(b.takenAt ?? "").localeCompare(String(a.takenAt ?? "")));
+  return photos.slice(0, MAX_PHOTOS);
+}
+
+/** One shared-streams photo's download URL. They expire, so they're asked for only when needed. */
+async function streamsDownloadURL(token, photo) {
+  const { data } = await streamsPost(photo.host, token, "webasseturls", { photoGuids: [photo.id] });
+  const item = data.items?.[photo.fingerprint];
+  if (!item?.url_location || !item?.url_path) throw new Error("iCloud didn't give a download link");
+  return `https://${item.url_location}${item.url_path}`;
+}
+
 async function photoResponse(key, photo) {
   const cache = typeof caches !== "undefined" ? caches.default : null;
   const cacheKey = new Request(
-    `https://family-hub.internal/photo/${key}/${encodeURIComponent(photo.id)}/${encodeURIComponent(photo.fingerprint)}`
+    `https://family-hub.internal/photo/${encodeURIComponent(key)}/${encodeURIComponent(photo.id)}/${encodeURIComponent(photo.fingerprint)}`
   );
   let res = cache && (await cache.match(cacheKey));
   if (!res) {
-    const upstream = await fetch(photo.downloadURL.replace("${f}", "photo.jpg"), { headers: { Origin: ORIGIN.Origin } });
+    let url;
+    try {
+      url = key.startsWith("s:") ? await streamsDownloadURL(key.slice(2), photo) : photo.downloadURL.replace("${f}", "photo.jpg");
+    } catch (err) {
+      return json({ error: `Couldn't get this photo from iCloud: ${err.message}` }, 502);
+    }
+    const upstream = await fetch(url, { headers: { Origin: key.startsWith("s:") ? STREAMS_HEADERS.Origin : ORIGIN.Origin } });
     if (!upstream.ok) return json({ error: `iCloud answered ${upstream.status} for this photo` }, 502);
     res = new Response(upstream.body, {
       headers: { "Content-Type": "image/jpeg", "Cache-Control": `max-age=${PHOTO_CACHE_SECONDS}` },
