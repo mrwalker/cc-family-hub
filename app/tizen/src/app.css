@@ -1,0 +1,58 @@
+/* Family Hub on a Samsung TV. The page is 1920×1080. */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 1920px; height: 1080px; overflow: hidden; background: #000; color: #fff;
+  font-family: "SamsungOne", "Samsung Sans", Helvetica, Arial, sans-serif; }
+#stage { position: absolute; top: 0; left: 0; width: 1920px; height: 1080px; }
+.slide { position: absolute; top: 0; left: 0; width: 1920px; height: 1080px; opacity: 0;
+  transition: opacity 1.5s ease; background: #0b0d12 center / cover no-repeat; }
+.slide.shown { opacity: 1; }
+.shade { position: absolute; top: 0; right: 0; bottom: 0; left: 0;
+  background: linear-gradient(90deg, rgba(0,0,0,.82) 0%, rgba(0,0,0,.55) 45%, rgba(0,0,0,.15) 100%); }
+.shade.bottom { background: linear-gradient(180deg, rgba(0,0,0,0) 55%, rgba(0,0,0,.8) 100%); }
+.inner { position: absolute; top: 90px; left: 120px; right: 120px; bottom: 90px; }
+.drift { transition: transform 2s ease; }
+
+.label { font-size: 26px; letter-spacing: .14em; text-transform: uppercase; opacity: .7; font-weight: 600; }
+.huge { font-size: 170px; font-weight: 300; line-height: 1; letter-spacing: -4px; }
+.big { font-size: 64px; font-weight: 700; line-height: 1.1; }
+.mid { font-size: 38px; opacity: .88; margin-top: 10px; }
+.small { font-size: 28px; opacity: .8; }
+
+/* today */
+.today-head { display: flex; align-items: flex-end; }
+.today-date { font-size: 40px; margin: 0 0 22px 32px; opacity: .8; }
+.flag { color: #ff6b6b; font-size: 32px; margin-top: 18px; }
+.day { margin-top: 34px; }
+.event { display: flex; align-items: center; font-size: 36px; margin-top: 12px; }
+.event .bar { width: 8px; height: 40px; border-radius: 4px; margin-right: 20px; }
+.event .time { width: 210px; opacity: .75; font-variant-numeric: tabular-nums; }
+.event .title { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tripbox { position: absolute; right: 0; top: 0; width: 520px; padding: 28px 34px; border-radius: 20px;
+  background: rgba(255,255,255,.08); }
+
+/* trips */
+.board { margin-top: 36px; width: 760px; }
+.row { display: flex; align-items: center; font-size: 32px; margin-top: 10px; }
+.row .dot { width: 18px; height: 18px; border-radius: 50%; margin-right: 16px; }
+.row .pts { margin-left: auto; font-weight: 700; }
+.chips { margin-top: 28px; }
+.chip { display: inline-block; font-size: 28px; padding: 8px 20px; margin: 0 14px 14px 0; border-radius: 30px;
+  background: rgba(255,255,255,.14); }
+
+/* photos */
+.strip { position: absolute; left: 0; right: 0; bottom: 0; height: 120px; padding: 30px 120px;
+  display: flex; align-items: center; font-size: 34px; background: rgba(0,0,0,.45); }
+.strip .sep { margin: 0 28px; opacity: .5; }
+
+/* grocery */
+.groc { margin-top: 40px; columns: 3; column-gap: 60px; }
+.groc div { font-size: 36px; margin-bottom: 16px; break-inside: avoid; }
+
+/* glance */
+.glance { position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; text-align: center; padding: 0 160px; }
+.glance .big { font-size: 96px; }
+.colors { margin-top: 30px; }
+.colors span { display: inline-block; width: 60px; height: 10px; border-radius: 5px; margin: 0 6px; }
+
+#status { position: absolute; right: 40px; bottom: 30px; font-size: 24px; opacity: .7; }

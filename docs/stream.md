@@ -78,7 +78,7 @@ The Worker applies these when it composes a stream, so every output behaves the 
    non-photo card, and the `photos` component doesn't also take a place of its own.
 
 Settings layer in this order: the family's `stream`, then the screen's built-in defaults
-(the Roku's are `photosBetween: 3` and `dwell: 10`), then `outputs.<id>.stream`.
+(the Roku's and Samsung TVs' are `photosBetween: 3` and `dwell: 10`), then `outputs.<id>.stream`.
 
 ## The stream API
 

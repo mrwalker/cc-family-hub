@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Family Hub for Samsung TVs (Tizen web app). build.sh fills in __PACKAGE__ and __VERSION__. -->
+<widget xmlns="http://www.w3.org/ns/widgets" xmlns:tizen="http://tizen.org/ns/widgets"
+        id="http://github.com/mrwalker/cc-family-hub/tizen" version="__VERSION__" viewmodes="maximized">
+  <tizen:application id="__PACKAGE__.FamilyHub" package="__PACKAGE__" required_version="6.0"/>
+  <tizen:profile name="tv-samsung"/>
+  <name>Family Hub</name>
+  <icon src="icon.png"/>
+  <content src="index.html"/>
+  <access origin="*" subdomains="true"/>
+  <feature name="http://tizen.org/feature/screen.size.normal.1080.1920"/>
+  <tizen:privilege name="http://tizen.org/privilege/internet"/>
+  <tizen:privilege name="http://tizen.org/privilege/tv.inputdevice"/>
+  <tizen:privilege name="http://developer.samsung.com/privilege/productinfo"/>
+  <tizen:setting screen-orientation="landscape" context-menu="disable" background-support="disable"
+                 encryption="disable" install-location="auto" hwkey-event="enable"/>
+</widget>

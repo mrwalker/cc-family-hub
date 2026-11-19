@@ -40,6 +40,13 @@ import { handleGrocery } from "./grocery.js";
 // window serves them all.
 const EVENTS_CACHE_SECONDS = 300;
 
+const STREAM_CORS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, OPTIONS",
+  "Access-Control-Allow-Headers": "CF-Access-Client-Id, CF-Access-Client-Secret",
+  "Access-Control-Max-Age": "86400",
+};
+
 const CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar.readonly";
 const TOKEN_URI      = "https://oauth2.googleapis.com/token";
 
@@ -85,7 +92,14 @@ async function route(request, env, hub) {
 
   const streamPath = url.pathname.match(/^(\/api(?:\/page)?\/stream)(\/.*)?$/);
   if (streamPath) {
-    return handleStream(request, env, hub, days => cachedEvents(env, hub, days), streamPath[2] ?? "", streamPath[1]);
+    // TV apps (app/tizen) run from their own origin and send the service token as
+    // headers, so the stream answers cross-origin requests. It's read-only, and
+    // Cloudflare Access still requires the token.
+    if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: STREAM_CORS });
+    const res = await handleStream(request, env, hub, days => cachedEvents(env, hub, days), streamPath[2] ?? "", streamPath[1]);
+    const out = new Response(res.body, res);
+    for (const [k, v] of Object.entries(STREAM_CORS)) out.headers.set(k, v);
+    return out;
   }
 
   if (url.pathname === "/api/grocery") {

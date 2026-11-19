@@ -22,9 +22,8 @@ KV, which suits data that's written rarely and read constantly.
 
 ### Samsung TVs
 
-A Tizen web app for Samsung TVs that rotates the stream like the Roku channel, installed in
-developer mode. Tizen doesn't allow third-party screensavers, so it would run as an app;
-SmartThings routines may be able to open it on a schedule.
+The app is in `app/tizen/`. Still to learn on real TVs: whether it survives a restart, and
+whether SmartThings routines can open it on a schedule.
 
 ## Later
 
