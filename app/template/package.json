@@ -3,10 +3,12 @@
   "private": true,
   "scripts": {
     "dev": "wrangler dev",
-    "deploy": "wrangler deploy"
+    "deploy": "wrangler deploy",
+    "check": "family-hub check",
+    "plan": "family-hub run"
   },
   "dependencies": {
-    "cc-family-hub": "github:mrwalker/cc-family-hub#v0.9.0"
+    "cc-family-hub": "github:mrwalker/cc-family-hub#v0.10.0"
   },
   "devDependencies": {
     "wrangler": "^3.114.0"

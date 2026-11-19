@@ -58,14 +58,14 @@ async function runRender() {
   console.log(`Prompt written to ${PROMPT_PATH}`);
   console.log(`\nNext step: have the assistant read that file, generate the weekly plan JSON\n` +
     `matching the output format in the prompt, and save it to ${PLAN_PATH}\n` +
-    `Then run: npm run publish`);
+    `Then run: npx family-hub publish`);
 }
 
 async function runPublish() {
   if (!existsSync(PLAN_PATH)) {
     fail(
       `${PLAN_PATH} not found.`,
-      `Run 'npm run render', write the plan to that path, then run 'npm run publish' again.`
+      `Run 'npx family-hub render', write the plan to that path, then run 'npx family-hub publish' again.`
     );
   }
 
@@ -76,11 +76,11 @@ async function runPublish() {
   } catch (err) {
     fail(
       `The plan file is not valid YAML/JSON:\n    ${(err as Error).message.split("\n")[0]}`,
-      `Rewrite the whole file ${PLAN_PATH} with valid JSON, then run 'npm run publish' again.`
+      `Rewrite the whole file ${PLAN_PATH} with valid JSON, then run 'npx family-hub publish' again.`
     );
   }
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
-    fail(`The plan file must contain one JSON object.`, `Rewrite ${PLAN_PATH}, then run 'npm run publish' again.`);
+    fail(`The plan file must contain one JSON object.`, `Rewrite ${PLAN_PATH}, then run 'npx family-hub publish' again.`);
   }
 
   // Normalize and validate the assistant-written plan
@@ -90,7 +90,7 @@ async function runPublish() {
     const problems = result.error.issues.map((i) => `    - ${formatPath(i.path)}: ${i.message}`);
     fail(
       `The plan failed validation (${problems.length} problem(s)):\n${problems.join("\n")}`,
-      `Fix exactly these fields in ${PLAN_PATH}, then run 'npm run publish' again.`
+      `Fix exactly these fields in ${PLAN_PATH}, then run 'npx family-hub publish' again.`
     );
   }
 

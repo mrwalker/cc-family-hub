@@ -5,7 +5,7 @@
  * their Google Calendar with the service account email, granting the hub
  * permanent read access — no OAuth flows or refresh tokens needed.
  *
- * Setup: run `npm run setup:calendars` for step-by-step instructions.
+ * Setup: run `npx family-hub setup calendars` for step-by-step instructions.
  */
 
 import { readFileSync, existsSync, readdirSync } from "fs";

@@ -13,6 +13,8 @@
  *   public/ (optional)           extra static files, or overrides of the above
  *     → .generated/site/             the Worker's static assets
  *
+ * With --check (family-hub check), it validates and summarizes without writing.
+ *
  * Run it as the wrangler build.command, so it runs before every dev/deploy:
  *   "build": { "command": "node node_modules/cc-family-hub/app/build.mjs" }
  * Fails with "<file>: <path>: <problem>" lines if the workspace is inconsistent.
@@ -230,6 +232,19 @@ for (const [i, t] of tripApps.entries()) {
 if (errors.length) {
   console.error(`Hub config is invalid (${errors.length} problem(s)):\n` + errors.map(e => `  - ${e}`).join("\n"));
   process.exit(1);
+}
+
+if (process.argv.includes("--check")) {
+  const legacy = Array.isArray(family.integrations?.active) ? family.integrations.active : [];
+  const list = xs => (xs.length ? xs.join(", ") : "none");
+  console.log(`✓ family.yaml and members/ are valid
+  Members:    ${list(members.map(m => m.id))}
+  Inputs:     ${list([...new Set([...Object.keys(inputs), ...legacy.filter(id => KNOWN_INPUTS.includes(id))])])}${legacy.length ? "  (some from integrations.active)" : ""}
+  Stream:     ${list(stream.components ?? COMPONENT_IDS)}
+  Screens:    ${list(SCREENS.map(id => (outputStreams[id] ? `${id} (own stream)` : id)))}
+  Pushes:     ${list([...new Set([...Object.keys(outputs).filter(id => !SCREENS.includes(id)), ...legacy.filter(id => PUSHES.includes(id))])])}
+  Trip apps:  ${list(tripApps.map(t => t.path))}`);
+  process.exit(0);
 }
 
 const config = {

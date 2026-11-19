@@ -30,8 +30,9 @@ Ask the user for the following:
 Then:
 
 1. Generate a kebab-case `id` from the display name (e.g. "Alex Smith" → `alex-smith`)
-2. Create `workspace/members/<id>.yaml` using `workspace.example/members/alex.yaml` as the schema reference
-3. Add the member to `workspace/family.yaml` under the `members` list
+2. Create `workspace/members/<id>.yaml`, using an existing profile in `workspace/members/` as the schema reference
+3. Add the member to `workspace/family.yaml` under the `members` list, with a `color` (`#rrggbb`) that no one else has
+5. Run `npx family-hub check`. Commit and push: the new member shows on the hub after the deploy
 4. Show the created file and confirm with the user
 
 ---

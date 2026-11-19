@@ -30,3 +30,6 @@ opencode.json
 # Logs
 *.log
 logs/
+
+# npm pack output
+*.tgz

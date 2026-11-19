@@ -2,7 +2,7 @@
  * The data a hub page displays besides the plan: trips, escape rooms, movies
  * (from workspace YAML) and Strava activities (from sync state).
  *
- * Output integrations (hub-api, github-pages) publish these alongside the plan.
+ * The hub-api output publishes these alongside the plan.
  */
 
 import { readFileSync, existsSync } from "fs";

@@ -3,7 +3,7 @@
  * setup-strava.ts
  *
  * One-time OAuth setup for a Strava member. Run this once per person:
- *   npm run setup:strava
+ *   npx family-hub setup strava
  *
  * Each family member needs their own Strava API app because Strava's free
  * tier limits each app to 1 connected athlete.
@@ -128,7 +128,7 @@ async function main() {
 
   writeFileSync(SECRETS_PATH, yaml.dump(all), "utf8");
   console.log(`✓ Saved credentials for "${memberId}" to ${SECRETS_PATH}`);
-  console.log("\nRun 'npm run sync' to pull their activities.\n");
+  console.log("\nRun 'npx family-hub sync' to pull their activities.\n");
 
   rl.close();
 }

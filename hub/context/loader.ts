@@ -21,7 +21,7 @@ export function loadFamilyConfig(): FamilyConfig {
   const path = join(WORKSPACE, "family.yaml");
   if (!existsSync(path)) {
     throw new Error(
-      `workspace/family.yaml not found. Run 'npm run setup' to create your workspace.`
+      `workspace/family.yaml not found. Create a hub repo with 'npx github:mrwalker/cc-family-hub init <dir>', or set HUB_WORKSPACE.`
     );
   }
   const raw = yaml.load(readFileSync(path, "utf8"));

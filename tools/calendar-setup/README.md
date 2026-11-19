@@ -56,7 +56,7 @@ workspace/state/google-service-account.json
 ### Step 6 — Validate the Setup
 
 ```bash
-npm run setup:calendars
+npx family-hub setup calendars
 ```
 
 This will verify the key works and print the service account email address. It will also show which family members need to share their calendars.
@@ -69,7 +69,7 @@ In Google Calendar:
 1. Click **Settings** (⚙) → **Settings for my calendars**
 2. Click the calendar to share (usually their name / "primary")
 3. **Share with specific people or groups** → **Add people**
-4. Paste the service account email (printed by `npm run setup:calendars`)
+4. Paste the service account email (printed by `npx family-hub setup calendars`)
 5. Permission: **Make changes to events** ← required for the hub to write enriched notes back
 6. **Send** (Google will say the invite bounced — that's normal for service accounts, the share still works)
 
@@ -87,17 +87,17 @@ calendarIds:
 
 To find a calendar's ID: **Settings** → click the calendar → **Calendar ID** near the bottom.
 
-Run `npm run setup:calendars` again to confirm everything is accessible.
+Run `npx family-hub setup calendars` again to confirm everything is accessible.
 
 ### Step 9 — First Sync
 
 ```bash
-npm run sync
+npx family-hub sync
 ```
 
 ## Re-running Setup
 
-Run `npm run setup:calendars` any time to check which calendars are connected and diagnose access issues.
+Run `npx family-hub setup calendars` any time to check which calendars are connected and diagnose access issues.
 
 ## Troubleshooting
 

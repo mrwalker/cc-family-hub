@@ -60,6 +60,17 @@ error the component can turn into "skip this card". Never let it fail the whole 
 
 Then list it in [inputs.md](inputs.md). If it feeds something new, add a component.
 
+**A family's own input or push** can live in its hub repo instead, at
+`integrations/inputs/<id>/index.ts` or `integrations/outputs/<id>/index.ts`. The pipeline
+looks there first. Import the base class and types from the package:
+
+```typescript
+import { BaseIntegration } from "cc-family-hub/integrations/_base/BaseIntegration.js";
+import type { InputIntegration, CalendarEvent } from "cc-family-hub/integrations/_base/types.js";
+```
+
+Turn it on under `inputs:` or `outputs:` in `family.yaml` like any other.
+
 ## Adding a component
 
 A component turns data into cards. Create `app/worker/components/<id>.js`:

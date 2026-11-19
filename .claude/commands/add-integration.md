@@ -23,15 +23,21 @@ Scaffold a new input or output integration.
 4. Create `integrations/<type>/<name>/README.md` that explains:
    - What the integration does
    - Setup steps (API keys, OAuth, etc.)
-   - Required entries in `workspace/state/secrets.yaml`
+   - Required entries in `secrets.yaml`
    - Any platform requirements (e.g., macOS only)
 
-5. Show the user what was created and remind them to:
-   - Add the integration ID to `workspace/family.yaml` under `integrations.active`
-   - Add any required secrets to `workspace/state/secrets.yaml`
+5. Add it to `docs/inputs.md` or `docs/outputs.md`, and its secrets to
+   `workspace.example/state/secrets.example.yaml`.
+
+6. Show the user what was created and remind them to:
+   - Turn it on in `workspace/family.yaml`, under `inputs:` or `outputs:`
+   - Add any required secrets to `secrets.yaml` in `HUB_SECRETS_DIR`
 
 ## Reference
 
 Look at `integrations/inputs/google-calendar/index.ts` for a full input example.
-Look at `integrations/outputs/wall-display/index.ts` for a full output example.
+Look at `integrations/outputs/google-calendar/index.ts` for a full output example.
+
+If what you're adding should show on screens, it also needs a stream component: see
+`docs/contributing.md#adding-a-component`.
 The type interfaces are in `integrations/_base/types.ts`.
