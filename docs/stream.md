@@ -88,6 +88,12 @@ GET /api/stream?view=family|<member id>&output=<output id>
 
 `output` selects that output's overrides. Without it, you get the family's default stream.
 
+Two more parameters are for screens that let someone choose:
+
+- `components=today,trips` narrows the stream to those components, in that order.
+- `all=1` returns every card, without taking turns and without photos between, for a
+  screen's full view of a component.
+
 ```json
 {
   "title": "Rivera Family Hub",

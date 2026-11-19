@@ -175,6 +175,78 @@
 
     .tab-spacer { flex: 1; }
 
+    .tab-row .tab { margin-right: 6px; }
+    .view-toggle {
+      float: right; margin: 0 0 8px 12px;
+      background: var(--card); border: 1.5px solid var(--border); border-radius: 16px;
+      padding: 5px 14px; font-size: 12px; font-weight: 600; color: var(--muted); cursor: pointer;
+    }
+    .view-toggle:hover { color: var(--text); border-color: #aaa; }
+    .muted-note { color: var(--muted); font-size: 14px; padding: 20px 0; }
+
+    /* ── Trip cards ──────────────────────────────────────────────── */
+    .tc {
+      border-radius: var(--radius); overflow: hidden; cursor: pointer;
+      background-color: var(--accent); background-image: linear-gradient(135deg, var(--accent), #7c3aed);
+      background-size: cover; background-position: center;
+      color: #fff; box-shadow: var(--shadow);
+    }
+    .tc-body {
+      min-height: 220px; padding: 18px 20px;
+      display: flex; flex-direction: column; justify-content: flex-end;
+    }
+    .tc-photo .tc-body { background: linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,.2) 40%, rgba(0,0,0,.78) 100%); }
+    .tc-spot .tc-body { min-height: 440px; padding: 28px 32px; }
+    .tc-badge {
+      align-self: flex-start; margin-bottom: auto;
+      font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em;
+      background: rgba(0,0,0,.3); border-radius: 12px; padding: 4px 10px;
+    }
+    .tc-count { font-size: 44px; font-weight: 800; line-height: 1.05; letter-spacing: -1px; margin-top: 12px; }
+    .tc-spot .tc-count { font-size: 88px; letter-spacing: -2px; }
+    .tc-name { font-size: 20px; font-weight: 700; margin-top: 4px; }
+    .tc-spot .tc-name { font-size: 32px; }
+    .tc-sub { font-size: 13px; opacity: .88; margin-top: 2px; }
+    .tc-spot .tc-sub { font-size: 16px; }
+    .tc-who { margin-top: 10px; display: flex; flex-wrap: wrap; }
+    .tc-who .mdot, .tc-row .mdot { margin-right: 6px; vertical-align: middle; }
+    .tc-label {
+      margin-top: 16px; font-size: 11px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .08em; opacity: .75;
+    }
+    .tc-board { margin-top: 6px; display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); grid-gap: 4px 18px; }
+    .tc-row { display: flex; align-items: center; font-size: 15px; }
+    .tc-row .pts { margin-left: auto; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .tc-today { margin-top: 4px; font-size: 15px; line-height: 1.55; }
+    .tc-chips { margin-top: 10px; }
+    .tc-chip {
+      display: inline-block; margin: 0 6px 6px 0; padding: 3px 10px; border-radius: 12px;
+      background: rgba(0,0,0,.28); font-size: 13px;
+    }
+    .tc-app {
+      align-self: flex-start; margin-top: 16px; padding: 7px 16px; border-radius: 18px;
+      background: rgba(255,255,255,.2); color: #fff; font-weight: 600; text-decoration: none;
+    }
+    .tc-desc { margin: 16px 0 4px; font-size: 15px; line-height: 1.6; color: var(--text); }
+    .trips-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); grid-gap: 14px; margin-top: 10px; }
+
+    /* ── Grocery (shared list) ───────────────────────────────────── */
+    .grocery-check {
+      width: 30px; height: 30px; border-radius: 50%; margin-right: 10px; flex-shrink: 0;
+      border: 2px solid var(--border); background: var(--card); color: #fff;
+      font-size: 16px; font-weight: 700; cursor: pointer;
+    }
+    .grocery-done .grocery-check { background: #16a34a; border-color: #16a34a; }
+    .grocery-done .desc { text-decoration: line-through; opacity: .5; }
+    .grocery-item .desc { font-size: 16px; flex: 1; }
+    .grocery-item .mdot { margin: 0 8px; }
+    .grocery-meta { font-size: 12px; color: var(--muted); margin-left: 6px; }
+    .grocery-status { color: var(--warn); font-size: 13px; min-height: 18px; margin: 4px 0; }
+    .grocery-clear {
+      margin-top: 10px; background: none; border: 1.5px solid var(--border); border-radius: 16px;
+      padding: 6px 14px; color: var(--muted); font-size: 13px; cursor: pointer;
+    }
+
     /* ── Member filter pills ─────────────────────────────────────── */
     .members-row {
       display: flex; gap: 8px; flex-wrap: wrap;
@@ -1139,7 +1211,7 @@
 </div>
 
 <script>
-const plan        = window.PLAN_DATA;
+const plan        = window.PLAN_DATA || { summary: "", days: [], flags: [], actionItems: [], shoppingList: [] };
 const family      = window.FAMILY_DATA || { trips: [], escapeRooms: [], movies: [] };
 let   calData     = { events: [] };   // populated async from the Worker
 const stravaData  = window.STRAVA_DATA || { members: {} };
@@ -1212,11 +1284,6 @@ function addDaysStr(dateStr, n) {
 const today   = centralDateStr(new Date());
 let activeFilter = null;
 
-// Dwell time per module category (ms).
-// "calendar" category gets 1 min; everything else gets 15 sec.
-// After the last module, the page reloads to pick up fresh plan data.
-const ROTATE_MS_CALENDAR = 60_000;
-const ROTATE_MS_DEFAULT  = 15_000;
 // Members (in display order), their colors and names, and which trips have a
 // phone app: all from workspace/family.yaml via /api/config.js.
 const MEMBERS       = HUB_CONFIG.members.map(m => m.id);
@@ -1267,28 +1334,37 @@ plan.actionItems.forEach(a => {
   if (a.dueDate) (actionsByDate[a.dueDate]=actionsByDate[a.dueDate]||[]).push(a);
 });
 
-// ── Module registry ────────────────────────────────────────────────
-// Add future modules here (photos, weather, chores, etc.)
+// ── Modules: how the page draws each stream component ─────────────
+// The stream (/api/stream?output=hub-page, docs/stream.md) decides what
+// rotates, in what order, and for how long. onCard shows one card (a photo,
+// a trip); a module without it shows its component as a whole.
 const MODULES = [
-  { id: "today",        category: "calendar", icon: "📆",  label: "Today",        build: buildTodayView,       onActivate: renderTodayView, dwell: 60_000  },
-  { id: "photos",       category: "calendar", icon: "🖼️",  label: "Photos",       build: buildPhotos,          onActivate: nextPhoto,       dwell: 60_000  },
-  { id: "week",         category: "calendar", icon: "🗓️",  label: "3-Day",        build: buildThreeDayCalendar, onActivate: resetDayView,   dwell: 300_000 },
-  { id: "calendar",     category: "calendar", icon: "📅", label: "Calendar",     build: buildCalendar     },
-  { id: "plan",         category: "calendar", icon: "📋", label: "Weekly Plan",  build: buildPlan         },
-  { id: "strava",       category: "info",     icon: "🏃", label: "Workouts",     build: buildStrava       },
-  { id: "trips",        category: "info",     icon: "✈️", label: "Trips",        build: buildTrips        },
-  { id: "escape-rooms", category: "info",     icon: "🔐", label: "Escape Rooms", build: buildEscapeRooms  },
-  { id: "movies",       category: "info",     icon: "🍿", label: "Movies",       build: buildMovies       },
-  { id: "grocery",      category: "info",     icon: "🛒", label: "Grocery List", build: buildGroceryList  },
+  { id: "today",        component: "today",        label: "Today",        build: buildTodayView,        onActivate: renderTodayView },
+  { id: "week",         component: "week",         label: "Week",         build: withViewToggle(buildThreeDayCalendar, "calendar", "14 days ›"), onActivate: resetDayView },
+  { id: "calendar",     component: "week",         label: "14 days",      build: withViewToggle(buildCalendar, "week", "‹ 3 days"), tab: false },
+  { id: "plan",         component: "plan",         label: "Weekly Plan",  build: buildPlan },
+  { id: "photos",       component: "photos",       label: "Photos",       build: buildPhotos,      onCard: showPhotoCard, onActivate: nextPhoto },
+  { id: "trips",        component: "trips",        label: "Trips",        build: buildTrips,       onCard: c => renderTrips(c.id, c), onActivate: () => renderTrips(null) },
+  { id: "past-trips",   component: "past-trips",   label: "Past Trips",   build: buildPastTrips,   onCard: c => renderPastTrips(c.id, c), onActivate: () => renderPastTrips(null) },
+  { id: "grocery",      component: "grocery",      label: "Grocery",      build: buildGroceryList, onActivate: loadGrocery },
+  { id: "escape-rooms", component: "escape-rooms", label: "Escape Rooms", build: buildEscapeRooms },
+  { id: "movies",       component: "movies",       label: "Movies",       build: buildMovies },
+  { id: "workouts",     component: "workouts",     label: "Workouts",     build: buildStrava },
 ];
+// Tabs that stay even when their component has nothing to show: you add to them here.
+const ALWAYS_TABS = ["today", "week", "grocery"];
+const IDLE_RESUME_MS = 2 * 60_000;     // rotation resumes after two idle minutes
+const FALLBACK_DWELL_MS = 15_000;      // if the stream can't be reached
 
-// ── Tab system state (must be declared before bootstrap calls initRotation) ──
+// ── Rotation state (must be declared before bootstrap calls initRotation) ──
 let currentModule = 0;
-let rotateTimer   = null;
-let activeRow     = "calendar"; // "calendar" | "info"
+const rot = { slots: [], i: -1, timer: null, idle: null, paused: false };
+// Trip cards for the Trips and Past Trips views, and the shared grocery list.
+const tripsState = { cards: [], loaded: false, trips: null, past: null, focus: { trips: null, "past-trips": null } };
+const OLD_GROCERY_KEY = 'hub-grocery-list';   // v0.7 and earlier kept a list on each device
+const grocery = { items: [], listEl: null, statusEl: null };
 
 // ── Module-level constants (must precede bootstrap's buildModules() call) ──
-const STATUS_LABEL = { planning:'Planning', upcoming:'Coming Up', active:'Happening Now', past:'Past' };
 // Photos module: a new photo every PHOTO_MS while its tab is showing.
 const PHOTO_MS = 10_000;
 const photoState = { list: [], i: 0, imgs: [], front: 0, loadedAt: 0, timer: null };
@@ -1335,7 +1411,7 @@ function activityDate(isoUtc) {
 
 // ── Bootstrap ─────────────────────────────────────────────────────
 document.getElementById("generated-at").textContent =
-  "Updated " + new Date(plan.generatedAt).toLocaleString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"});
+  plan.generatedAt ? "Updated " + new Date(plan.generatedAt).toLocaleString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}) : "";
 document.getElementById("summary-text").textContent = plan.summary;
 
 // ── Clock ────────────────────────────────────────────────────────
@@ -1413,7 +1489,6 @@ function toggleSummary() {
 }
 
 buildMemberPills();
-buildTabs();
 buildModules();     // render all module DOM up front
 initTheme();
 initRotation();
@@ -1470,33 +1545,47 @@ function applyDateFilter(el, id) {
   else       el.classList.add("member-dim");
 }
 
-function dwellMs(idx) {
-  const m = MODULES[idx];
-  return m.dwell ?? (m.category === "calendar" ? ROTATE_MS_CALENDAR : ROTATE_MS_DEFAULT);
+// ── Tabs ───────────────────────────────────────────────────────────
+// One tab per component in the stream, in rotation order, plus ALWAYS_TABS.
+function buildTabs(cards) {
+  const bar = document.getElementById("tab-bar");
+  bar.innerHTML = "";
+  const row = document.createElement("div");
+  row.className = "tab-row";
+  const order = [];
+  (cards || []).forEach(c => { if (!order.includes(c.component)) order.push(c.component); });
+  if (!cards) MODULES.forEach(m => { if (!order.includes(m.component)) order.push(m.component); });
+  ALWAYS_TABS.forEach(c => { if (!order.includes(c)) order.push(c); });
+  order.forEach(component => {
+    const i = MODULES.findIndex(m => m.component === component && m.tab !== false);
+    if (i < 0) return;
+    const btn = document.createElement("button");
+    btn.className = "tab";
+    btn.id = `tab-${i}`;
+    btn.innerHTML = `${MODULES[i].label}<span class="tab-dot"></span>`;
+    btn.addEventListener("click", () => showModule(i));
+    row.appendChild(btn);
+  });
+  bar.appendChild(row);
+  markTab(currentModule, rot.slots[rot.i] ? rot.slots[rot.i].ms : 0);
 }
 
-// ── Tab system ─────────────────────────────────────────────────────
-function buildTabs() {
-  const bar = document.getElementById("tab-bar");
-  ["calendar", "info"].forEach(rowCat => {
-    const rowEl = document.createElement("div");
-    rowEl.className = "tab-row";
-    rowEl.id = `tab-row-${rowCat}`;
-    MODULES.forEach((m, i) => {
-      if (m.category !== rowCat) return;
-      const btn = document.createElement("button");
-      btn.className = "tab" + (i === 0 ? " active" : "");
-      btn.id = `tab-${i}`;
-      btn.style.setProperty("--rotate-ms", dwellMs(i) + "ms");
-      btn.innerHTML = `${m.label}<span class="tab-dot"></span>`;
-      btn.addEventListener("click", () => switchTo(i));
-      rowEl.appendChild(btn);
-    });
-    const spacer = document.createElement("div");
-    spacer.className = "tab-spacer";
-    rowEl.appendChild(spacer);
-    bar.appendChild(rowEl);
-  });
+/** The tab for a module, or for another view of the same component (14 days → Week). */
+function tabFor(idx) {
+  const own = document.getElementById(`tab-${idx}`);
+  if (own) return own;
+  const j = MODULES.findIndex(m => m.component === MODULES[idx].component && document.getElementById(`tab-${MODULES.indexOf(m)}`));
+  return j >= 0 ? document.getElementById(`tab-${j}`) : null;
+}
+
+function markTab(idx, ms) {
+  document.querySelectorAll(".tab.active").forEach(t => t.classList.remove("active", "is-paused"));
+  const t = tabFor(idx);
+  if (!t) return;
+  t.classList.add("active");
+  if (rot.paused || !ms) t.classList.add("is-paused");
+  t.style.setProperty("--rotate-ms", (ms || 60000) + "ms");
+  t.style.animation = "none"; void t.offsetWidth; t.style.animation = "";
 }
 
 function buildModules() {
@@ -1510,10 +1599,22 @@ function buildModules() {
   });
 }
 
-function switchTo(idx, fromTimer = false) {
-  if (idx === currentModule && !fromTimer) { restartTimer(); return; }
-  // User-initiated clicks set the active rotation row; timer advances stay in their row
-  if (!fromTimer) activeRow = MODULES[idx].category;
+/** Adds a button that switches to another view of the same component. */
+function withViewToggle(build, target, label) {
+  return container => {
+    const b = document.createElement("button");
+    b.className = "view-toggle";
+    b.textContent = label;
+    b.addEventListener("click", () => showModule(MODULES.findIndex(m => m.id === target)));
+    container.appendChild(b);
+    build(container);
+  };
+}
+
+/** Fades from the current module to `idx`, then runs `after`. */
+function switchTo(idx, after) {
+  const done = () => { currentModule = idx; if (after) after(); };
+  if (idx === currentModule) { done(); return; }
   const outEl = document.getElementById(`module-${currentModule}`);
   const inEl  = document.getElementById(`module-${idx}`);
   outEl.style.opacity = "0";
@@ -1521,36 +1622,98 @@ function switchTo(idx, fromTimer = false) {
     outEl.classList.add("mod-hidden"); outEl.style.opacity = "";
     inEl.classList.remove("mod-hidden"); inEl.style.opacity = "0";
     requestAnimationFrame(() => requestAnimationFrame(() => { inEl.style.opacity = "1"; }));
-    document.getElementById(`tab-${currentModule}`).classList.remove("active");
-    const tabEl = document.getElementById(`tab-${idx}`);
-    tabEl.classList.add("active");
-    tabEl.style.setProperty("--rotate-ms", dwellMs(idx) + "ms");
-    tabEl.style.animation = "none"; void tabEl.offsetWidth; tabEl.style.animation = "";
-    currentModule = idx;
-    if (fromTimer && MODULES[idx].onActivate) MODULES[idx].onActivate();
-    restartTimer();
+    done();
   }, 320);
 }
 
-function restartTimer() {
-  clearTimeout(rotateTimer);
-  // Only rotate through modules in the currently active row
-  const rowIdxs = MODULES.map((m, i) => i).filter(i => MODULES[i].category === activeRow);
-  const posInRow = rowIdxs.indexOf(currentModule);
-  const isLast   = posInRow < 0 || posInRow === rowIdxs.length - 1;
-  if (isLast) {
-    // Completed a full rotation — reload to pick up fresh plan data
-    rotateTimer = setTimeout(() => window.location.reload(), dwellMs(currentModule));
-  } else {
-    rotateTimer = setTimeout(() => switchTo(rowIdxs[posInRow + 1], true), dwellMs(currentModule));
-  }
+/** Someone chose a view: show it in full and pause the rotation. */
+function showModule(idx) {
+  if (idx < 0) return;
+  pauseRotation();
+  switchTo(idx, () => {
+    const m = MODULES[idx];
+    if (m.onActivate) m.onActivate();
+    markTab(idx, 0);
+  });
 }
 
-function initRotation() {
-  restartTimer();
+// ── Rotation ───────────────────────────────────────────────────────
+// Each card in the stream becomes a slot. Cards of one component in a row
+// share a slot unless the module shows them one by one (photos, trips).
+function slotsFrom(cards) {
+  const slots = [];
+  cards.forEach(card => {
+    const idx = MODULES.findIndex(m => m.component === card.component && m.tab !== false);
+    if (idx < 0) return;
+    const ms = (card.dwell || 15) * 1000;
+    const prev = slots[slots.length - 1];
+    if (prev && prev.module === idx && !MODULES[idx].onCard) { prev.ms += ms; return; }
+    slots.push({ module: idx, card: MODULES[idx].onCard ? card : null, ms });
+  });
+  return slots;
+}
+
+function showSlot(i) {
+  // After the last card, reload: fresh data, a fresh stream, and any new deploy.
+  if (i >= rot.slots.length) { location.reload(); return; }
+  rot.i = i;
+  const slot = rot.slots[i], m = MODULES[slot.module];
+  switchTo(slot.module, () => {
+    if (slot.card && m.onCard) m.onCard(slot.card);
+    else if (m.onActivate) m.onActivate();
+    markTab(slot.module, slot.ms);
+    window.scrollTo(0, 0);
+  });
+  clearTimeout(rot.timer);
+  rot.timer = setTimeout(() => { if (!rot.paused) showSlot(rot.i + 1); }, slot.ms);
+}
+
+function pauseRotation() {
+  rot.paused = true;
+  clearTimeout(rot.timer);
+  const t = document.querySelector(".tab.active");
+  if (t) t.classList.add("is-paused");
+  clearTimeout(rot.idle);
+  rot.idle = setTimeout(resumeRotation, IDLE_RESUME_MS);
+}
+
+function resumeRotation() {
+  if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+  closeModal();
+  rot.paused = false;
+  showSlot(rot.i + 1);
+}
+
+async function initRotation() {
+  buildTabs(null);
+  markTab(0, 0);
+  // Any touch, click, scroll or key pauses the rotation, so whoever is using
+  // the hub isn't interrupted.
+  ["pointerdown", "touchstart", "keydown", "wheel"].forEach(ev =>
+    document.addEventListener(ev, pauseRotation, { passive: true }));
   // Fetch live calendar events on load, then refresh every 5 minutes
   loadCalendarData();
   setInterval(loadCalendarData, 5 * 60 * 1000);
+  loadTripCards();
+
+  let stream = null;
+  try {
+    const r = await fetch("/api/stream?output=hub-page", { credentials: "same-origin" });
+    if (!r.ok) throw new Error(`/api/stream returned ${r.status}`);
+    stream = await r.json();
+  } catch (e) {
+    console.warn("Stream unavailable, rotating every view:", e.message);
+  }
+  rot.slots = stream ? slotsFrom(stream.cards) : MODULES
+    .map((m, i) => ({ module: i, card: null, ms: FALLBACK_DWELL_MS }))
+    .filter(s => MODULES[s.module].tab !== false);
+  buildTabs(stream ? stream.cards : null);
+
+  // A link to #trips (from a widget, say) opens that view, paused.
+  const linked = MODULES.findIndex(m => `#${m.id}` === location.hash);
+  if (location.hash) history.replaceState(null, "", location.pathname + location.search);
+  if (linked >= 0) { showModule(linked); return; }
+  if (!rot.paused) showSlot(0);
 }
 
 // ── Calendar module ────────────────────────────────────────────────
@@ -1843,75 +2006,113 @@ function buildStrava(container) {
   container.appendChild(membersWrap);
 }
 
-// ── Trips module ──────────────────────────────────────────────────
-function tripDateStr(t) {
-  const s = new Date(t.startDate+'T12:00:00'), e = new Date(t.endDate+'T12:00:00');
-  if (t.startDate === t.endDate)
-    return s.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
-  return `${s.toLocaleDateString('en-US',{month:'short',day:'numeric'})} – ${e.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}`;
+// ── Trips and past trips ───────────────────────────────────────────
+// One card per trip, from the stream's trips and past-trips components
+// (trips.yaml joined with each trip app's hero, countdown and leaderboard).
+// The spotlight shows the card the rotation is on, or the one you tapped,
+// with the trip's details from trips.yaml below it.
+
+function esc(s) {
+  return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 
-function buildTrips(container) {
-  const trips = family.trips || [];
-  if (!trips.length) {
-    container.innerHTML = '<p style="color:var(--muted);font-size:14px;padding:20px 0">No trips yet — add entries to workspace/trips.yaml</p>';
+function loadTripCards() {
+  return fetch("/api/stream?components=trips,past-trips&all=1", { credentials: "same-origin" })
+    .then(r => (r.ok ? r.json() : Promise.reject(new Error(`/api/stream returned ${r.status}`))))
+    .then(d => { tripsState.cards = d.cards || []; })
+    .catch(e => console.warn("Trip cards unavailable:", e.message))
+    .then(() => {
+      tripsState.loaded = true;
+      renderTrips(tripsState.focus.trips);
+      renderPastTrips(tripsState.focus["past-trips"]);
+    });
+}
+
+function buildTrips(container) { tripsState.trips = container; renderTrips(null); }
+function buildPastTrips(container) { tripsState.past = container; renderPastTrips(null); }
+
+function renderTrips(focusId, card) { renderTripList("trips", tripsState.trips, focusId, card); }
+function renderPastTrips(focusId, card) { renderTripList("past-trips", tripsState.past, focusId, card); }
+
+function renderTripList(component, el, focusId, focusCard) {
+  if (!el) return;
+  tripsState.focus[component] = focusId;
+  let cards = tripsState.cards.filter(c => c.component === component);
+  if (focusCard && !cards.some(c => c.id === focusCard.id)) cards = [focusCard].concat(cards);
+  el.innerHTML = "";
+  if (!cards.length) {
+    el.innerHTML = `<p class="muted-note">${!tripsState.loaded ? "Loading trips…"
+      : component === "trips" ? "No trips coming up. Add one to workspace/trips.yaml."
+      : "No past trips yet."}</p>`;
     return;
   }
-
-  // Featured trip first
-  const featured = trips.find(t => t.featured);
-  if (featured) container.appendChild(buildFeaturedTrip(featured));
-
-  // Non-featured family trips, non-past (excluding featured)
-  const ORDER = { active: 0, upcoming: 1, planning: 2, past: 3 };
-  const family_trips = trips.filter(t => !t.featured && t.type !== 'work' && t.status !== 'past')
-    .sort((a, b) => (ORDER[a.status]??3)-(ORDER[b.status]??3) || (a.startDate<b.startDate?-1:1));
-  if (family_trips.length) {
-    const lbl = document.createElement('div'); lbl.className = 'trip-section-label'; lbl.textContent = 'Also Upcoming';
-    container.appendChild(lbl);
-    family_trips.forEach(t => container.appendChild(buildTripRow(t)));
+  const focus = cards.find(c => c.id === focusId) || cards[0];
+  el.appendChild(tripCardEl(focus, true));
+  const t = (family.trips || []).find(x => x.id === focus.data.trip);
+  if (t) {
+    if (t.description) {
+      const p = document.createElement("p");
+      p.className = "tc-desc";
+      p.textContent = t.description;
+      el.appendChild(p);
+    }
+    if (component === "trips") el.appendChild(tripDetails(t));
   }
-
-  // Past adventures
-  const past = trips.filter(t => !t.featured && t.type !== 'work' && t.status === 'past')
-    .sort((a, b) => b.startDate.localeCompare(a.startDate));
-  if (past.length) {
-    const lbl = document.createElement('div'); lbl.className = 'trip-section-label'; lbl.textContent = 'Past Adventures';
-    container.appendChild(lbl);
-    past.forEach(t => container.appendChild(buildTripRow(t)));
-  }
-
-  // Work trips — minimal, at the bottom
-  const work = trips.filter(t => t.type === 'work' && t.status !== 'past');
-  if (work.length) {
-    const lbl = document.createElement('div'); lbl.className = 'trip-section-label'; lbl.textContent = '💼 Work Travel';
-    container.appendChild(lbl);
-    work.forEach(t => container.appendChild(buildTripRow(t)));
+  const rest = cards.filter(c => c !== focus);
+  if (rest.length) {
+    const lbl = document.createElement("div");
+    lbl.className = "trip-section-label";
+    lbl.textContent = component === "trips" ? "Also coming up" : "More adventures";
+    el.appendChild(lbl);
+    const grid = document.createElement("div");
+    grid.className = "trips-grid";
+    rest.forEach(c => grid.appendChild(tripCardEl(c, false)));
+    el.appendChild(grid);
   }
 }
 
-function buildFeaturedTrip(trip) {
+function tripCardEl(card, spot) {
+  const d = card.data, g = card.glance, past = card.component === "past-trips";
+  const app = TRIP_APPS[d.trip];
+  const el = document.createElement("div");
+  el.className = "tc" + (spot ? " tc-spot" : "") + (g.image ? " tc-photo" : "");
+  if (g.image) el.style.backgroundImage = `url("${g.image}")`;
+  const dot = (name, color, size) =>
+    `<span class="mdot" style="width:${size}px;height:${size}px;background:${esc(color)}">${esc((name || "?")[0])}</span>`;
+  const who = (d.who || []).filter(id => MEMBER_COLORS[id]).map(id => mdot(id, spot ? 24 : 18)).join("");
+  const scored = (d.leaderboard || []).some(r => r.points > 0);
+  const rows = (d.leaderboard || []).filter(r => scored || spot).slice(0, spot ? 9 : 3);
+  const board = rows.length && (scored || d.questsTotal)
+    ? `<div class="tc-label">${past ? "Final standings" : "Quest leaderboard"}${d.questsTotal ? ` · ${d.questsDone} of ${d.questsTotal} quests found` : ""}</div>
+       <div class="tc-board">${rows.map(r => `<div class="tc-row">${dot(r.name, r.color, 18)}<span>${esc(r.name)}</span><span class="pts">${r.points}</span></div>`).join("")}</div>`
+    : "";
+  const today = (d.today || []).map(i => `<div>${i.time ? `<b>${esc(i.time)}</b> ` : ""}${esc(i.emoji || "")} ${esc(i.title)}</div>`).join("");
+  const highlights = past ? (d.highlights || []).slice(0, spot ? 8 : 3)
+    .map(h => `<span class="tc-chip">${esc(h.emoji || "")} ${esc(h.label)}</span>`).join("") : "";
+  el.innerHTML = `<div class="tc-body">
+    ${past ? "" : `<span class="tc-badge">${d.status === "active" ? "Happening now" : "Coming up"}</span>`}
+    <div class="tc-count">${past ? esc(g.emoji || "✈️") : esc(g.headline)}</div>
+    <div class="tc-name">${!past && g.emoji ? esc(g.emoji) + " " : ""}${esc(d.name)}</div>
+    <div class="tc-sub">${esc([d.destination, d.dates].filter(Boolean).join(" · "))}</div>
+    ${who ? `<div class="tc-who">${who}</div>` : ""}
+    ${highlights ? `<div class="tc-chips">${highlights}</div>` : ""}
+    ${board}
+    ${today ? `<div class="tc-label">Today</div><div class="tc-today">${today}</div>` : ""}
+    ${spot && app ? `<a class="tc-app" href="${esc(app)}">Open trip app →</a>` : ""}
+  </div>`;
+  // Tap a small card to spotlight it; tap the spotlight to open the trip app.
+  el.addEventListener("click", e => {
+    if (e.target.closest("a")) return;
+    if (!spot) { renderTripList(card.component, past ? tripsState.past : tripsState.trips, card.id); window.scrollTo(0, 0); }
+    else if (app) location.href = app;
+  });
+  return el;
+}
+
+/** What trips.yaml says about a trip: highlights, a map, things to do, restaurants, tips. */
+function tripDetails(trip) {
   const wrap = document.createElement('div');
   wrap.className = 'ft-section';
-
-  // ── Banner
-  const dotsHtml = (trip.who||[]).map(id => mdot(id, 24)).join('');
-  const banner = document.createElement('div');
-  banner.className = 'ft-banner';
-  banner.innerHTML = `
-    <span class="ft-badge ${trip.status}">${STATUS_LABEL[trip.status]||trip.status}</span>
-    <span class="ft-emoji">${trip.emoji||'✈️'}</span>
-    <div class="ft-name">${trip.name}</div>
-    <div class="ft-dest">${trip.destination}</div>
-    <div class="ft-meta">
-      <span class="ft-dates">${tripDateStr(trip)}</span>
-      <span style="display:flex;gap:4px">${dotsHtml}</span>
-    </div>
-    ${trip.description ? `<div class="ft-desc">${trip.description}</div>` : ''}
-    ${TRIP_APPS[trip.id] ? `<a class="ft-app" href="${TRIP_APPS[trip.id]}">Open trip app →</a>` : ''}`;
-  linkTripApp(banner, trip.id);
-  wrap.appendChild(banner);
-
   // ── Highlights grid
   const highlights = trip.highlights || [];
   if (highlights.length) {
@@ -2032,24 +2233,6 @@ function buildFeaturedTrip(trip) {
   return wrap;
 }
 
-function buildTripRow(t) {
-  const dotsHtml = (t.who||[]).map(id => mdot(id, 18)).join('');
-  const LABELS = { planning:'Planning', upcoming:'Upcoming', active:'Active', past:'Past' };
-  const row = document.createElement('div');
-  row.className = 'trip-row';
-  row.innerHTML = `
-    <span class="trip-row-emoji">${t.emoji||'✈️'}</span>
-    <div class="trip-row-info">
-      <div class="trip-row-name">${t.name}</div>
-      <div class="trip-row-sub">${t.destination} &nbsp;·&nbsp; ${tripDateStr(t)}</div>
-    </div>
-    ${TRIP_APPS[t.id] ? `<a class="trip-row-app" href="${TRIP_APPS[t.id]}" title="Open the trip app">App →</a>` : ''}
-    <span style="display:flex;gap:3px;margin-right:4px">${dotsHtml}</span>
-    <span class="status-badge ${t.status}">${LABELS[t.status]||t.status}</span>`;
-  linkTripApp(row, t.id);
-  return row;
-}
-
 // ── Escape Rooms module ────────────────────────────────────────────
 function buildEscapeRooms(container) {
   const rooms = family.escapeRooms || [];
@@ -2145,7 +2328,7 @@ function buildPhotos(container) {
   photoState.empty = container.querySelector(".photo-empty");
   loadPhotoList();
   photoState.timer = setInterval(() => {
-    if (!container.classList.contains("mod-hidden")) nextPhoto();
+    if (rot.paused && !container.classList.contains("mod-hidden")) nextPhoto();
   }, PHOTO_MS);
 }
 
@@ -2172,19 +2355,31 @@ function loadPhotoList() {
     .catch(() => {});
 }
 
-function nextPhoto() {
+/** A photo card from the stream. */
+function showPhotoCard(card) {
+  if (!card.glance || !card.glance.image) return;
+  showPhotoUrl(card.glance.image);
+}
+
+function showPhotoUrl(src) {
   const st = photoState;
-  if (!st.list.length) return;
-  // Pick up newly added photos every 10 minutes.
-  if (Date.now() - st.loadedAt > 10 * 60_000) loadPhotoList();
-  const photo = st.list[st.i++ % st.list.length];
+  st.frame.style.display = ""; st.empty.style.display = "none";
   const back = st.imgs[1 - st.front];
   back.onload = () => {
     back.classList.add("shown");
     st.imgs[st.front].classList.remove("shown");
     st.front = 1 - st.front;
   };
-  back.src = "/api/photos/" + encodeURIComponent(photo.id);
+  back.src = src;
+}
+
+function nextPhoto() {
+  const st = photoState;
+  if (!st.list.length) return;
+  // Pick up newly added photos every 10 minutes.
+  if (Date.now() - st.loadedAt > 10 * 60_000) loadPhotoList();
+  const photo = st.list[st.i++ % st.list.length];
+  showPhotoUrl("/api/photos/" + encodeURIComponent(photo.id));
 }
 
 function buildMovies(container) {
@@ -2252,107 +2447,133 @@ function buildMovies(container) {
 }
 
 // ── Grocery List module ────────────────────────────────────────────
+// One list for every screen, kept by the hub (/api/grocery). Each change is
+// sent as it happens, and the list refreshes every minute while it's showing.
+
+function groceryId() { return 'g' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+
+function groceryRequest(body) {
+  const opts = body
+    ? { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
+    : { credentials: 'same-origin' };
+  return fetch('/api/grocery', opts).then(r => {
+    if (!r.ok) throw new Error(`/api/grocery returned ${r.status}`);
+    return r.json();
+  }).then(d => d.items || []);
+}
+
+function setGroceryStatus(text) { if (grocery.statusEl) grocery.statusEl.textContent = text; }
+
+/** Moves a list this device kept locally (before v0.8) onto the shared list, once. */
+function migrateLocalGrocery() {
+  let old = null;
+  try { old = JSON.parse(localStorage.getItem(OLD_GROCERY_KEY) || 'null'); } catch (e) { old = null; }
+  if (!Array.isArray(old) || !old.length) { localStorage.removeItem(OLD_GROCERY_KEY); return Promise.resolve(); }
+  const now = Date.now();
+  const upserts = old.filter(i => i && i.text).map((i, n) => ({
+    id: groceryId() + n, name: String(i.text), quantity: i.qty || 1, done: false, addedAt: now + n, updatedAt: now,
+  }));
+  // Only forget the local copy once the hub has it.
+  return groceryRequest({ upserts }).then(() => localStorage.removeItem(OLD_GROCERY_KEY));
+}
+
+function loadGrocery() {
+  return migrateLocalGrocery()
+    .then(() => groceryRequest())
+    .then(items => { grocery.items = items; setGroceryStatus(''); })
+    .catch(e => { console.warn(e.message); setGroceryStatus("Couldn't reach the hub. This is the last list it sent."); })
+    .then(renderGrocery);
+}
+
+function saveGrocery(body) {
+  return groceryRequest(body)
+    .then(items => { grocery.items = items; setGroceryStatus(''); renderGrocery(); })
+    .catch(e => { console.warn(e.message); setGroceryStatus("Couldn't save that. Check the connection and try again."); });
+}
+
+function changeItem(item, fields) {
+  const next = Object.assign({}, item, fields, { updatedAt: Date.now() });
+  grocery.items = grocery.items.map(i => (i.id === item.id ? next : i));
+  renderGrocery();
+  saveGrocery({ upserts: [next] });
+}
+
+function renderGrocery() {
+  const listEl = grocery.listEl;
+  if (!listEl) return;
+  listEl.innerHTML = '';
+  if (!grocery.items.length) {
+    listEl.innerHTML = '<p class="muted-note">Nothing on the list.</p>';
+  }
+  grocery.items.forEach(item => {
+    const el = document.createElement('div');
+    el.className = 'action-item grocery-item' + (item.done ? ' grocery-done' : '');
+    el.innerHTML = `
+      <button type="button" class="grocery-check" aria-label="${item.done ? 'Not bought' : 'Bought'}">${item.done ? '✓' : ''}</button>
+      <div class="grocery-qty-wrap">
+        <button type="button" class="grocery-qty-btn minus-btn">-</button>
+        <input type="number" class="grocery-qty-input qty-inp" value="${item.quantity || 1}" min="1">
+        <button type="button" class="grocery-qty-btn plus-btn">+</button>
+      </div>
+      <span class="desc">${esc(item.name)}${item.store ? ` <span class="grocery-meta">${esc(item.store)}</span>` : ''}${item.fromPlan ? ' <span class="grocery-meta">from the plan</span>' : ''}</span>
+      ${item.addedBy && MEMBER_COLORS[item.addedBy] ? mdot(item.addedBy, 20) : ''}
+      <button type="button" class="grocery-del-btn" aria-label="Remove">🗑️</button>`;
+    el.querySelector('.grocery-check').addEventListener('click', () => changeItem(item, { done: !item.done }));
+    el.querySelector('.minus-btn').addEventListener('click', () => changeItem(item, { quantity: Math.max(1, (item.quantity || 1) - 1) }));
+    el.querySelector('.plus-btn').addEventListener('click', () => changeItem(item, { quantity: Math.min(99, (item.quantity || 1) + 1) }));
+    el.querySelector('.qty-inp').addEventListener('change', e => {
+      const v = parseInt(e.target.value, 10);
+      changeItem(item, { quantity: isNaN(v) || v < 1 ? 1 : Math.min(99, v) });
+    });
+    el.querySelector('.grocery-del-btn').addEventListener('click', () => {
+      grocery.items = grocery.items.filter(i => i.id !== item.id);
+      renderGrocery();
+      saveGrocery({ deletes: [item.id] });
+    });
+    listEl.appendChild(el);
+  });
+  const done = grocery.items.filter(i => i.done);
+  if (done.length) {
+    const clear = document.createElement('button');
+    clear.type = 'button';
+    clear.className = 'grocery-clear';
+    clear.textContent = `Clear ${done.length} bought`;
+    clear.addEventListener('click', () => {
+      grocery.items = grocery.items.filter(i => !i.done);
+      renderGrocery();
+      saveGrocery({ deletes: done.map(i => i.id) });
+    });
+    listEl.appendChild(clear);
+  }
+}
+
 function buildGroceryList(container) {
-  const LOCAL_STORAGE_KEY = 'hub-grocery-list';
-  let items = JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY) || '[]');
-  
   const wrap = document.createElement('div');
   wrap.innerHTML = `<div class="section-title">🛒 Grocery List</div>`;
-  
+
   const form = document.createElement('form');
   form.className = 'grocery-form';
   form.innerHTML = `
     <input type="text" id="grocery-input" class="grocery-input" placeholder="Add new item..." autocomplete="off">
     <button type="submit" class="grocery-add-btn">Add</button>
   `;
-  
-  const listEl = document.createElement('div');
-  listEl.className = 'grocery-list';
-  
-  function renderList() {
-    listEl.innerHTML = '';
-    items.forEach((item, idx) => {
-      const el = document.createElement('div');
-      el.className = 'action-item';
-      el.innerHTML = `
-        <div class="grocery-qty-wrap">
-          <button type="button" class="grocery-qty-btn minus-btn" data-idx="${idx}">-</button>
-          <input type="number" class="grocery-qty-input qty-inp" data-idx="${idx}" value="${item.qty || 1}" min="1">
-          <button type="button" class="grocery-qty-btn plus-btn" data-idx="${idx}">+</button>
-        </div>
-        <span class="desc" style="font-size:16px;">${item.text}</span>
-        <button type="button" class="grocery-del-btn" data-idx="${idx}">🗑️</button>
-      `;
-      listEl.appendChild(el);
-    });
-    
-    // Bind interactions
-    listEl.querySelectorAll('.grocery-del-btn').forEach(btn => btn.addEventListener('click', (e) => {
-      items.splice(parseInt(e.currentTarget.dataset.idx), 1);
-      saveAndRender();
-    }));
-    listEl.querySelectorAll('.minus-btn').forEach(btn => btn.addEventListener('click', (e) => {
-      const i = parseInt(e.currentTarget.dataset.idx);
-      items[i].qty = Math.max(1, (items[i].qty || 1) - 1);
-      saveAndRender();
-    }));
-    listEl.querySelectorAll('.plus-btn').forEach(btn => btn.addEventListener('click', (e) => {
-      const i = parseInt(e.currentTarget.dataset.idx);
-      items[i].qty = (items[i].qty || 1) + 1;
-      saveAndRender();
-    }));
-    listEl.querySelectorAll('.qty-inp').forEach(inp => {
-      inp.addEventListener('change', (e) => {
-        const i = parseInt(e.target.dataset.idx);
-        let val = parseInt(e.target.value);
-        if (isNaN(val) || val < 1) val = 1;
-        items[i].qty = val;
-        saveAndRender();
-      });
-      // Pause automatic tab cycling when focusing the quantity input
-      inp.addEventListener('focus', handleInputFocus);
-      inp.addEventListener('blur', handleInputBlur);
-    });
-  }
-  
-  function saveAndRender() {
-    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(items));
-    renderList();
-  }
-  
-  form.addEventListener('submit', (e) => {
+  form.addEventListener('submit', e => {
     e.preventDefault();
     const input = document.getElementById('grocery-input');
-    const text = input.value.trim();
-    if (text) {
-      items.push({ text, qty: 1 });
-      input.value = '';
-      saveAndRender();
-    }
+    const name = input.value.trim();
+    if (!name) return;
+    const now = Date.now();
+    const item = { id: groceryId(), name, quantity: 1, done: false, addedAt: now, updatedAt: now };
+    input.value = '';
+    grocery.items = grocery.items.filter(i => !i.done).concat([item], grocery.items.filter(i => i.done));
+    renderGrocery();
+    saveGrocery({ upserts: [item] });
   });
 
-  const input = form.querySelector('#grocery-input');
-  let blurTimer = null;
-
-  function handleInputFocus() {
-    clearTimeout(blurTimer);
-    clearTimeout(rotateTimer);
-    const tabEl = document.getElementById(`tab-${currentModule}`);
-    if (tabEl) tabEl.classList.add('is-paused');
-  }
-
-  function handleInputBlur() {
-    clearTimeout(blurTimer);
-    blurTimer = setTimeout(() => {
-      const tabEl = document.getElementById(`tab-${currentModule}`);
-      if (tabEl) tabEl.classList.remove('is-paused');
-      if (tabEl) { tabEl.style.animation = "none"; void tabEl.offsetWidth; tabEl.style.animation = ""; }
-      restartTimer();
-    }, 5000);
-  }
-
-  input.addEventListener('focus', handleInputFocus);
-  input.addEventListener('blur', handleInputBlur);
+  grocery.statusEl = document.createElement('div');
+  grocery.statusEl.className = 'grocery-status';
+  grocery.listEl = document.createElement('div');
+  grocery.listEl.className = 'grocery-list';
 
   const emailForm = document.createElement('form');
   emailForm.className = 'grocery-form';
@@ -2365,70 +2586,54 @@ function buildGroceryList(container) {
 
   function updateRecentEmails() {
     const recent = JSON.parse(localStorage.getItem('hub-grocery-emails') || '[]');
-    const datalist = emailForm.querySelector('#recent-emails');
-    datalist.innerHTML = recent.map(e => `<option value="${e}">`).join('');
+    emailForm.querySelector('#recent-emails').innerHTML = recent.map(e => `<option value="${esc(e)}">`).join('');
   }
   updateRecentEmails();
 
-  emailForm.addEventListener('submit', async (e) => {
+  emailForm.addEventListener('submit', async e => {
     e.preventDefault();
     const emailInput = document.getElementById('grocery-email');
     const sendBtn = emailForm.querySelector('.grocery-add-btn');
     const email = emailInput.value.trim();
-    if (email && items.length > 0) {
-      let recent = JSON.parse(localStorage.getItem('hub-grocery-emails') || '[]');
-      recent = [email, ...recent.filter(em => em !== email)].slice(0, 3);
-      localStorage.setItem('hub-grocery-emails', JSON.stringify(recent));
-      updateRecentEmails();
+    // The email script takes { text, qty } items (app/extras/grocery-email.gs).
+    const items = grocery.items.filter(i => !i.done).map(i => ({ text: i.name, qty: i.quantity || 1 }));
+    if (!items.length) { alert("The grocery list is empty!"); return; }
+    if (!email) return;
+    let recent = JSON.parse(localStorage.getItem('hub-grocery-emails') || '[]');
+    recent = [email, ...recent.filter(em => em !== email)].slice(0, 3);
+    localStorage.setItem('hub-grocery-emails', JSON.stringify(recent));
+    updateRecentEmails();
 
-      const originalText = sendBtn.innerHTML;
-      sendBtn.innerHTML = 'Sending... <span style="margin-left:4px">⏳</span>';
-      sendBtn.disabled = true;
-
-      try {
-        // A Google Apps Script web app (app/extras/grocery-email.gs), set as
-        // hub.groceryEmailUrl in family.yaml.
-        const scriptUrl = HUB_CONFIG.groceryEmailUrl;
-        if (!scriptUrl) {
-          throw new Error(GROCERY_NOT_SET_UP);
-        }
-
-        await fetch(scriptUrl, {
-          method: 'POST',
-          mode: 'no-cors',
-          headers: { 'Content-Type': 'text/plain' },
-          body: JSON.stringify({ email, items, subject: `${HUB_CONFIG.title} - Grocery List` })
-        });
-        
-        sendBtn.innerHTML = 'Sent! <span style="margin-left:4px">✓</span>';
-        setTimeout(() => {
-          sendBtn.innerHTML = originalText;
-          sendBtn.disabled = false;
-          emailInput.value = '';
-        }, 2000);
-      } catch (err) {
-        console.error("Email send error:", err);
-        alert(err.message === GROCERY_NOT_SET_UP
-          ? err.message
-          : "Could not send email via Google Apps Script.");
-        sendBtn.innerHTML = originalText;
-        sendBtn.disabled = false;
-      }
-    } else if (items.length === 0) {
-      alert("The grocery list is empty!");
+    const originalText = sendBtn.innerHTML;
+    sendBtn.innerHTML = 'Sending... <span style="margin-left:4px">⏳</span>';
+    sendBtn.disabled = true;
+    try {
+      const scriptUrl = HUB_CONFIG.groceryEmailUrl;
+      if (!scriptUrl) throw new Error(GROCERY_NOT_SET_UP);
+      await fetch(scriptUrl, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({ email, items, subject: `${HUB_CONFIG.title} - Grocery List` })
+      });
+      sendBtn.innerHTML = 'Sent! <span style="margin-left:4px">✓</span>';
+      setTimeout(() => { sendBtn.innerHTML = originalText; sendBtn.disabled = false; emailInput.value = ''; }, 2000);
+    } catch (err) {
+      console.error("Email send error:", err);
+      alert(err.message === GROCERY_NOT_SET_UP ? err.message : "Could not send email via Google Apps Script.");
+      sendBtn.innerHTML = originalText;
+      sendBtn.disabled = false;
     }
   });
 
-  const emInput = emailForm.querySelector('#grocery-email');
-  emInput.addEventListener('focus', handleInputFocus);
-  emInput.addEventListener('blur', handleInputBlur);
-  
   wrap.appendChild(form);
-  wrap.appendChild(listEl);
+  wrap.appendChild(grocery.statusEl);
+  wrap.appendChild(grocery.listEl);
   wrap.appendChild(emailForm);
   container.appendChild(wrap);
-  
-  renderList();
+
+  loadGrocery();
+  setInterval(() => { if (!container.classList.contains('mod-hidden')) loadGrocery(); }, 60_000);
 }
 
 // ── Week Calendar module ───────────────────────────────────────────
