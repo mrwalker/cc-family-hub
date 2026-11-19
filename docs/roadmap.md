@@ -3,7 +3,7 @@
 The other docs describe the hub as designed for v1.0. This page lists what they describe
 that the current release doesn't do yet. When an item ships, delete it here.
 
-## Where v0.10.1 stands
+## Where v0.10.2 stands
 
 Everything in the docs works except one leftover from before the stream:
 
