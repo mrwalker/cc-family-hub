@@ -256,7 +256,15 @@ struct CardRotator: View {
             shown += 1
             if shown >= cards[index].dwell { go(to: index + 1) }
         }
-        .onAppear { isOpen = true }
+        .onAppear {
+            isOpen = true
+            // Open on the card the menu bar was showing, so what you clicked is what you see.
+            if let id = store.menuBarCardID, let j = cards.firstIndex(where: { $0.id == id }), j != index {
+                position = j
+                currentID = id
+                shown = 0
+            }
+        }
         .onDisappear { isOpen = false }
     }
 
