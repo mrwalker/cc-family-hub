@@ -113,9 +113,12 @@ Access **service token** that can read the stream and nothing else:
 2. **Create a policy** named `Hub Screens` with the action **Service Auth**, including
    those tokens.
 3. **Create a path-scoped application** for your hub's domain with the path `api/stream`.
-   Attach `Hub Screens`, and also your family **Allow** policy so the hub page can read the
-   stream too. Cloudflare applies the most specific application, so this one governs only
-   `/api/stream`. Don't add screen tokens to your hub's main application.
+   Attach `Hub Screens` only. Cloudflare applies the most specific application, so this one
+   governs only `/api/stream`. Don't add screen tokens to your hub's main application.
+
+The hub page reads the same stream at `/api/page/stream`, which stays under your hub's main
+application and family sign-in. Access gives each application its own sign-in, so a browser
+signed in to the hub can't fetch through the screens' application.
 
 If the policy says "Used by applications: 0", it isn't attached yet, and screens will report
 that the hub didn't accept their token.

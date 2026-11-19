@@ -7,8 +7,8 @@ the calendar or add to the grocery list. It resumes after two idle minutes.
 
 ## Normal operation
 
-- The page loads `/api/config.js` (names, colors, trip apps) and `/api/stream` (the cards
-  to rotate through), and reloads the stream as it rotates.
+- The page loads `/api/config.js` (names, colors, trip apps) and `/api/page/stream` (the
+  cards to rotate through), and reloads the stream as it rotates.
 - Calendar events are live and refresh every 5 minutes, so no sync step is needed.
 - New plans arrive whenever the pipeline publishes. Publishing writes data. It doesn't redeploy.
 - To give the wall a different mix from the phones, set `outputs.hub-page.stream` in

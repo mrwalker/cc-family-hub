@@ -7,6 +7,9 @@
  *   every card, without taking turns or photos between.
  *   GET /api/stream/image/<card id>   → the card's photo (album photo or trip hero)
  *
+ * The hub page asks at /api/page/stream instead (see index.js); its image links
+ * then point under /api/page/stream too.
+ *
  * Each component (components/) turns data into cards. compose() then applies the
  * rotation rules: order, empty components skipped, an active trip leads, long
  * components take turns, and photos between cards. A component that fails is
@@ -103,7 +106,7 @@ export function compose({ cfg, cardsBy, photoPool = [], turn = 0 }) {
 }
 
 /** The context components read from. Each source is fetched at most once per request. */
-export function makeContext({ request, env, hub, loadEvents, now = new Date(), view = null }) {
+export function makeContext({ request, env, hub, loadEvents, now = new Date(), view = null, base = "/api/stream" }) {
   const url = new URL(request.url);
   const tz = hub.timezone;
   const today = ymd(now, tz);
@@ -123,12 +126,12 @@ export function makeContext({ request, env, hub, loadEvents, now = new Date(), v
     trips: once(() => tripSummaries(env, hub)),
     photos: once(() => albumPhotos(hub)),
     grocery: once(() => listGrocery(env)),
-    image: cardId => `${url.origin}/api/stream/image/${encodeURIComponent(cardId)}`,
+    image: cardId => `${url.origin}${base}/image/${encodeURIComponent(cardId)}`,
   };
   return ctx;
 }
 
-export async function handleStream(request, env, hub, loadEvents, path) {
+export async function handleStream(request, env, hub, loadEvents, path, base = "/api/stream") {
   if (request.method !== "GET") return json({ error: "Method not allowed" }, 405);
   const url = new URL(request.url);
 
@@ -153,7 +156,7 @@ export async function handleStream(request, env, hub, loadEvents, path) {
     cfg.photosBetween = 0;
     cfg.max = Object.fromEntries(Object.keys(byId).map(c => [c, Infinity]));
   }
-  const ctx = makeContext({ request, env, hub, loadEvents, view });
+  const ctx = makeContext({ request, env, hub, loadEvents, view, base });
 
   const wanted = new Set(cfg.components);
   if (cfg.photosBetween > 0) wanted.add("photos");

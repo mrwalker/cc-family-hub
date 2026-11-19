@@ -10,6 +10,10 @@
  * Routes:
  *   GET /api/stream?view=…&output=…  — the stream: cards for every screen (stream.js)
  *   GET /api/stream/image/:card      — a card's photo
+ *   /api/page/stream…                — the same, for the hub page. Screens' service tokens
+ *                                      get their own Access application on /api/stream,
+ *                                      and a browser signed in to the hub can't fetch
+ *                                      through it, so the page has a path of its own.
  *   GET /api/events?days=N  — live Google Calendar events for every member (default 14 days)
  *   GET /api/config.js      — the page's share of the hub config (names, colors, trip apps)
  *   Until v1.0, for screens installed before the stream:
@@ -87,9 +91,9 @@ async function route(request, env, hub) {
     return handleEvents(request, env, hub);
   }
 
-  const streamPath = url.pathname.match(/^\/api\/stream(\/.*)?$/);
+  const streamPath = url.pathname.match(/^(\/api(?:\/page)?\/stream)(\/.*)?$/);
   if (streamPath) {
-    return handleStream(request, env, hub, days => cachedEvents(env, hub, days), streamPath[1] ?? "");
+    return handleStream(request, env, hub, days => cachedEvents(env, hub, days), streamPath[2] ?? "", streamPath[1]);
   }
 
   if (url.pathname === "/api/grocery") {

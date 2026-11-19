@@ -78,3 +78,16 @@ test("components= narrows the stream and all=1 returns every card", async () => 
   d = await get("components=gossip");
   assert.match(d.error, /Unknown component "gossip"/);
 });
+
+test("the hub page's path gives image links under the same path", async () => {
+  const { handleStream } = await import("../app/worker/stream.js");
+  const { memoryKV } = await import("./helpers.js");
+  const env = { HUB_DATA: memoryKV({ "data:family": { trips: [] } }) };
+  const hub = { ...HUB, tripApps: [{ trip: "lake", path: "/lake/", appId: "lake-2027", summary: { hero: "/lake/img/hero.jpg" } }] };
+  const ctxImage = base => import("../app/worker/stream.js").then(m =>
+    m.makeContext({ request: new Request("https://hub.example.com/x"), env, hub, loadEvents: async () => [], base }).image("trips:lake"));
+  assert.equal(await ctxImage(undefined), "https://hub.example.com/api/stream/image/trips%3Alake");
+  assert.equal(await ctxImage("/api/page/stream"), "https://hub.example.com/api/page/stream/image/trips%3Alake");
+  const res = await handleStream(new Request("https://hub.example.com/api/page/stream?components=today"), env, HUB, async () => [], "", "/api/page/stream");
+  assert.equal(res.status, 200);
+});
