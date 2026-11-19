@@ -20,7 +20,9 @@
 
 import { ymd, daysBetween, dateRange, json } from "./util.js";
 
-const CACHE_SECONDS = 60;
+// Scoring reads every check-in with a KV list(), and KV's free tier allows only
+// 1,000 of those a day across the account, so summaries are cached for 5 minutes.
+const CACHE_SECONDS = 300;
 
 export async function handleTrips(request, env, hub, path) {
   if (request.method !== "GET") return json({ error: "Method not allowed" }, 405);
