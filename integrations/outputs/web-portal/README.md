@@ -1,5 +1,8 @@
 # Web Portal — Output Integration
 
+> **Retired.** The [hub app](../../../docs/outputs.md#hub-page) replaced this output, and it will be
+> removed in v1.0. See [docs/roadmap.md](../../../docs/roadmap.md). This page is kept for families still using it.
+
 Writes plan data as static JSON files to `outputs/web-portal/public/data/`, which a local web app reads to render the family dashboard.
 
 ## Setup

@@ -1,60 +1,27 @@
 # Phone Widgets
 
-Hub widgets for the iPhone home screen and lock screen. Each widget shows upcoming
-events from your family's live calendars (the rest of today and all of tomorrow) and a
-countdown to the next trip.
+The hub on the iPhone home screen and lock screen. A widget shows one card from
+[the stream](../../docs/stream.md) and moves to the next each time iOS refreshes it.
 
 | Size | Shows |
 |------|-------|
-| Small | The next timed event, its people's colors, and the trip countdown |
-| Medium | Up to 4 events under Today/Tomorrow, plus a trip card that opens the trip app |
-| Large | Up to 10 events, plus a trip bar |
-| Lock screen | Rectangular: next event + trip. Inline: next event. Circular: days to the trip |
+| Small | A card's glance: its headline, detail line, and photo. For `today`, the next event and its people's colors. |
+| Medium | A card in full where the widget knows the component (`today`, `photos`, `trips`, `grocery`), and its glance otherwise |
+| Large | The same with more room: up to 10 events, a longer grocery list, a trip's whole leaderboard |
+| Lock screen | Always `today`. Rectangular: the next event and the trip countdown. Inline: the next event. Circular: days to the trip. |
 
-Each widget picks its **view**: one member's events (shared invites included) or the whole family.
-Tapping a widget opens the hub. Tapping the trip card opens the trip app.
-
-Add words to the Parameter to show more than the calendar:
-
-| Parameter | Shows |
-|-----------|-------|
-| `alex` or `family` | The calendar (as above) |
-| `alex mix` | Rotates on each refresh: the calendar, then a photo from the family album, then a trip card (trips take turns) |
-| `photos` | A photo from the family album, with the next event and trip countdown along the bottom |
-| `trips` | A trip card: hero photo, countdown, and quest leaderboard (trips take turns) |
-
-Photos need `hub.photos.icloudAlbum`, and trip cards need trip apps. Without them, the widget
-shows the calendar. Lock-screen widgets always show the calendar.
+Tapping a widget opens what the card is about: the hub, or a trip's app.
 
 The widgets run in [Scriptable](https://scriptable.app), a free iOS app, so you don't need
-Xcode or an Apple Developer account. They read `GET /api/widget?view=<member id>|family`
-from your hub (see [`../worker/widget.js`](../worker/widget.js)). If the phone is offline,
-a widget shows the last data it fetched, marked "Offline".
+Xcode or an Apple Developer account. If the phone is offline, a widget shows the last
+stream it fetched, marked "Offline".
 
-The [Mac menu bar app](../macos/README.md) and the [Roku channel](../roku/README.md) read the
-same endpoint, and their tokens go in the same policy. The Roku screensaver also reads
-`/api/widget/photos` (the family's iCloud shared album, see [`../worker/photos.js`](../worker/photos.js)).
-The `/api/widget` Access application covers that path too, and
-`/api/widget/trips` (each trip app's countdown and leaderboard, see [`../worker/trips.js`](../worker/trips.js)).
+## 1. Give the phone its own key
 
-## 1. Give widgets their own key (Cloudflare Access)
-
-If your hub is behind Cloudflare Access, a widget can't sign in the way a browser does.
-Instead it sends a **service token**. Scope that token to `/api/widget`, so a phone that
-holds it can't read anything else on the hub:
-
-1. **Create a service token.** Go to Zero Trust → Access → Service credentials → Service Tokens.
-   Create one named, e.g., `hub-widget`, and copy its Client ID and Client Secret. One token
-   per phone means you can revoke a lost phone on its own.
-2. **Create a policy.** Go to Access → Policies → Add a policy. Name it `Hub Widgets`, set the
-   action to **Service Auth**, and add an Include rule for **Service Token** with your widget token(s).
-3. **Create a path-scoped application.** Go to Access → Applications → Add an application →
-   Self-hosted. Use your hub's domain with path `api/widget`, and attach the **Hub Widgets**
-   policy. Cloudflare applies the most specific application, so this one governs only
-   `/api/widget`. Don't add the widget token to your hub's main application.
-
-If the policy says "Used by applications: 0", it isn't attached to the application yet,
-and the widget will report that the hub didn't accept its token.
+If your hub is behind Cloudflare Access, a widget can't sign in the way a browser does. It
+sends a service token that can read the stream and nothing else. Create one for this phone
+and add it to the **Hub Screens** policy. See
+[Giving a screen its key](../../docs/outputs.md#giving-a-screen-its-key).
 
 ## 2. Install the script
 
@@ -63,25 +30,42 @@ and the widget will report that the hub didn't accept its token.
    [`scriptable/family-hub.js`](scriptable/family-hub.js).
 3. Run it once (▶). Enter your hub URL (`https://hub.example.com`) and the token's Client ID
    and Client Secret. They're stored in the iOS Keychain.
-4. Choose **Preview Medium** to check it works.
+4. Choose **Preview Medium** to check that it works.
 
 ## 3. Add widgets
 
 1. Long-press the home screen → **+** → **Scriptable**, then pick a size and add it.
 2. Long-press the new widget → **Edit Widget**:
    - **Script**: Family Hub
-   - **When Interacting**: Run Script (or Open URL; tapping opens the hub either way)
-   - **Parameter**: a member id from your `family.yaml` (e.g. `alex`) for that person's events, or `family`
-3. For the lock screen, customize the Lock Screen → add a **Scriptable** widget and set it up the same way.
+   - **When Interacting**: Run Script
+   - **Parameter**: whose hub to show, and optionally which components
+3. For the lock screen, customize the Lock Screen → add a **Scriptable** widget, and set it
+   up the same way.
 
-iOS decides when widgets refresh, usually every 15–30 minutes. The hub caches calendar
+| Parameter | Shows |
+|-----------|-------|
+| `family` | The whole family's stream |
+| `alex` | Alex's stream: their events, their trips, their to-dos |
+| `alex today` | Only the `today` card. It never rotates. |
+| `family photos trips` | Only those components, taking turns |
+
+With no components named, the widget shows the stream set for `phone-widget` in your
+`family.yaml`, or the family's default stream.
+
+iOS decides when widgets refresh, usually every 15 to 30 minutes. The hub caches calendar
 data for 5 minutes, so many widgets don't mean many Google API calls.
 
 ## Troubleshooting
 
 | Widget says | Fix |
 |-------------|-----|
-| "Open this script in Scriptable to sign in" | Run the script in the app and enter the URL and token. |
-| "The hub didn't accept this widget's service token" | Check the token values (Run → Change hub sign-in), that the policy is **Service Auth** and includes the token, and that it's attached to the `/api/widget` application. |
-| "Unknown view …" | Set Parameter to one of the listed member ids, or `family` (plus `mix`, `photos`, or `trips`). |
-| "Offline · as of …" | The phone couldn't reach the hub, so the widget shows the last data it got. |
+| "Open this script in Scriptable to sign in" | Run the script in the app, and enter the URL and token. |
+| "The hub didn't accept this widget's service token" | Check the token values (Run → Change hub sign-in), that the **Hub Screens** policy is **Service Auth** and includes the token, and that it's attached to the `/api/stream` application. |
+| "Unknown view …" | Start the Parameter with a member id from your `family.yaml`, or `family`. |
+| "Offline · as of …" | The phone couldn't reach the hub, so the widget shows the last stream it got. |
+
+## Developing
+
+`scriptable/family-hub.js` is one file. Each component it draws in full has a layout
+function per size, and everything else goes through the glance layout. Run it in the
+Scriptable app to preview any size with any parameter.

@@ -1,114 +1,106 @@
 # Claude Code Family Hub
 
-## Project Purpose
+## What this is
 
-This is a family coordination hub powered by Claude Code. It ingests inputs from various sources (calendars, notes, photos, todos), applies AI-powered planning and enrichment, and distributes the results to multiple output integrations (displays, apps, notifications).
+A toolkit that families use to build their own hub. It has three parts:
 
-## Repository Layout
+- **Inputs** bring in a family's data: calendars, a photo album, trips, lists.
+- **The brain** integrates it, has Claude plan the week, and composes one **stream** of cards.
+- **Outputs** show the stream: a wall tablet, phone widgets, the Mac menu bar, a Roku.
+
+The principle to protect: **one stream, every screen.** A component is built once, in the
+Worker, and appears on every output. No screen gets its own data path or its own rules
+about what to show.
+
+Read `docs/architecture.md` and `docs/stream.md` before changing anything structural.
+
+## The docs describe v1.0
+
+The docs are written for the target design. `docs/roadmap.md` lists what they describe that
+isn't built yet. Before relying on something a doc mentions (`/api/stream`, the
+`family-hub` command, `inputs:` in `family.yaml`), check the roadmap and the code. When you
+build a roadmap item, delete it from the roadmap in the same change.
+
+## Two repos
+
+- **This repo is public and is a dependency.** It holds all code and no family data.
+- **A family's hub repo is private.** It holds `workspace/`, trip folders, a three-line
+  `worker.js`, and a `package.json` that pins a tag of this repo. Families don't work in
+  this repo.
+
+Never put family data here: no names, emails, calendar ids, tokens, or URLs, in code,
+comments, tests, examples, or commit messages. Examples use the made-up Rivera family in
+`workspace.example/`.
+
+## Layout
 
 ```
-cc-family-hub/
-├── CLAUDE.md                    # This file — Claude Code project instructions
-├── README.md                    # Human-readable project overview
-├── workspace/                   # YOUR family's private workspace (gitignored)
-│   ├── family.yaml              # Family configuration
-│   ├── members/                 # Individual member profiles
-│   ├── context/                 # Free-form notes, links, photos
-│   ├── calendars/               # Cached calendar data
-│   └── state/                   # Runtime state (schedules, last-run, etc.)
-├── workspace.example/           # Committed example workspace for reference
-├── hub/                         # Core hub engine
-│   ├── planner/                 # Claude-powered planning logic
-│   ├── context/                 # Context loading and assembly
-│   └── scheduler/               # Cron/trigger management
-├── integrations/
-│   ├── _base/                   # Shared types and base classes
-│   ├── inputs/                  # Input integrations
-│   └── outputs/                 # Output integrations
-├── app/                         # The hub app: Cloudflare Worker + pages (see app/README.md)
-│   ├── worker/                  # createHub(config) — the Worker
-│   ├── public/                  # Hub page + shared trip-app engine (static)
-│   ├── build.mjs                # Run in a family's hub repo: family.yaml → .generated/
-│   ├── widgets/                 # iPhone widgets (Scriptable script + /api/widget docs)
-│   ├── macos/                   # Mac menu bar app (SwiftUI package, build-app.sh)
-│   ├── roku/                    # Roku channel + screensaver (BrightScript, build.sh sideloads)
-│   └── template/                # Skeleton for a family's hub repo
-├── scripts/                     # Setup, sync, and utility scripts
-└── .claude/
-    └── commands/                # Custom Claude Code slash commands
+hub/                 the pipeline: sync, plan, publish (TypeScript, run with tsx)
+integrations/        synced inputs, and outputs the pipeline pushes to
+  _base/             shared types, validators, base class
+app/
+  worker/            the hub Worker: createHub(config), stream, components, data API
+  public/            the hub page and the shared trip-app engine (plain JS, no build)
+  build.mjs          validates a workspace, assembles a family's site
+  template/          a new family's hub repo
+  widgets/ macos/ roku/   the screens
+workspace.example/   a complete example workspace
+docs/
+.claude/commands/    slash commands, copied into hub repos
 ```
 
-## Workspace vs. Source
+`docs/structure.md` has the file-by-file version.
 
-- `workspace/` is **gitignored** and contains real family data. Each family maintains their own.
-- `workspace.example/` is committed and shows the expected shape with fake data.
-- Never commit anything from `workspace/` — it contains PII.
-- The workspace location is configurable: set `HUB_WORKSPACE` (env var or a `.env` file at the repo root) to keep it outside this repo, e.g. in your family's private instance repo. Secrets (`secrets.yaml`, `google-service-account.json`) resolve through `SECRETS_DIR` and can live outside the repo via `HUB_SECRETS_DIR`. Do this whenever the workspace is versioned. All code resolves workspace paths through `hub/paths.ts` (or `scripts/workspace-path.js` for plain-JS scripts). Never build a `workspace/...` path from `process.cwd()` directly.
+## Rules
 
-## The Hub App (`app/`)
+### Paths
+- All pipeline code resolves workspace and secrets paths through `hub/paths.ts`
+  (`scripts/workspace-path.js` for plain-JS scripts). Never build a `workspace/…` path from
+  `process.cwd()` yourself.
+- `HUB_WORKSPACE` and `HUB_SECRETS_DIR` override the defaults. Secrets must be able to
+  live outside every repo.
 
-- This repo is public. `app/` must never contain family data: no names, emails, calendar ids, tokens, or URLs. Everything family-specific comes from the family's `family.yaml` through `app/build.mjs` (at deploy) or `/api/config.js` (in the page). Secrets are Worker secrets.
-- A family's hub repo imports `createHub` from `app/worker/index.js`, and its `wrangler.jsonc` runs `app/build.mjs` as the `build.command`. Keep `app/template/` working: it's what a new family copies.
-- The page and trip apps are plain JS with no build step, and must run on an old Android WebView (Chrome ~80–86): no CSS `inset`, no flexbox `gap`.
-- Changes to `app/public/trip-app/` reach phones only after a family bumps its trips' `sw.js` versions. Never change localStorage keys or check-in id formats without a migration.
-- Release by tagging `vX.Y.Z` on main; family repos pin the tag.
+### The Worker and the stream
+- Decide what's in the stream, and its order, in the Worker from the family's config.
+  Never in a client.
+- Every card has a complete `glance`. A screen must be able to draw any card from it.
+- A component with nothing to show returns no cards.
+- A failing input skips its cards. It never fails the stream.
+- Never remove or repurpose a field in the card envelope. Installed screens update slowly.
+- Validate published data in `app/worker/data-api.js`. Errors read `<path>: <problem>`.
 
-## Key Concepts
+### The hub page and trip apps
+- Plain HTML, CSS, and JS with no build step.
+- Must run on an old Android WebView (Chrome 80 to 86): no CSS `inset`, no flexbox `gap`.
+- A change to `app/public/trip-app/` reaches phones only after a family bumps its trips'
+  `sw.js` versions. Never change a `localStorage` key or a check-in id format without a migration.
 
-### Family Configuration (`workspace/family.yaml`)
-Top-level config: family name, timezone, members list, active integrations, and hub schedule.
+### Config
+- Keep `app/template/` and `workspace.example/` working and current. They're what a new
+  family starts from.
+- When you rename a `family.yaml` key, keep accepting the old one and list it in
+  `docs/workspace.md`.
+- `app/build.mjs` errors read `<file>: <path>: <problem>`.
 
-### Member Profiles (`workspace/members/<name>.yaml`)
-Per-person: name, email, age, school/work info, hobbies, calendar IDs, notification preferences.
-
-### Context (`workspace/context/`)
-Free-form supplementary information — notes, flagged links, shopping list items, photos. Organized by type and date.
-
-### State (`workspace/state/`)
-Persisted runtime state: last planning run timestamp, pending actions, integration sync cursors.
-
-### Integrations
-Each integration lives in `integrations/inputs/<name>/` or `integrations/outputs/<name>/` and exports a class implementing the base `InputIntegration` or `OutputIntegration` interface from `integrations/_base/types.ts`.
-
-## Working With This Project
-
-### Adding a New Family Member
-Run: `/add-member`
-This will prompt for details and scaffold `workspace/members/<name>.yaml`.
-
-### Running the Daily Planning Routine
-Run: `/daily-plan`
-Loads all context, runs the planner, updates state, and pushes to output integrations.
-
-### Adding a New Integration
-1. Create `integrations/inputs/<name>/` or `integrations/outputs/<name>/`
-2. Implement the `InputIntegration` or `OutputIntegration` interface
-3. Register it in `workspace/family.yaml` under `integrations.active`
-4. Add any required credentials to `workspace/state/secrets.yaml` (gitignored)
-
-### Syncing Calendars
-Run: `/sync-calendars`
-Pulls latest events from all configured calendar integrations and updates `workspace/calendars/`.
-
-## Planning Prompts
-
-Prompt templates live in `hub/planner/prompts/`. When running the planner, Claude assembles context from:
-1. `workspace/family.yaml` — family config and active members
-2. `workspace/members/*.yaml` — all member profiles
-3. `workspace/context/` — recent notes and flagged items
-4. `workspace/calendars/` — upcoming calendar events (next 14 days)
-5. `workspace/state/last-plan.yaml` — output of the previous planning run
+### Errors
+- Say what's wrong and what to do next. The pipeline is often run by an assistant that acts
+  on the message.
+- The pipeline ends with `PUBLISH OK` or `PUBLISH FAILED` and exits non-zero on failure.
 
 ## Conventions
 
-- **YAML** for all configuration and data files
-- **TypeScript** for all hub and integration code
-- **Markdown** for prompts, templates, and documentation
-- Integration names use kebab-case: `google-calendar`, `apple-reminders`
-- Member profile filenames match the member's `id` field in `family.yaml`
-- All dates/times stored in ISO 8601; all times include timezone offset
-- Never hardcode credentials — use `workspace/state/secrets.yaml`
+- TypeScript for the pipeline and integrations. Plain JavaScript for the Worker and pages.
+- YAML for everything a family edits. Markdown for prompts and docs.
+- Ids are kebab-case: `google-calendar`, `past-trips`. A member's profile filename matches their `id`.
+- Dates and times are ISO 8601. Times carry an offset. Screens show the family's timezone.
 
-## Secrets Management
+## Checking your work
 
-`workspace/state/secrets.yaml` is gitignored. It holds OAuth tokens, API keys, and other credentials. The schema matches what each integration's `README.md` documents. Run `scripts/check-secrets.sh` to validate that all required secrets are present for active integrations.
+- `npm run typecheck` for the pipeline.
+- For the app, run a hub repo against this checkout: set its dependency to
+  `"cc-family-hub": "file:../cc-family-hub"`, `npm install`, `npm run dev`.
+- Screens: `app/macos` has `FAMILY_HUB_SNAPSHOT`, and `app/roku/build.sh` has `--screenshot`.
+
+## Releasing
+
+Tag `vX.Y.Z` on `main`. Hub repos pin the tag. Update the tag in `app/template/package.json`.

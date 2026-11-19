@@ -1,10 +1,10 @@
-# Apple Reminders — Input Integration
+# Apple Reminders Input
 
-Reads incomplete reminders from Apple Reminders and surfaces them as `todo` context items for the planner.
+Reads incomplete reminders from Apple Reminders and gives them to the planner as to-dos.
 
 ## Requirements
 
-- macOS only (uses AppleScript)
+- The pipeline must run on macOS (it uses AppleScript)
 - Apple Reminders app must be signed into iCloud for cross-device sync
 
 ## Setup
@@ -16,7 +16,7 @@ No credentials required. macOS will prompt for Reminders access the first time t
 Run the integration once manually to trigger the macOS permission dialog:
 
 ```bash
-npm run sync
+npx family-hub sync
 ```
 
 When prompted, click **OK** to allow access to Reminders.
@@ -26,9 +26,8 @@ When prompted, click **OK** to allow access to Reminders.
 In `workspace/family.yaml`:
 
 ```yaml
-integrations:
-  active:
-    - apple-reminders
+inputs:
+  apple-reminders: {}
 ```
 
 ## What Gets Imported
