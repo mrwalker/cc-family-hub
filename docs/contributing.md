@@ -77,6 +77,8 @@ A component turns data into cards. Create `app/worker/components/<id>.js`:
 
 ```js
 /** Board games: what we've been playing. Fed by workspace/board-games.yaml. */
+import { dayName } from "../util.js";
+
 export const id = "board-games";
 
 export async function cards(ctx) {
@@ -87,7 +89,7 @@ export async function cards(ctx) {
     id: `board-games:${g.id}`,
     title: "Board games",
     url: `${ctx.hubUrl}#board-games`,
-    glance: { headline: g.name, detail: `Last played ${ctx.dayLabel(g.lastPlayed)}`, emoji: "🎲" },
+    glance: { headline: g.name, detail: `Last played ${dayName(g.lastPlayed, ctx.today, ctx.locale)}`, emoji: "🎲" },
     data: { game: g },
   }];
 }
@@ -98,10 +100,10 @@ export async function cards(ctx) {
 - **Respect the view.** `ctx.view` is a member or `null` for the family. Filter what's
   theirs.
 - **Return no cards** when there's nothing to show. Don't return a card that says "nothing here".
-- **Format on the server.** Use `ctx`'s date helpers, so every screen shows the family's
-  timezone and locale.
+- **Format on the server.** Use the date helpers in `app/worker/util.js` with `ctx.today`,
+  `ctx.tz` and `ctx.locale`, so every screen shows the family's timezone and locale.
 
-Register it in `app/worker/stream.js`, and add it to the tables in [stream.md](stream.md).
+Register it in `app/worker/components/index.js`, and add it to the tables in [stream.md](stream.md).
 It now appears on every screen. Give it a full view on the hub page, and on other screens
 when the glance isn't enough.
 
