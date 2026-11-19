@@ -287,6 +287,24 @@
       opacity: 0;
     }
 
+    /* ── Glance view: any card the page has no view of its own for ─── */
+    /* No CSS inset or flex gap: the wall tablet's WebView is old. */
+    .glance-list { max-width: 760px; }
+    .glance-card {
+      display: block; position: relative; margin-bottom: 12px; padding: 18px 20px 18px 78px; min-height: 76px;
+      background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+      box-shadow: var(--shadow); color: var(--text); text-decoration: none;
+    }
+    .glance-emoji { position: absolute; left: 20px; top: 16px; font-size: 34px; line-height: 1.2; }
+    .glance-headline { font-size: 22px; font-weight: 700; line-height: 1.25; }
+    .glance-detail { font-size: 15px; color: var(--muted); margin-top: 3px; }
+    .glance-card.is-overdue { border-color: var(--urgent); background: var(--urgent-light); }
+    .hub-link {
+      display: none; margin-right: 12px; font-size: 13px; color: var(--muted);
+      text-decoration: none; border: 1px solid var(--border); border-radius: 6px; padding: 5px 11px;
+    }
+    .hub-link.shown { display: inline-block; }
+
     /* ── Photos module (the family album's photo cards from the stream) ─ */
     /* No CSS inset or flex gap: the wall tablet's WebView is old. */
     .photo-frame {
@@ -1146,6 +1164,7 @@
     <h1 id="hub-title">Family Hub</h1>
     <div class="hub-header-right">
       <span class="hub-meta" id="generated-at"></span>
+      <a class="hub-link" id="household-link" href="/household/">Household</a>
       <button class="theme-toggle" id="theme-toggle">Light</button>
     </div>
   </div>
@@ -1295,6 +1314,8 @@ const TRIP_APPS = HUB_CONFIG.tripApps;
 const GROCERY_NOT_SET_UP = "Grocery email isn't set up: add hub.groceryEmailUrl to family.yaml (see app/extras/grocery-email.gs).";
 document.title = HUB_CONFIG.title;
 document.getElementById("hub-title").textContent = HUB_CONFIG.title;
+// Household records (pets, and more to come) are edited on their own page.
+if (HUB_CONFIG.household) document.getElementById("household-link").classList.add("shown");
 
 // Make a whole trip card/row open its trip app (big tap target for the wall tablet).
 function linkTripApp(el, tripId) {
@@ -1350,7 +1371,13 @@ const MODULES = [
   { id: "escape-rooms", component: "escape-rooms", label: "Escape Rooms", build: buildEscapeRooms },
   { id: "movies",       component: "movies",       label: "Movies",       build: buildMovies },
   { id: "workouts",     component: "workouts",     label: "Workouts",     build: buildStrava },
+  // Any component without a view above is drawn from its cards' glance, so a
+  // new component shows here the day it's added (docs/stream.md).
+  { id: "glance",       component: null,           label: "",             build: buildGlance, tab: false },
 ];
+const GLANCE = MODULES.length - 1;
+let streamCards = [];                  // the stream's cards, for the glance view
+let glanceShown = null;                // the component the glance view is showing
 // Tabs that stay even when their component has nothing to show: you add to them here.
 const ALWAYS_TABS = ["today", "week", "grocery"];
 const IDLE_RESUME_MS = 2 * 60_000;     // rotation resumes after two idle minutes
@@ -1559,9 +1586,18 @@ function buildTabs(cards) {
   ALWAYS_TABS.forEach(c => { if (!order.includes(c)) order.push(c); });
   order.forEach(component => {
     const i = MODULES.findIndex(m => m.component === component && m.tab !== false);
-    if (i < 0) return;
     const btn = document.createElement("button");
     btn.className = "tab";
+    if (i < 0) {
+      // No view of its own: a tab named by its cards, opening the glance view.
+      const first = (cards || []).find(c => c.component === component);
+      if (!first) return;
+      btn.id = `tab-glance-${component}`;
+      btn.innerHTML = `${esc(first.title)}<span class="tab-dot"></span>`;
+      btn.addEventListener("click", () => showGlance(component));
+      row.appendChild(btn);
+      return;
+    }
     btn.id = `tab-${i}`;
     btn.innerHTML = `${MODULES[i].label}<span class="tab-dot"></span>`;
     btn.addEventListener("click", () => showModule(i));
@@ -1573,6 +1609,7 @@ function buildTabs(cards) {
 
 /** The tab for a module, or for another view of the same component (14 days → Week). */
 function tabFor(idx) {
+  if (idx === GLANCE) return document.getElementById(`tab-glance-${glanceShown}`);
   const own = document.getElementById(`tab-${idx}`);
   if (own) return own;
   const j = MODULES.findIndex(m => m.component === MODULES[idx].component && document.getElementById(`tab-${MODULES.indexOf(m)}`));
@@ -1598,6 +1635,33 @@ function buildModules() {
     m.build(div);
     wrap.appendChild(div);
   });
+}
+
+// ── Glance view ────────────────────────────────────────────────────
+function buildGlance(container) {
+  container.innerHTML = `<div class="section-title" id="glance-title"></div><div class="glance-list" id="glance-list"></div>`;
+}
+
+/** Draws every card of `component` from its title and glance. */
+function renderGlance(component) {
+  glanceShown = component;
+  const cards = streamCards.filter(c => c.component === component);
+  document.getElementById("glance-title").textContent = cards.length ? cards[0].title : "";
+  document.getElementById("glance-list").innerHTML = cards.map(c => {
+    const g = c.glance || {};
+    const overdue = c.data && c.data.task && c.data.task.overdue;
+    return `<a class="glance-card${overdue ? " is-overdue" : ""}" href="${esc(c.url || "#")}">
+      <div class="glance-emoji">${esc(g.emoji || "•")}</div>
+      <div class="glance-headline">${esc(g.headline)}</div>
+      <div class="glance-detail">${esc(g.detail)}</div>
+    </a>`;
+  }).join("");
+}
+
+/** Someone chose a component that has no view of its own. */
+function showGlance(component) {
+  pauseRotation();
+  switchTo(GLANCE, () => { renderGlance(component); markTab(GLANCE, 0); });
 }
 
 /** Adds a button that switches to another view of the same component. */
@@ -1645,9 +1709,14 @@ function slotsFrom(cards) {
   const slots = [];
   cards.forEach(card => {
     const idx = MODULES.findIndex(m => m.component === card.component && m.tab !== false);
-    if (idx < 0) return;
     const ms = (card.dwell || 15) * 1000;
     const prev = slots[slots.length - 1];
+    if (idx < 0) {
+      // No view of its own: its cards share one slot in the glance view.
+      if (prev && prev.glance === card.component) { prev.ms += ms; return; }
+      slots.push({ module: GLANCE, card: null, glance: card.component, ms });
+      return;
+    }
     if (prev && prev.module === idx && !MODULES[idx].onCard) { prev.ms += ms; return; }
     slots.push({ module: idx, card: MODULES[idx].onCard ? card : null, ms });
   });
@@ -1660,7 +1729,8 @@ function showSlot(i) {
   rot.i = i;
   const slot = rot.slots[i], m = MODULES[slot.module];
   switchTo(slot.module, () => {
-    if (slot.card && m.onCard) m.onCard(slot.card);
+    if (slot.glance) renderGlance(slot.glance);
+    else if (slot.card && m.onCard) m.onCard(slot.card);
     else if (m.onActivate) m.onActivate();
     markTab(slot.module, slot.ms);
     window.scrollTo(0, 0);
@@ -1707,6 +1777,7 @@ async function initRotation() {
   } catch (e) {
     console.warn("Stream unavailable, rotating every view:", e.message);
   }
+  streamCards = stream ? stream.cards : [];
   rot.slots = stream ? slotsFrom(stream.cards) : MODULES
     .map((m, i) => ({ module: i, card: null, ms: FALLBACK_DWELL_MS }))
     .filter(s => MODULES[s.module].tab !== false);

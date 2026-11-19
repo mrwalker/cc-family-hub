@@ -64,6 +64,11 @@ outputs:
 hub:
   title: "Rivera Family Hub"
 
+  # For household records (docs/getting-started.md): how the hub checks who's signed in.
+  # access:
+  #   teamDomain: "rivera.cloudflareaccess.com"
+  #   aud: "<your Access application's audience tag>"
+
   # People who join trips but aren't family members. An email lets their sign-in
   # pick their player in a trip app; their calendars are never fetched.
   guests:

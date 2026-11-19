@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Household</title>
+  <!--
+    Household records: where the family writes (worker/household.js).
+    Made for a phone, and safe for the wall tablet's old WebView (Chrome 80):
+    no CSS inset, no flexbox gap, no <dialog>, no crypto.randomUUID.
+  -->
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #f0f0f5; --card: #ffffff; --border: #e4e4e7; --text: #18181b; --muted: #71717a;
+      --accent: #2563eb; --accent-light: #eff6ff; --urgent: #dc2626; --urgent-light: #fef2f2;
+      --warn: #d97706; --warn-light: #fffbeb; --radius: 10px;
+      --shadow: 0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.05);
+    }
+    [data-theme="dark"] {
+      --bg: #0f0f12; --card: #1c1c22; --border: #2e2e38; --text: #f0f0f5; --muted: #8888a0;
+      --accent: #3b82f6; --accent-light: #1e2a45; --urgent-light: #2d1515; --warn-light: #2a1f0a;
+      --shadow: 0 1px 3px rgba(0,0,0,.4), 0 1px 2px rgba(0,0,0,.3);
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg); color: var(--text); font-size: 16px; line-height: 1.45;
+      padding: 16px 16px 80px;
+    }
+    .wrap { max-width: 720px; margin: 0 auto; }
+    a { color: var(--accent); }
+
+    .top { margin-bottom: 14px; }
+    .top a { font-size: 14px; text-decoration: none; }
+    .top h1 { font-size: 26px; font-weight: 700; margin-top: 4px; }
+    .who { font-size: 13px; color: var(--muted); }
+
+    .banner {
+      background: var(--warn-light); border: 1px solid var(--warn); border-radius: var(--radius);
+      padding: 12px 14px; margin-bottom: 14px; font-size: 14px;
+    }
+    .status { min-height: 22px; font-size: 14px; color: var(--muted); margin-bottom: 8px; }
+    .status.is-error { color: var(--urgent); }
+
+    .tabs { margin-bottom: 14px; }
+    .tabs button { margin: 0 8px 8px 0; }
+    .tabs button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+    button, .btn {
+      font: inherit; font-size: 15px; cursor: pointer; color: var(--text);
+      background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+      padding: 9px 14px; min-height: 42px;
+    }
+    button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+    button.quiet { border-color: transparent; background: transparent; color: var(--accent); padding-left: 6px; padding-right: 6px; }
+    button.danger { color: var(--urgent); }
+    button:disabled { opacity: .5; cursor: default; }
+
+    .card {
+      background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+      box-shadow: var(--shadow); padding: 14px 16px; margin-bottom: 14px;
+    }
+    .card h2 { font-size: 20px; font-weight: 700; }
+    .card-head { position: relative; padding-right: 70px; margin-bottom: 6px; }
+    .card-head .quiet { position: absolute; right: -6px; top: -8px; }
+    .sub { font-size: 13px; color: var(--muted); }
+    .section-label {
+      font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em;
+      color: var(--muted); margin: 22px 0 8px;
+    }
+
+    .task { border-top: 1px solid var(--border); padding: 12px 0 10px 42px; position: relative; }
+    .task-emoji { position: absolute; left: 0; top: 11px; font-size: 26px; line-height: 1.2; }
+    .task-title { font-size: 17px; font-weight: 600; }
+    .task-when { font-size: 14px; color: var(--muted); }
+    .task.is-overdue .task-when { color: var(--urgent); font-weight: 600; }
+    .task.is-soon .task-when { color: var(--warn); font-weight: 600; }
+    .task-more { font-size: 13px; color: var(--muted); margin-top: 2px; word-break: break-word; }
+    .task-actions { margin-top: 8px; }
+    .task-actions button { margin-right: 8px; }
+    .empty { color: var(--muted); font-size: 14px; padding: 8px 0 4px; }
+    .log-row { font-size: 14px; padding: 8px 0; border-top: 1px solid var(--border); position: relative; padding-right: 76px; }
+    .log-row button { position: absolute; right: 0; top: 1px; min-height: 34px; padding: 4px 10px; font-size: 14px; }
+
+    /* Forms */
+    .form { background: var(--accent-light); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; margin: 10px 0 4px; }
+    .form h3 { font-size: 17px; margin-bottom: 10px; }
+    .field { margin-bottom: 12px; }
+    .field label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+    .field .hint { font-size: 12px; color: var(--muted); margin-top: 3px; }
+    input, select, textarea {
+      font: inherit; font-size: 16px; width: 100%; color: var(--text);
+      background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 9px 10px; min-height: 42px;
+    }
+    textarea { min-height: 70px; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; grid-gap: 10px; }
+    .row3 { display: grid; grid-template-columns: 90px 1fr; grid-gap: 10px; }
+    .check { font-size: 15px; }
+    .check input { width: auto; min-height: 0; margin-right: 8px; }
+    .form-actions button { margin: 4px 8px 0 0; }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <a href="/">‹ Hub</a>
+    <h1>Household</h1>
+    <div class="who" id="who"></div>
+  </div>
+  <div class="banner hidden" id="banner"></div>
+  <div class="status" id="status"></div>
+  <div class="tabs hidden" id="tabs"></div>
+  <div id="main"></div>
+</div>
+
+<script>
+// The same theme as the hub page.
+try { if (localStorage.getItem("hub-theme") === "dark") document.documentElement.setAttribute("data-theme", "dark"); } catch (e) {}
+
+const API = "/api/household";
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+let state = null;        // the last answer from the API
+let area = null;         // the tab that's showing
+let form = null;         // the open form: { type: "pet" | "task", id, petId }
+let showArchived = false;
+let busy = false;
+
+// ── Talking to the hub ─────────────────────────────────────────────
+function setStatus(text, isError) {
+  const el = $("status");
+  el.textContent = text || "";
+  el.className = "status" + (isError ? " is-error" : "");
+}
+
+function request(path, body) {
+  const opts = { credentials: "same-origin" };
+  if (body !== undefined) { opts.method = "POST"; opts.headers = { "Content-Type": "application/json" }; opts.body = JSON.stringify(body); }
+  return fetch(API + path, opts).then(r => r.json().catch(() => ({ error: `The hub answered ${r.status}` })).then(data => {
+    if (!r.ok || data.error) throw new Error(data.error || `The hub answered ${r.status}`);
+    return data;
+  }));
+}
+
+function load() {
+  return request("").then(data => { state = data; render(); }).catch(e => setStatus(`Couldn't load: ${e.message}`, true));
+}
+
+/** Sends a change, then redraws from the hub's answer. */
+function send(path, body, doneText) {
+  if (busy) return Promise.resolve(false);
+  busy = true;
+  setStatus("Saving…");
+  return request(path, body || {}).then(data => {
+    state = data; busy = false; setStatus(doneText || "Saved");
+    return true;
+  }).catch(e => { busy = false; setStatus(e.message, true); return false; });
+}
+
+function newId(prefix) {
+  const bytes = new Uint8Array(9);
+  crypto.getRandomValues(bytes);
+  return prefix + "-" + Array.prototype.map.call(bytes, b => ("0" + b.toString(16)).slice(-2)).join("");
+}
+
+// ── Dates ──────────────────────────────────────────────────────────
+const noon = day => new Date(day + "T12:00:00Z");
+const daysUntil = day => Math.round((noon(day) - noon(state.today)) / 86400000);
+const dateText = (day, opts) => noon(day).toLocaleDateString(undefined, Object.assign({ timeZone: "UTC" }, opts));
+const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
+
+function timeText(time) {
+  const parts = time.split(":");
+  return new Date(Date.UTC(2000, 0, 1, +parts[0], +parts[1])).toLocaleTimeString(undefined, { timeZone: "UTC", hour: "numeric", minute: "2-digit" });
+}
+
+function whenText(task) {
+  if (!task.dueDate) return "No date";
+  const n = daysUntil(task.dueDate);
+  const date = dateText(task.dueDate, { weekday: "short", month: "short", day: "numeric", year: Math.abs(n) > 300 ? "numeric" : undefined });
+  const time = task.dueTime ? ` · ${timeText(task.dueTime)}` : "";
+  if (n < 0) return `Overdue by ${plural(-n, "day")} · ${date}`;
+  if (n === 0) return `Today${time}`;
+  if (n === 1) return `Tomorrow${time}`;
+  return `In ${plural(n, "day")} · ${date}${time}`;
+}
+
+function repeatText(task) {
+  if (!task.repeatEvery) return "";
+  const every = task.repeatEvery === 1 ? `Every ${task.repeatUnit}` : `Every ${plural(task.repeatEvery, task.repeatUnit)}`;
+  return every + (task.repeatFrom === "due" ? ", on schedule" : ", from when it's done");
+}
+
+function ageText(birthday) {
+  const months = Math.floor((noon(state.today) - noon(birthday)) / (86400000 * 30.44));
+  if (months < 0) return "";
+  return months < 24 ? plural(months, "month") + " old" : plural(Math.floor(months / 12), "year") + " old";
+}
+
+const memberName = id => { const m = state.members.find(x => x.id === id); return m ? m.name : id; };
+
+// ── Drawing ────────────────────────────────────────────────────────
+function render() {
+  const main = $("main");
+  if (!state.enabled) {
+    $("banner").classList.add("hidden");
+    main.innerHTML = `<div class="card"><h2>Not set up yet</h2><p class="sub" style="margin-top:6px">
+      Household records need a database on this hub. See “Household records” in the hub's getting-started guide.</p></div>`;
+    return;
+  }
+  const v = state.viewer;
+  $("who").textContent = v ? `Signed in as ${v.name}` : "";
+  const banner = $("banner");
+  if (!state.can.manage) {
+    banner.textContent = v ? "You can look, but only adults can make changes here." : `You can look, but changes are off: ${state.problem}`;
+    banner.classList.remove("hidden");
+  } else banner.classList.add("hidden");
+
+  const areas = Object.keys(state.areas);
+  if (!area || areas.indexOf(area) < 0) area = areas.indexOf(location.hash.slice(1)) >= 0 ? location.hash.slice(1) : areas[0];
+  const tabs = $("tabs");
+  tabs.classList.toggle("hidden", areas.length < 2);
+  tabs.innerHTML = areas.map(a => `<button data-do="area" data-id="${a}" class="${a === area ? "active" : ""}">${esc(state.areas[a].label)}</button>`).join("");
+
+  main.innerHTML = area === "pets" ? petsView() : "";
+  const first = main.querySelector(".form input:not([type=checkbox]), .form select");
+  if (first && form && form.fresh) { first.focus(); form.fresh = false; }
+}
+
+function taskRow(task) {
+  const kind = state.areas[task.area].kinds[task.kind] || { emoji: "•", label: task.kind };
+  if (form && form.type === "task" && form.id === task.id) return taskForm(task, task.petId);
+  const n = task.dueDate ? daysUntil(task.dueDate) : null;
+  const cls = task.archived ? "" : n !== null && n < 0 ? " is-overdue" : n !== null && n <= 1 ? " is-soon" : "";
+  const more = [];
+  if (task.repeatEvery) more.push(esc(repeatText(task)));
+  if (task.provider) more.push(esc(task.provider));
+  if (task.phone) more.push(`<a href="tel:${esc(task.phone.replace(/[^0-9+]/g, ""))}">${esc(task.phone)}</a>`);
+  if (task.url) more.push(`<a href="${esc(task.url)}" target="_blank" rel="noopener">Link</a>`);
+  if (task.assignee) more.push(esc(memberName(task.assignee)));
+  const manage = state.can.manage;
+  const actions = !manage ? "" : task.archived
+    ? `<button data-do="restore" data-id="${task.id}">Restore</button>`
+    : `<button class="primary" data-do="done" data-id="${task.id}">Done</button>
+       <button data-do="edit-task" data-id="${task.id}">Edit</button>`;
+  return `<div class="task${cls}">
+    <div class="task-emoji">${kind.emoji}</div>
+    <div class="task-title">${esc(task.title)}</div>
+    <div class="task-when">${task.archived ? "Archived" : esc(whenText(task))}</div>
+    ${more.length ? `<div class="task-more">${more.join(" · ")}</div>` : ""}
+    ${task.notes ? `<div class="task-more">${esc(task.notes)}</div>` : ""}
+    ${actions ? `<div class="task-actions">${actions}</div>` : ""}
+  </div>`;
+}
+
+function petsView() {
+  const manage = state.can.manage;
+  const pets = state.pets.filter(p => !p.archived);
+  const tasks = state.tasks.filter(t => t.area === "pets");
+  let html = "";
+  pets.forEach(pet => {
+    if (form && form.type === "pet" && form.id === pet.id) { html += petForm(pet); return; }
+    const mine = tasks.filter(t => t.petId === pet.id && !t.archived);
+    const facts = [pet.species, pet.birthday ? ageText(pet.birthday) : ""].filter(Boolean).join(" · ");
+    html += `<div class="card">
+      <div class="card-head">
+        <h2>${esc(pet.name)}</h2>
+        ${facts ? `<div class="sub">${esc(facts)}</div>` : ""}
+        ${pet.notes ? `<div class="sub">${esc(pet.notes)}</div>` : ""}
+        ${manage ? `<button class="quiet" data-do="edit-pet" data-id="${pet.id}">Edit</button>` : ""}
+      </div>
+      ${mine.length ? mine.map(taskRow).join("") : `<div class="empty">Nothing scheduled.</div>`}
+      ${form && form.type === "task" && !form.id && form.petId === pet.id ? taskForm(null, pet.id)
+        : manage ? `<div class="task-actions" style="margin-top:12px"><button data-do="add-task" data-id="${pet.id}">+ Add for ${esc(pet.name)}</button></div>` : ""}
+    </div>`;
+  });
+  if (!pets.length && !(form && form.type === "pet")) {
+    html += `<div class="card"><div class="empty">No pets yet.${manage ? " Add one to start keeping track of shots, medications, grooming and vet visits." : ""}</div></div>`;
+  }
+  if (form && form.type === "pet" && !form.id) html += petForm(null);
+  else if (manage) html += `<button data-do="add-pet">+ Add a pet</button>`;
+
+  const log = state.log.filter(l => l.area === "pets");
+  if (log.length) {
+    // Only the last time a task was done can be taken back.
+    const seen = {};
+    html += `<div class="section-label">Recently done</div><div class="card">` + log.slice(0, 15).map((l, i) => {
+      const latest = !seen[l.taskId]; seen[l.taskId] = true;
+      return `<div class="log-row" ${i === 0 ? 'style="border-top:0"' : ""}>
+        <strong>${esc(l.title)}</strong> · ${esc(dateText(l.doneOn, { month: "short", day: "numeric" }))}${l.doneBy ? ` · ${esc(memberName(l.doneBy))}` : ""}
+        ${l.note ? `<div class="sub">${esc(l.note)}</div>` : ""}
+        ${manage && latest ? `<button data-do="undo" data-id="${l.taskId}">Undo</button>` : ""}
+      </div>`;
+    }).join("") + `</div>`;
+  }
+
+  const archived = tasks.filter(t => t.archived);
+  if (archived.length) {
+    html += `<div class="section-label"><button class="quiet" data-do="toggle-archived">${showArchived ? "Hide" : "Show"} archived (${archived.length})</button></div>`;
+    if (showArchived) html += `<div class="card">${archived.map(taskRow).join("")}</div>`;
+  }
+  return html;
+}
+
+// ── Forms ──────────────────────────────────────────────────────────
+function petForm(pet) {
+  const p = pet || {};
+  return `<div class="form" data-form="pet">
+    <h3>${pet ? `Edit ${esc(pet.name)}` : "Add a pet"}</h3>
+    <div class="field"><label for="f-name">Name</label><input id="f-name" maxlength="40" value="${esc(p.name)}"></div>
+    <div class="row">
+      <div class="field"><label for="f-species">Kind of animal</label><input id="f-species" maxlength="30" placeholder="Dog" value="${esc(p.species)}"></div>
+      <div class="field"><label for="f-birthday">Birthday</label><input id="f-birthday" type="date" value="${esc(p.birthday)}"></div>
+    </div>
+    <div class="field"><label for="f-notes">Notes</label><textarea id="f-notes" maxlength="500" placeholder="Microchip number, allergies, the vet's name">${esc(p.notes)}</textarea></div>
+    <div class="form-actions">
+      <button class="primary" data-do="save-pet">Save</button>
+      <button data-do="cancel">Cancel</button>
+      ${pet ? `<button class="danger" data-do="archive-pet">Archive</button>` : ""}
+    </div>
+  </div>`;
+}
+
+function taskForm(task, petId) {
+  const t = task || { kind: "vaccination", repeatUnit: "year", repeatFrom: "done" };
+  const kinds = state.areas.pets.kinds;
+  const opt = (value, label, current) => `<option value="${value}"${value === current ? " selected" : ""}>${esc(label)}</option>`;
+  const pet = state.pets.find(p => p.id === petId);
+  const repeats = !!t.repeatEvery;
+  return `<div class="form" data-form="task">
+    <h3>${task ? "Edit" : `Add for ${esc(pet ? pet.name : "")}`}</h3>
+    <div class="row">
+      <div class="field"><label for="f-kind">What kind</label><select id="f-kind">${Object.keys(kinds).map(k => opt(k, kinds[k].label, t.kind)).join("")}</select></div>
+      <div class="field"><label for="f-title">What it is</label><input id="f-title" maxlength="80" placeholder="Rabies shot" value="${esc(t.title)}"></div>
+    </div>
+    <div class="row">
+      <div class="field"><label for="f-due">Due</label><input id="f-due" type="date" value="${esc(t.dueDate)}"></div>
+      <div class="field"><label for="f-time">Time (appointments)</label><input id="f-time" type="time" value="${esc(t.dueTime)}"></div>
+    </div>
+    <div class="field"><label class="check"><input type="checkbox" id="f-repeats"${repeats ? " checked" : ""}>Repeats</label></div>
+    <div id="f-repeat-box" class="${repeats ? "" : "hidden"}">
+      <div class="row3">
+        <div class="field"><label for="f-every">Every</label><input id="f-every" type="number" min="1" max="365" inputmode="numeric" value="${esc(t.repeatEvery || 1)}"></div>
+        <div class="field"><label for="f-unit">&nbsp;</label><select id="f-unit">${["day", "week", "month", "year"].map(u => opt(u, u + "s", t.repeatUnit || "year")).join("")}</select></div>
+      </div>
+      <div class="field"><label for="f-from">Next one counts from</label>
+        <select id="f-from">${opt("done", "The day it was done", t.repeatFrom)}${opt("due", "The day it was due (keeps to a schedule)", t.repeatFrom)}</select>
+        <div class="hint">A shot is due a year after it was given. A monthly pill stays on the 1st even if it's given late.</div>
+      </div>
+    </div>
+    <div class="row">
+      <div class="field"><label for="f-provider">Who does it</label><input id="f-provider" maxlength="80" placeholder="Vet or groomer" value="${esc(t.provider)}"></div>
+      <div class="field"><label for="f-phone">Phone</label><input id="f-phone" type="tel" maxlength="30" value="${esc(t.phone)}"></div>
+    </div>
+    <div class="field"><label for="f-url">Link</label><input id="f-url" type="url" maxlength="300" placeholder="https://" value="${esc(t.url)}"></div>
+    <div class="field"><label for="f-notes">Notes</label><textarea id="f-notes" maxlength="500">${esc(t.notes)}</textarea></div>
+    <div class="field"><label for="f-lead">Show on screens this many days before</label>
+      <input id="f-lead" type="number" min="0" max="60" inputmode="numeric" placeholder="${kinds[t.kind] ? kinds[t.kind].lead : 7}" value="${esc(t.leadDays)}">
+      <div class="hint">Leave empty for the usual for this kind.</div></div>
+    <div class="form-actions">
+      <button class="primary" data-do="save-task">Save</button>
+      <button data-do="cancel">Cancel</button>
+      ${task ? `<button class="danger" data-do="archive" data-id="${task.id}">Archive</button>` : ""}
+    </div>
+  </div>`;
+}
+
+const val = id => $(id).value.trim();
+
+function savePet() {
+  const old = form.id ? state.pets.find(p => p.id === form.id) : null;
+  const pet = { id: old ? old.id : newId("pet"), name: val("f-name"), species: val("f-species"), birthday: val("f-birthday") || null, notes: val("f-notes") };
+  if (!pet.name) { setStatus("Give the pet a name", true); return; }
+  send("/pets", pet).then(ok => { if (ok) form = null; render(); });
+}
+
+function saveTask() {
+  const old = form.id ? state.tasks.find(t => t.id === form.id) : null;
+  const repeats = $("f-repeats").checked;
+  const kind = val("f-kind");
+  const task = {
+    id: old ? old.id : newId("task"), area: "pets", kind,
+    title: val("f-title") || state.areas.pets.kinds[kind].label,
+    petId: old ? old.petId : form.petId, assignee: old ? old.assignee : null,
+    dueDate: val("f-due") || null, dueTime: val("f-time") || null,
+    repeatEvery: repeats ? Number(val("f-every")) : null, repeatUnit: repeats ? val("f-unit") : null, repeatFrom: val("f-from"),
+    leadDays: val("f-lead") === "" ? null : Number(val("f-lead")),
+    provider: val("f-provider"), phone: val("f-phone"), url: val("f-url"), notes: val("f-notes"),
+  };
+  if (!task.dueDate) { setStatus("Pick the date it's due", true); return; }
+  send("/tasks", task).then(ok => { if (ok) form = null; render(); });
+}
+
+// ── Actions ────────────────────────────────────────────────────────
+document.addEventListener("click", e => {
+  const btn = e.target.closest ? e.target.closest("[data-do]") : null;
+  if (!btn || btn.disabled) return;
+  const id = btn.getAttribute("data-id");
+  const redraw = () => render();
+  switch (btn.getAttribute("data-do")) {
+    case "area": area = id; form = null; history.replaceState(null, "", "#" + id); render(); break;
+    case "add-pet": form = { type: "pet", id: null, fresh: true }; render(); break;
+    case "edit-pet": form = { type: "pet", id, fresh: true }; render(); break;
+    case "add-task": form = { type: "task", id: null, petId: id, fresh: true }; render(); break;
+    case "edit-task": form = { type: "task", id, fresh: true }; render(); break;
+    case "cancel": form = null; setStatus(""); render(); break;
+    case "save-pet": savePet(); break;
+    case "save-task": saveTask(); break;
+    case "archive-pet": {
+      const pet = state.pets.find(p => p.id === form.id);
+      if (pet && confirm(`Archive ${pet.name}? Their records are kept.`)) {
+        send("/pets", Object.assign({}, pet, { archived: true }), `${pet.name} archived`).then(ok => { if (ok) form = null; render(); });
+      }
+      break;
+    }
+    case "done": send(`/tasks/${id}/done`, {}, "Marked done. It's under Recently done if you need to undo it.").then(redraw); break;
+    case "undo": send(`/tasks/${id}/undo`, {}, "Put back").then(redraw); break;
+    case "archive": send(`/tasks/${id}/archive`, { archived: true }, "Archived").then(ok => { if (ok) form = null; render(); }); break;
+    case "restore": send(`/tasks/${id}/archive`, { archived: false }, "Restored").then(redraw); break;
+    case "toggle-archived": showArchived = !showArchived; render(); break;
+  }
+});
+
+document.addEventListener("change", e => {
+  if (e.target.id === "f-repeats") $("f-repeat-box").classList.toggle("hidden", !e.target.checked);
+  // A new task takes its kind's name until you type one.
+  if (e.target.id === "f-kind" && form && !form.id) {
+    const kinds = state.areas.pets.kinds, title = $("f-title");
+    if (!title.value.trim() || Object.keys(kinds).some(k => kinds[k].label === title.value.trim())) title.value = kinds[e.target.value].label;
+    $("f-lead").placeholder = kinds[e.target.value].lead;
+  }
+});
+
+// Someone else may have changed something: refresh when nobody's typing.
+setInterval(() => { if (!form && !busy && !document.hidden) load(); }, 60000);
+document.addEventListener("visibilitychange", () => { if (!document.hidden && !form && !busy) load(); });
+
+load();
+</script>
+</body>
+</html>

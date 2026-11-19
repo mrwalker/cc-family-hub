@@ -30,11 +30,11 @@ The design is in [architecture.md](architecture.md#household-records). In short:
   tablet. Cards on the hub page link to it.
 - **Nothing to turn off.** A hub without a D1 database gets no cards and no changes.
 
-It ships in steps, one area or layer at a time:
+v2.0.0 shipped the base and the first area: D1, the write API, sign-in checks, the
+`/household/` page, and **pets**. The rest ships in steps, one area or layer at a time:
 
 | Release | What it adds |
 |---------|--------------|
-| v2.0.0 | D1, the write API, sign-in checks, the `/household/` page, and **pets** |
 | v2.1.0 | The planner reads household records |
 | v2.2.0 | **The house:** services, maintenance, fixes |
 | v2.3.0 | **Chores:** assigned to kids, daily and weekly, taking turns |

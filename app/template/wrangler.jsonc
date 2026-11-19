@@ -24,4 +24,9 @@
     // Trip app check-ins and packing lists: wrangler kv namespace create TRIP_KV
     { "binding": "TRIP_KV", "id": "<id>" }
   ]
+  // Optional: household records (the pets' care). See docs/getting-started.md.
+  //   wrangler d1 create my-family-hub
+  // , "d1_databases": [
+  //   { "binding": "HUB_DB", "database_name": "my-family-hub", "database_id": "<id>" }
+  // ]
 }

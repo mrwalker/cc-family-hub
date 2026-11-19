@@ -3,7 +3,7 @@
  * Builds a family's hub from its repo (run from that repo's root):
  *
  *   workspace/family.yaml        members (+ color, shortName), inputs, stream, outputs,
- *                                hub.title, hub.guests, hub.tripApps
+ *                                hub.title, hub.guests, hub.tripApps, hub.access
  *                                (and the older hub.photos and hub.groceryEmailUrl)
  *   workspace/members/<id>.yaml  calendarIds, email
  *     → .generated/hub-config.json   imported by the family's worker.js (never served)
@@ -70,7 +70,8 @@ const members = (Array.isArray(family.members) ? family.members : []).map((m, i)
   const calendars = strings(profile.calendarIds);
   const emails = [...new Set([profile.email, ...calendars].filter(e => typeof e === "string" && e.includes("@")))]
     .map(e => e.toLowerCase());
-  return { id: m.id, name: m.shortName || m.name, color: m.color, calendars, emails };
+  // Anyone not marked a child is an adult: adults manage household records.
+  return { id: m.id, name: m.shortName || m.name, color: m.color, role: m.role === "child" ? "child" : "adult", calendars, emails };
 });
 if (!members.length) fail("family.yaml", "members", "no members listed");
 const inputs = objectAt(family.inputs, "inputs");
@@ -166,6 +167,20 @@ function objectAt(v, at) {
   return Object.fromEntries(Object.entries(v).map(([k, o]) => [k, o ?? {}]));
 }
 
+// hub.access: what the Worker needs to check a Cloudflare Access sign-in itself,
+// before it lets anyone change household records (docs/workspace.md).
+let access = null;
+if (hub.access != null) {
+  const a = hub.access;
+  if (!isObj(a)) fail("family.yaml", "hub.access", "expected a map with teamDomain and aud");
+  else {
+    const teamDomain = String(a.teamDomain ?? "").trim().toLowerCase().replace(/^https:\/\//, "").replace(/\/+$/, "");
+    if (!/^[a-z0-9-]+\.cloudflareaccess\.com$/.test(teamDomain)) fail("family.yaml", "hub.access.teamDomain", `expected "<team>.cloudflareaccess.com", got ${JSON.stringify(a.teamDomain)}`);
+    if (!/^[0-9a-f]{32,128}$/.test(String(a.aud ?? ""))) fail("family.yaml", "hub.access.aud", "expected the Access application's audience (AUD) tag, a long hex string");
+    access = { teamDomain, aud: String(a.aud) };
+  }
+}
+
 const guests = Object.entries(hub.guests ?? {}).map(([id, g]) => {
   if (!ID_RE.test(id)) fail("family.yaml", `hub.guests.${id}`, "expected a lowercase id");
   if (memberIds.has(id)) fail("family.yaml", `hub.guests.${id}`, "is also a family member");
@@ -178,7 +193,7 @@ const tripApps = (Array.isArray(hub.tripApps) ? hub.tripApps : []).map((t, i) =>
   const at = `hub.tripApps[${i}]`;
   if (typeof t?.trip !== "string") fail("family.yaml", `${at}.trip`, "required (the trip's id in trips.yaml)");
   if (!/^\/[a-z0-9-]+\/$/.test(t?.path ?? "")) fail("family.yaml", `${at}.path`, `expected "/<dir>/", got ${JSON.stringify(t?.path)}`);
-  if (["/trip-app/", "/api/"].includes(t?.path)) fail("family.yaml", `${at}.path`, `${t.path} is reserved by the hub`);
+  if (["/trip-app/", "/api/", "/household/"].includes(t?.path)) fail("family.yaml", `${at}.path`, `${t.path} is reserved by the hub`);
   if (!ID_RE.test(t?.appId ?? "")) fail("family.yaml", `${at}.appId`, "expected a lowercase id");
   else if (t.appId.length > 40) fail("family.yaml", `${at}.appId`, "longer than 40 characters");
   const extra = strings(t?.guests);
@@ -259,6 +274,7 @@ const config = {
   locale: family.family?.locale || "en-US",
   members,
   guests,
+  access,
   tripApps,
   groceryEmailUrl: groceryEmailUrl || null,
   photos: album ? { icloudAlbum: String(album) } : null,

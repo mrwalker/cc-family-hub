@@ -89,6 +89,35 @@ npx family-hub sync     # should report events for each member
    ```
    Or connect the repo to Cloudflare Workers Builds, so every push to `main` deploys.
 
+### Household records
+
+Optional. To keep the pets' care on the hub (see [inputs.md](inputs.md#household)):
+
+1. **Create the database** and add it to `wrangler.jsonc`:
+   ```bash
+   npx wrangler d1 create my-family-hub
+   ```
+   ```jsonc
+   "d1_databases": [
+     { "binding": "HUB_DB", "database_name": "my-family-hub", "database_id": "<id>" }
+   ]
+   ```
+   The hub sets up its own tables, and updates them when you upgrade.
+2. **Tell the hub how to check a sign-in.** In `family.yaml`:
+   ```yaml
+   hub:
+     access:
+       teamDomain: "<team>.cloudflareaccess.com"   # Zero Trust → Settings: your team domain
+       aud: "<tag>"                                # your hub's Access application: its Application Audience (AUD) tag
+   ```
+   Until this is set, everyone can look at household records and nobody can change them.
+3. **Mark the kids.** Members with `role: "child"` in `family.yaml` can't change records.
+   Everyone else in the family can.
+4. Deploy, then open `/household/` on your hub.
+
+To try it with `npm run dev`, where there's no Access, add `DEV_MEMBER=<a member's id>` to
+`.dev.vars`. A deployed hub ignores it.
+
 Open your hub's address and sign in. You'll see today's calendar, live. `npm run dev` runs
 the hub locally.
 

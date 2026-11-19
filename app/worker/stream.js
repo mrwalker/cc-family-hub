@@ -20,6 +20,7 @@ import { COMPONENT_IDS, byId } from "./components/index.js";
 import { tripSummaries, heroResponse } from "./trips.js";
 import { albumPhotos, albumPhotosFor, photoById, photoFromAlbum } from "./photos.js";
 import { listGrocery } from "./grocery.js";
+import { loadDueTasks } from "./household.js";
 import { ymd, addDays, json } from "./util.js";
 
 export const DEFAULT_MAX = 3;
@@ -128,6 +129,8 @@ export function makeContext({ request, env, hub, loadEvents, now = new Date(), v
     trips: once(() => tripSummaries(env, hub)),
     photos: once(() => albumPhotos(hub)),
     grocery: once(() => listGrocery(env)),
+    // Household tasks that could have a card today; null without a HUB_DB database.
+    household: once(() => loadDueTasks(env, today)),
     // A trip's own shared album (trips.yaml → album), by link.
     album: link => (albums[link] ??= albumPhotosFor(link)),
     image: cardId => `${url.origin}${base}/image/${encodeURIComponent(cardId)}`,

@@ -49,7 +49,11 @@ cc-family-hub/
 | `app/worker/components/` | One file per stream component |
 | [`app/worker/data-api.js`](../app/worker/data-api.js) | Validates and stores what the pipeline publishes |
 | [`app/worker/photos.js`](../app/worker/photos.js) | Reads the iCloud shared album |
+| [`app/worker/household.js`](../app/worker/household.js) | Household records: the API, validation, and who may change what |
+| [`app/worker/access.js`](../app/worker/access.js) | Checks a Cloudflare Access sign-in and finds the member behind it |
+| [`app/worker/db/migrations.js`](../app/worker/db/migrations.js) | The household database's schema, which the Worker applies itself |
 | [`app/public/index.html`](../app/public/index.html) | The hub page |
+| [`app/public/household/`](../app/public/household/index.html) | The page where the family edits household records |
 | `app/public/trip-app/` | The trip-app engine that every trip shares |
 | [`app/build.mjs`](../app/build.mjs) | Validates a workspace and assembles a family's site. Runs as the `wrangler` build command. |
 | `app/template/` | What `family-hub init` copies into a new hub repo, with its `CLAUDE.md` and slash commands |

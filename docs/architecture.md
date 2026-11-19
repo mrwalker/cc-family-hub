@@ -41,7 +41,7 @@ An input is one source of family data. Inputs differ in how their data reaches t
 | **Synced** | The pipeline pulls it on a schedule | Google Calendar (for planning), Apple Reminders, Strava |
 | **Workspace** | You edit a YAML file in your hub repo, and the pipeline publishes it | Trips, escape rooms, movies, notes |
 | **Live** | The Worker reads it when a screen asks, and caches it for a few minutes | Google Calendar (for display), the iCloud album |
-| **Interactive** | People change it on a screen, and the Worker stores it | Trip check-ins and packing lists, the grocery list |
+| **Interactive** | People change it on a screen, and the Worker stores it | Trip check-ins and packing lists, the grocery list, household records |
 
 Google Calendar is both synced and live. The planner needs a snapshot to reason over, and
 the screens need events that are current to within five minutes.
@@ -87,7 +87,7 @@ A Cloudflare Worker built from `createHub(config)`. It does four jobs:
 - **Composes the stream.** For each component in the family's stream config, it builds
   cards from stored and live data, filtered for whoever is asking. See [stream.md](stream.md).
 - **Serves** the hub page, the trip apps, and the interactive APIs (check-ins, packing,
-  grocery).
+  grocery, household records).
 
 ### Config flow
 
@@ -148,13 +148,14 @@ Secrets live in three places, none of them a repo:
 | `workspace/state/pending-prompt.md` | The rendered prompt, for the assistant route (gitignored) |
 | KV `HUB_DATA` | Published data, one key per kind, plus `:prev`. The grocery list. |
 | KV `TRIP_KV` | Trip check-ins and packing lists |
+| D1 `HUB_DB` | Household records (optional) |
 
 Nothing else is stateful. You can rebuild the Worker and re-run the pipeline at any time.
 
 ## Household records
 
-*Planned for v2. This section is the design; [roadmap.md](roadmap.md#managing-the-household)
-has the release order. Each release replaces part of it with what was built.*
+*Pets are built. The house, chores, and the planner's feed are planned;
+[roadmap.md](roadmap.md#managing-the-household) has the order.*
 
 Household records are the hub's own data: the pets' care, the kids' chores, the upkeep of
 the house. They're an interactive input, like the grocery list, with three differences.
@@ -193,9 +194,10 @@ never run a migration by hand.
 | POST | `/api/household/tasks/:id/done` | Adults, and a kid for their own chore | Mark it done |
 | POST | `/api/household/tasks/:id/undo` | The same | Take back the last time it was done |
 | POST | `/api/household/tasks/:id/archive` | Adults | Archive or restore it |
-| GET | `/api/household/export` | The pipeline | What's due, overdue and lately done |
+| GET | `/api/household/export` | The pipeline | What's due, overdue and lately done *(planned)* |
 
-Every write is validated in the Worker and answers with the fresh list.
+Every write is validated in the Worker and answers with the fresh list. A write has to be
+a JSON request, which a form on another website can't send.
 
 ### Who may write
 
@@ -227,15 +229,15 @@ hub page links each one to `/household/`.
 
 ### Cards and the planner
 
-Each area is a component: `pets`, `house` and `chores`. A task becomes a card when it's
+Each area is a component: `pets` today, then `house` and `chores`. A task becomes a card when it's
 overdue or close enough to its due date, with overdue tasks first. A member's view shows
 what's assigned to them. With nothing due, a component adds no cards.
 
 The stream reads the database once per request, with one indexed query.
 
-The pipeline fetches `/api/household/export` when it builds the planner's context, so the
-plan can work around a vet visit or remind someone of a chore. If the fetch fails, the
-plan is made without it.
+Planned: the pipeline fetches `/api/household/export` when it builds the planner's
+context, so the plan can work around a vet visit or remind someone of a chore. If the
+fetch fails, the plan is made without it.
 
 ## Scheduling
 
