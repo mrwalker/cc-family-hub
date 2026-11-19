@@ -167,8 +167,12 @@ final class HubStore: ObservableObject {
 
     var menuBarText: String { menuBarText(settings.menuBarText) }
 
+    /// The longest menu bar text. macOS hides a menu bar item that doesn't fit, and
+    /// beside a MacBook's notch there's often room for little more than this.
+    static let menuBarMaxLength = 20
+
     private func syncLabel() {
-        let text = menuBarText
+        let text = menuBarText.truncated(Self.menuBarMaxLength)
         let icon = data == nil && problem != nil ? "exclamationmark.triangle" : "house.fill"
         if label.text != text { label.text = text }
         if label.icon != icon { label.icon = icon }
