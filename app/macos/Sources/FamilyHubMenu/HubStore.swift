@@ -38,6 +38,9 @@ final class HubStore: ObservableObject {
         return URLSession(configuration: c)
     }()
 
+    /// The app's store. A snapshot run draws its own store (Snapshot.swift), so this one stays idle then.
+    static let shared = HubStore(live: !Snapshot.isRequested)
+
     /// `live: false` (snapshots) skips the timers, the wake refresh and the first-run Settings window.
     init(settings: HubSettings = .load(), live: Bool = true) {
         self.settings = settings

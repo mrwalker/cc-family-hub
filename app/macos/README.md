@@ -56,6 +56,7 @@ To upgrade, bump cc-family-hub in your hub repo and run `./build-app.sh --instal
 | "The hub didn't accept this app's service token" | Check the token in Settings, that it's in the **Hub Screens** policy, and that the policy is attached to the `/api/stream` application. |
 | "This hub has no /api/stream" | Upgrade your hub repo's cc-family-hub version. |
 | "Unknown view …" | Pick a member in Settings, or Whole family. |
+| Family Hub isn't in the menu bar | macOS hides menu bar items that don't fit, especially beside a MacBook's notch. Hold ⌘ and drag the item to the right, or pick shorter Menu bar text in Settings. Opening the app again (Spotlight, Finder) while it's running opens Settings. |
 | "Offline · as of …" | The Mac couldn't reach the hub. It retries every minute. |
 
 ## Developing
