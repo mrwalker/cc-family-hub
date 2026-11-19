@@ -1,6 +1,6 @@
 {
   "name": "cc-family-hub",
-  "version": "0.10.1",
+  "version": "0.10.2",
   "description": "Claude Code-powered family coordination hub: a planning pipeline and the hub app it publishes to",
   "type": "module",
   "bin": {
