@@ -6,7 +6,7 @@
  * prints the service account email and shows which family members
  * still need to share their calendars.
  *
- * Usage: npm run setup:calendars
+ * Usage: npx family-hub setup calendars
  */
 
 import { existsSync, readFileSync } from "fs";
@@ -103,7 +103,7 @@ async function main() {
 
   // 3. Check workspace setup
   if (!existsSync(FAMILY_PATH)) {
-    console.log("⚠  workspace/family.yaml not found — run npm run setup first\n");
+    console.log("⚠  workspace/family.yaml not found — create a hub repo with npx github:mrwalker/cc-family-hub init <dir>\n");
     printShareInstructions(key.client_email, []);
     return;
   }
@@ -148,7 +148,7 @@ async function main() {
 
   if (needsSharing.length === 0) {
     console.log("✓  All calendars are accessible. Ready to sync!\n");
-    console.log("   Run: npm run sync\n");
+    console.log("   Run: npx family-hub sync\n");
   } else {
     printShareInstructions(key.client_email, needsSharing);
   }
@@ -172,7 +172,7 @@ function printSetupInstructions() {
   console.log("     Download the file\n");
   console.log("  5. Move the downloaded file to:");
   console.log(`     ${KEY_PATH}\n`);
-  console.log("  6. Re-run: npm run setup:calendars\n");
+  console.log("  6. Re-run: npx family-hub setup calendars\n");
 }
 
 function printShareInstructions(serviceAccountEmail, needsSharing) {
@@ -199,7 +199,7 @@ function printShareInstructions(serviceAccountEmail, needsSharing) {
     console.log("   click the calendar → 'Calendar ID' near the bottom.\n");
   }
 
-  console.log("   After sharing, re-run: npm run setup:calendars\n");
+  console.log("   After sharing, re-run: npx family-hub setup calendars\n");
 }
 
 main().catch((err) => {

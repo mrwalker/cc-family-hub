@@ -27,7 +27,8 @@ Push it to a **private** repo. You now have:
 | `workspace/` | Your family's config and content, starting as a copy of the example family |
 | `worker.js`, `wrangler.jsonc` | Your hub Worker: three lines of code, and its Cloudflare settings |
 | `package.json` | Pins the cc-family-hub version |
-| `CLAUDE.md`, `.claude/commands/` | So Claude Code knows its way around your hub |
+| `CLAUDE.md`, `.claude/commands/` | So Claude Code knows its way around your hub: `/daily-plan`, `/add-member`, `/add-trip` |
+| `.env.example` | Copy to `.env` and set `HUB_SECRETS_DIR` |
 
 ## 2. Describe your family
 

@@ -7,7 +7,7 @@
  * Requires "Make changes to events" sharing permission on each calendar
  * (vs. read-only for the input integration).
  *
- * Setup: run `npm run setup:calendars` for step-by-step instructions.
+ * Setup: run `npx family-hub setup calendars` for step-by-step instructions.
  */
 
 import { BaseIntegration } from "../../_base/BaseIntegration.js";

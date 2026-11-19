@@ -42,11 +42,12 @@ app/
   worker/            the hub Worker: createHub(config), stream, components, data API
   public/            the hub page and the shared trip-app engine (plain JS, no build)
   build.mjs          validates a workspace, assembles a family's site
-  template/          a new family's hub repo
+  template/          a new family's hub repo, with its CLAUDE.md and slash commands
   widgets/ macos/ roku/   the screens
 workspace.example/   a complete example workspace
+bin/family-hub.mjs   the family-hub command families run
 docs/
-.claude/commands/    slash commands, copied into hub repos
+.claude/commands/    /add-integration, for working on this repo
 ```
 
 `docs/structure.md` has the file-by-file version.

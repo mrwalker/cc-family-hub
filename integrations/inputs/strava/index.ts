@@ -22,7 +22,7 @@
  * Each member needs their own Strava API app (strava.com/settings/api) because
  * Strava's free tier limits each app to 1 connected athlete.
  *
- * Run `npm run setup:strava` once per member to complete the OAuth flow.
+ * Run `npx family-hub setup strava` once per member to complete the OAuth flow.
  */
 
 import { readFileSync, writeFileSync, existsSync } from "fs";
@@ -72,7 +72,7 @@ export default class StravaInput extends BaseIntegration implements InputIntegra
     const secrets = this.loadSecrets<StravaSecrets>();
     this.requireSecretKeys(secrets as unknown as Record<string, unknown>, ["members"]);
     if (!secrets.members || Object.keys(secrets.members).length === 0) {
-      throw new Error("strava: no members configured. Run npm run setup:strava to add a member.");
+      throw new Error("strava: no members configured. Run npx family-hub setup strava to add a member.");
     }
     // Verify at least one member token refreshes successfully
     const [firstMemberId, firstMember] = Object.entries(secrets.members)[0];

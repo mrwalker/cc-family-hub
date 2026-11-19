@@ -15,13 +15,12 @@ const GOOGLE_KEY_PATH = join(SECRETS_DIR, "google-service-account.json");
 
 // Required secrets.yaml keys per integration (google-calendar uses a separate key file)
 const REQUIRED_SECRETS = {
-  "wall-display": ["deviceUrl", "apiKey"],
-  "mobile-app":   ["fcmServerKey"],
+  "hub-api": ["url", "publishToken"],
 };
 
 function main() {
   if (!existsSync(FAMILY_CONFIG_PATH)) {
-    console.error("ERROR: workspace/family.yaml not found. Run npm run setup.");
+    console.error("ERROR: workspace/family.yaml not found. Create a hub repo with npx github:mrwalker/cc-family-hub init <dir>.");
     process.exit(1);
   }
 
@@ -39,7 +38,7 @@ function main() {
     if (id === "google-calendar") {
       if (!existsSync(GOOGLE_KEY_PATH)) {
         console.error(`MISSING: ${GOOGLE_KEY_PATH}`);
-        console.error(`         Run: npm run setup:calendars`);
+        console.error(`         Run: npx family-hub setup calendars`);
         allOk = false;
       } else {
         const key = JSON.parse(readFileSync(GOOGLE_KEY_PATH, "utf8"));
@@ -61,7 +60,7 @@ function main() {
           const total = members.length;
           if (withCalendars < total) {
             console.warn(`WARNING: google-calendar: ${withCalendars}/${total} members have calendarIds configured`);
-            console.warn(`         Run: npm run setup:calendars`);
+            console.warn(`         Run: npx family-hub setup calendars`);
           } else {
             console.log(`✓ google-calendar: service account key present, ${withCalendars}/${total} members configured`);
           }

@@ -1892,8 +1892,8 @@ function buildStrava(container) {
     const empty = document.createElement('div');
     empty.className = 'strava-empty';
     empty.innerHTML = `<div>No Strava accounts connected yet.</div>
-      <div>Run <code>npm run setup:strava</code> to connect a family member's account,<br>
-      then uncomment <code>strava</code> in <code>workspace/family.yaml</code> and re-sync.</div>`;
+      <div>Add <code>strava</code> under <code>inputs:</code> in <code>workspace/family.yaml</code>,<br>
+      then run <code>npx family-hub setup strava</code> and <code>npx family-hub sync</code>.</div>`;
     container.appendChild(empty);
     return;
   }

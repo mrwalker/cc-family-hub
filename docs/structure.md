@@ -10,8 +10,9 @@ cc-family-hub/
 ├── app/                    the hub Worker, its pages, and the screens
 ├── workspace.example/      a complete workspace for a made-up family
 ├── scripts/, tools/        setup helpers
+├── bin/family-hub.mjs      the family-hub command
 ├── docs/
-└── .claude/commands/       slash commands, copied into each hub repo
+└── .claude/commands/       slash commands for working on this repo
 ```
 
 ## The pipeline (`hub/`)
@@ -51,7 +52,7 @@ cc-family-hub/
 | [`app/public/index.html`](../app/public/index.html) | The hub page |
 | `app/public/trip-app/` | The trip-app engine that every trip shares |
 | [`app/build.mjs`](../app/build.mjs) | Validates a workspace and assembles a family's site. Runs as the `wrangler` build command. |
-| `app/template/` | What `family-hub init` copies into a new hub repo |
+| `app/template/` | What `family-hub init` copies into a new hub repo, with its `CLAUDE.md` and slash commands |
 | `app/widgets/` | iPhone widgets (Scriptable) |
 | `app/macos/` | Mac menu bar app (SwiftUI) |
 | `app/roku/` | Roku channel and screensaver (BrightScript) |
@@ -77,13 +78,16 @@ In a hub repo, `npx family-hub <command>`:
 In this repo, the same commands are npm scripts (`npm run sync`, `npm run plan`, …), and
 `npm run typecheck` checks the TypeScript.
 
-## Slash commands (`.claude/commands/`)
+## Slash commands
+
+A hub repo gets these from `app/template/.claude/commands/`:
 
 | Command | What |
 |---------|------|
 | `/daily-plan` | Sync, plan with the assistant as the planner, and publish |
-| `/sync-calendars` | Pull the latest events |
 | `/add-member` | Add or update a member profile |
+| `/add-trip` | Add or update a trip in `trips.yaml` |
 | `/context` | Review and retire notes |
 | `/weekly-summary` | A readable summary of the week |
-| `/add-integration` | Scaffold a new input or output (for work in this repo) |
+
+This repo's own `.claude/commands/` has `/add-integration`, to scaffold a new input or output.

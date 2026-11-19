@@ -33,7 +33,7 @@ export function loadServiceAccountKey(): ServiceAccountKey {
     throw new Error(
       `Google service account key not found.\n` +
       `Expected: ${SERVICE_ACCOUNT_PATH}\n` +
-      `Run: npm run setup:calendars`
+      `Run: npx family-hub setup calendars`
     );
   }
   const raw = JSON.parse(readFileSync(SERVICE_ACCOUNT_PATH, "utf8"));
