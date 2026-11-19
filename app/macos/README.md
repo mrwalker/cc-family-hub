@@ -10,7 +10,7 @@ The hub next to the clock.
   and the rest. Each card stays up for its `dwell`; hover to hold one, or use the arrows and
   dots. Click a card to open the hub, or a trip's app.
 - **Rotate:** set Menu bar to "Rotate" in Settings, and the menu bar steps through the
-  stream's headlines, changing every 30 seconds.
+  stream's headlines (photos stay in the panel), changing every 30 seconds.
 - **Offline:** it keeps showing the last stream it got, marked "Offline · as of …".
 
 It refreshes every 5 minutes, after the Mac wakes, and whenever you open it. It needs

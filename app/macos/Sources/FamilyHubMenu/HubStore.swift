@@ -192,8 +192,32 @@ final class HubStore: ObservableObject {
         }
     }
 
+    /// The cards Rotate steps through, in stream order. Photo cards are left out:
+    /// without the photo, their headline is just the date it was taken.
+    private var rotateCards: [Card] {
+        cards.filter { $0.component != "photos" && !$0.shortText.isEmpty }
+    }
+
     /// Every card's headline, in stream order: what Rotate steps through.
-    var rotateItems: [String] { cards.map(\.shortText).filter { !$0.isEmpty } }
+    var rotateItems: [String] { rotateCards.map(\.shortText) }
+
+    /// The card the menu bar is showing right now, so the panel can open on it.
+    /// nil when it shows the next event (the panel's today list) or nothing.
+    var menuBarCardID: String? {
+        let firstTrip = cards.first { $0.component == "trips" }?.id
+        switch settings.menuBarText {
+        case .rotate:
+            let items = rotateCards
+            return items.isEmpty ? nil : items[rotation % items.count].id
+        case .trip:
+            return firstTrip
+        case .auto:
+            if let e = nextEvent, e.day == "Today", !e.allDay { return nil }
+            return firstTrip
+        case .nextEvent, .iconOnly:
+            return nil
+        }
+    }
 
     private func eventText(_ e: Event) -> String {
         let title = e.title.truncated(24)
