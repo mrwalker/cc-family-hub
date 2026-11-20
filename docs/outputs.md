@@ -42,6 +42,7 @@ line, and photo.
 | `plan` | full | glance | glance | glance | – |
 | `pets` | glance, links to `/household/` | glance | glance | glance | – |
 | `house` | glance, links to `/household/` | glance | glance | glance | – |
+| `pet-portraits` | full: the pet full screen over its photo | glance | glance | glance | – |
 | `photos` | full | full | full | full | – |
 | `trips` | full | full | full | full | glance |
 | `past-trips` | full | full | glance | glance | – |

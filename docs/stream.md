@@ -19,6 +19,7 @@ GET /api/stream?view=family
 | `plan` | 1 | The week's summary, flags, and action items | The planner |
 | `pets` | 1 per task that's due soon or overdue | What a pet needs and when: a shot, a pill, grooming, a vet visit | Household records |
 | `house` | 1 per task that's due soon or overdue | What the house needs and when: a service visit, maintenance, a fix | Household records |
+| `pet-portraits` | 1 per pet | The pet over its photo, with its age and what's next for it | Household records |
 | `photos` | 1 per photo | A photo from the family album | iCloud album |
 | `trips` | 1 per upcoming or active trip | Countdown (or "Day 2 of 5"), hero photo, leaderboard, today's schedule | `trips.yaml`, trip apps |
 | `past-trips` | 1 per past trip | Where and when, highlights, final standings | `trips.yaml`, trip apps |
@@ -190,6 +191,7 @@ to draw it more richly over time.
 | `trips` | `trip`, `name`, `destination`, `resort`, `start`, `end`, `dates`, `status`, `daysUntil`, `day`, `days`, `countdown`, `who[]`, `leaderboard[]`, `questsDone`, `questsTotal`, `today[]`, `album` |
 | `past-trips` | `trip`, `name`, `destination`, `start`, `end`, `dates`, `who[]`, `highlights[]`, `leaderboard[]`, `album` |
 | `pets`, `house` | `task`: `id`, `kind`, `title`, `pet`, `pets[]`, `place`, `assignee`, `dueDate`, `dueTime`, `date`, `daysUntil`, `overdue`, `booked`, `apptDate`, `apptTime`, `endDate`, `needsBooking`, `repeats`, `provider`, `phone` |
+| `pet-portraits` | `pet`: `id`, `name`, `species`, `age`. `photo`: `url`, `width`, `height`, or `null`. `next[]`, each with `title`, `kind`, `emoji`, `when`, `date`, `overdue` |
 | `grocery` | `items[]`, each with `id`, `name`, `quantity`, `store`, `addedBy`, `done` |
 | `escape-rooms` | `record`: `escaped`, `total`. `room`: `venue`, `room`, `city`, `date`, `solved`, `escapeTime`, `who[]` |
 | `movies` | `movie`: `title`, `releaseDate`, `format`, `streaming`, `who[]`, `status` |

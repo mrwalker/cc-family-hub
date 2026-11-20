@@ -305,6 +305,35 @@
     }
     .hub-link.shown { display: inline-block; }
 
+    /* ── Pet portraits: each pet full screen over its photo ─────────── */
+    /* No CSS inset or flex gap: the wall tablet's WebView is old. */
+    .portrait {
+      position: relative; height: calc(100vh - 230px); min-height: 360px;
+      background: #1c1917; border-radius: 14px; overflow: hidden; margin-top: 8px;
+    }
+    .portrait-blur, .portrait-photo { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+    /* The photo blurred to fill the screen, and the whole photo sharp on top of it. */
+    .portrait-blur { object-fit: cover; filter: blur(28px) brightness(.55); transform: scale(1.15); }
+    .portrait-photo { object-fit: contain; }
+    .portrait.no-photo { background: linear-gradient(135deg, #44403c, #1c1917); }
+    .portrait.no-photo img { display: none; }
+    .portrait-shade {
+      position: absolute; left: 0; right: 0; bottom: 0; height: 60%;
+      background: linear-gradient(to top, rgba(0,0,0,.82), rgba(0,0,0,0));
+    }
+    .portrait-text { position: absolute; left: 36px; right: 36px; bottom: 30px; color: #fff; text-shadow: 0 2px 12px rgba(0,0,0,.5); }
+    .portrait-name { font-size: 72px; font-weight: 800; line-height: 1.02; letter-spacing: -.01em; }
+    .portrait-age { font-size: 22px; opacity: .85; margin-top: 4px; }
+    .portrait-next { margin-top: 14px; }
+    .portrait-item { font-size: 24px; line-height: 1.35; margin-top: 4px; }
+    .portrait-item .when { opacity: .8; }
+    .portrait-item.overdue .when { color: #fca5a5; opacity: 1; font-weight: 700; }
+    @media (max-width: 700px) {
+      .portrait-name { font-size: 44px; }
+      .portrait-item { font-size: 18px; }
+      .portrait-text { left: 20px; right: 20px; bottom: 20px; }
+    }
+
     /* ── Photos module (the family album's photo cards from the stream) ─ */
     /* No CSS inset or flex gap: the wall tablet's WebView is old. */
     .photo-frame {
@@ -1365,6 +1394,8 @@ const MODULES = [
   { id: "calendar",     component: "week",         label: "14 days",      build: withViewToggle(buildCalendar, "week", "‹ 3 days"), tab: false },
   { id: "plan",         component: "plan",         label: "Weekly Plan",  build: buildPlan },
   { id: "photos",       component: "photos",       label: "Photos",       build: buildPhotos,      onCard: showPhotoCard, onActivate: nextPhoto },
+  // Named by its cards ("The dogs"), since that depends on the family's pets.
+  { id: "pet-portraits", component: "pet-portraits", label: "Pets", labelFromCard: true, build: buildPortraits, onCard: showPortrait, onActivate: () => showPortrait(null) },
   { id: "trips",        component: "trips",        label: "Trips",        build: buildTrips,       onCard: c => renderTrips(c.id, c), onActivate: () => renderTrips(null) },
   { id: "past-trips",   component: "past-trips",   label: "Past Trips",   build: buildPastTrips,   onCard: c => renderPastTrips(c.id, c), onActivate: () => renderPastTrips(null) },
   { id: "grocery",      component: "grocery",      label: "Grocery",      build: buildGroceryList, onActivate: loadGrocery },
@@ -1599,7 +1630,8 @@ function buildTabs(cards) {
       return;
     }
     btn.id = `tab-${i}`;
-    btn.innerHTML = `${MODULES[i].label}<span class="tab-dot"></span>`;
+    const named = MODULES[i].labelFromCard && (cards || []).find(c => c.component === component);
+    btn.innerHTML = `${named ? esc(named.title) : MODULES[i].label}<span class="tab-dot"></span>`;
     btn.addEventListener("click", () => showModule(i));
     row.appendChild(btn);
   });
@@ -1635,6 +1667,56 @@ function buildModules() {
     m.build(div);
     wrap.appendChild(div);
   });
+}
+
+// ── Pet portraits ──────────────────────────────────────────────────
+// One card per pet (the pet-portraits component): its photo, blurred to fill the
+// screen with the whole photo on top, and its name, age and what's next.
+let portraitAt = -1;
+
+function buildPortraits(container) {
+  container.innerHTML = `<div class="portrait" id="portrait">
+    <img class="portrait-blur" id="portrait-blur" alt="">
+    <img class="portrait-photo" id="portrait-photo" alt="">
+    <div class="portrait-shade"></div>
+    <div class="portrait-text">
+      <div class="portrait-name" id="portrait-name"></div>
+      <div class="portrait-age" id="portrait-age"></div>
+      <div class="portrait-next" id="portrait-next"></div>
+    </div>
+  </div>`;
+}
+
+/** Fills the screen below the tabs, whatever the header's height on this screen. */
+function fitPortrait() {
+  const frame = document.getElementById("portrait");
+  if (!frame || frame.closest(".mod-hidden")) return;
+  const top = frame.getBoundingClientRect().top + window.pageYOffset;
+  frame.style.height = Math.max(360, window.innerHeight - top - 24) + "px";
+}
+window.addEventListener("resize", fitPortrait);
+
+/** Shows `card`, or (when someone opens the tab) the next pet in the stream. */
+function showPortrait(card) {
+  if (!card) {
+    const all = streamCards.filter(c => c.component === "pet-portraits");
+    if (!all.length) return;
+    portraitAt = (portraitAt + 1) % all.length;
+    card = all[portraitAt];
+  }
+  const d = card.data || {};
+  const pet = d.pet || {}, photo = d.photo;
+  const frame = document.getElementById("portrait");
+  setTimeout(fitPortrait, 30);
+  frame.classList.toggle("no-photo", !photo);
+  if (photo) {
+    document.getElementById("portrait-blur").src = photo.url;
+    document.getElementById("portrait-photo").src = photo.url;
+  }
+  document.getElementById("portrait-name").textContent = pet.name || card.glance.headline;
+  document.getElementById("portrait-age").textContent = [pet.species, pet.age].filter(Boolean).join(" · ");
+  document.getElementById("portrait-next").innerHTML = (d.next || []).map(n =>
+    `<div class="portrait-item${n.overdue ? " overdue" : ""}">${esc(n.emoji)} ${esc(n.title)} <span class="when">· ${esc(n.when)}</span></div>`).join("");
 }
 
 // ── Glance view ────────────────────────────────────────────────────

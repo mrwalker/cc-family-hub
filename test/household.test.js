@@ -493,3 +493,75 @@ test("a save that never arrived is reported, and logged", async () => {
   } finally { console.log = log; }
   assert.deepEqual(JSON.parse(logged[0]), { household: "save-failed", path: "/pets", error: "Load failed", name: "TypeError", online: "", page: "", ua: "iPhone Safari" });
 });
+
+// ─── Pet photos and portraits (v2.5) ──────────────────────────────────────────
+
+// The smallest real JPEG and PNG starts are enough for the checks.
+const JPEG = "data:image/jpeg;base64," + Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 16, 74, 70, 73, 70, 0, 1, 1, 0, 0, 1, 0, 1, 0, 0, 0xff, 0xd9]).toString("base64");
+const PNG_AS_JPEG = "data:image/jpeg;base64," + Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0]).toString("base64");
+
+test("an adult adds and removes a pet's photo; it's served back exactly", D1, async () => {
+  const { db, env } = await withPet();
+  assert.match((await (await post(env, `/pets/${PET.id}/photo`, { data: "data:image/gif;base64,R0lGOD" })).json()).error, /JPEG, PNG or WebP/);
+  assert.match((await (await post(env, `/pets/${PET.id}/photo`, { data: PNG_AS_JPEG })).json()).error, /isn't a JPEG/);
+  const big = "data:image/jpeg;base64," + Buffer.concat([Buffer.from([0xff, 0xd8, 0xff]), Buffer.alloc(1_100_000)]).toString("base64");
+  assert.match((await (await post(env, `/pets/${PET.id}/photo`, { data: big })).json()).error, /at most 1000 KB/);
+  assert.equal((await post(as("sam", db), `/pets/${PET.id}/photo`, { data: JPEG })).status, 403, "a child can't");
+  assert.equal((await post(env, "/pets/pet-nobody/photo", { data: JPEG })).status, 404);
+  let body = await (await post(env, `/pets/${PET.id}/photo`, { data: JPEG, width: 1600, height: 1200 })).json();
+  const [photo] = body.pets[0].photos;
+  assert.deepEqual([photo.width, photo.height], [1600, 1200]);
+  assert.ok(!JSON.stringify(body).includes(JPEG.slice(30)), "the page gets no image data, just ids");
+  const res = await handleHousehold(new Request(`${BASE}/photo/${photo.id}`), env, HUB, `/photo/${photo.id}`, NOW);
+  assert.equal(res.headers.get("Content-Type"), "image/jpeg");
+  assert.deepEqual(Buffer.from(await res.arrayBuffer()), Buffer.from(JPEG.split(",")[1], "base64"));
+  body = await (await post(env, `/photos/${photo.id}/remove`)).json();
+  assert.deepEqual(body.pets[0].photos, []);
+});
+
+test("no more than ten photos of one pet", D1, async () => {
+  const { env } = await withPet();
+  for (let i = 0; i < 10; i++) assert.equal((await post(env, `/pets/${PET.id}/photo`, { data: JPEG })).status, 200);
+  assert.match((await (await post(env, `/pets/${PET.id}/photo`, { data: JPEG })).json()).error, /No more than 10/);
+});
+
+test("a portrait per pet: its photo, its age, and what's next for it", async () => {
+  const pets = [
+    { id: "pet-biscuit", name: "Biscuit", species: "Dog", birthday: "2023-01-10", photos: [{ id: "photo-a", width: 1600, height: 1200 }, { id: "photo-b", width: 1200, height: 1600 }] },
+    { id: "pet-pepper1", name: "Pepper", species: "Dog", birthday: null, photos: [] },
+  ];
+  const household = [
+    { id: "t1", area: "pets", kind: "vaccination", title: "Rabies shot", petId: "pet-biscuit", dueDate: "2027-07-30" },
+    { id: "t2", area: "pets", kind: "medication", title: "Heartworm pill", petId: "pet-biscuit", dueDate: "2027-06-22" },
+    { id: "t3", area: "pets", kind: "grooming", title: "Bath", petId: "pet-biscuit", dueDate: "2027-06-10" },
+    { id: "t4", area: "pets", kind: "dental", title: "Teeth cleaning", petId: "pet-biscuit", dueDate: "2027-08-30" },
+    { id: "t5", area: "house", kind: "maintenance", title: "Filter", dueDate: "2027-06-21" },
+  ];
+  const cards = await byId["pet-portraits"].cards(ctxWith({ pets, household }));
+  assert.deepEqual(cards.map(c => [c.id, c.title, c.glance.headline, c.glance.detail]), [
+    ["pet-portraits:pet-biscuit", "The dogs", "Biscuit", "Bath overdue"],
+    ["pet-portraits:pet-pepper1", "The dogs", "Pepper", "Dog"],
+  ]);
+  const [biscuit, pepper] = cards;
+  assert.equal(biscuit.data.pet.age, "4 years old");
+  assert.deepEqual(biscuit.data.next.map(n => [n.title, n.when]), [["Bath", "overdue since Jun 10"], ["Heartworm pill", "Tomorrow"], ["Rabies shot", "Fri, Jul 30"]]);
+  assert.match(biscuit.glance.image, /^https:\/\/hub\.example\.com\/api\/stream\/image\/pet-portraits%3Apet-biscuit\?v=photo-[ab]$/);
+  assert.equal(pepper.glance.image, undefined, "no photo, no image");
+  assert.equal(pepper.data.photo, null);
+  // Each turn shows the next photo.
+  const later = await byId["pet-portraits"].cards(ctxWith({ pets, household, now: new Date("2027-06-21T19:10:00Z") }));
+  assert.notEqual(later[0].data.photo.url, biscuit.data.photo.url);
+  assert.deepEqual(await byId["pet-portraits"].cards(ctxWith({ pets: [] })), []);
+});
+
+test("a portrait's image comes through the stream's image route", D1, async () => {
+  const { db, env } = await withPet();
+  const body = await (await post(env, `/pets/${PET.id}/photo`, { data: JPEG })).json();
+  const { handleStream } = await import("../app/worker/stream.js");
+  const photoId = body.pets[0].photos[0].id;
+  const res = await handleStream(new Request(`https://hub.example.com/api/stream/image/pet-portraits%3A${PET.id}?v=${photoId}`), { HUB_DB: db }, HUB, async () => [], `/image/pet-portraits%3A${PET.id}`);
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get("Content-Type"), "image/jpeg");
+  const none = await handleStream(new Request("https://hub.example.com/api/stream/image/pet-portraits%3Apet-nobody"), { HUB_DB: db }, HUB, async () => [], "/image/pet-portraits%3Apet-nobody");
+  assert.equal(none.status, 404);
+});
