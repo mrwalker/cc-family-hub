@@ -146,7 +146,7 @@ test("missing pictures are looked for again, not more than once a day", D1, asyn
 
 test("the escape-rooms card uses the hub's rooms and shows a room's picture", async () => {
   const rooms = [
-    { id: "room-a00001", room: "Sunken Temple", venue: "Puzzle Co", date: "2027-05-01", solved: true, who: ["alex"], imageUrl: "https://cdn.example/a.jpg" },
+    { id: "room-a00001", room: "Sunken Temple", venue: "Puzzle Co", date: "2027-05-01", solved: true, who: ["alex"], imageUrl: "https://cdn.example/a.jpg", imageVersion: "v1" },
     { id: "room-b00001", room: "Clockwork Heist", date: "2026-05-01", solved: false, who: ["sam"], imageUrl: null },
   ];
   const ctx = ctxWith({ rooms, data: { family: { escapeRooms: [{ room: "Old list" }] } } });
@@ -156,7 +156,7 @@ test("the escape-rooms card uses the hub's rooms and shows a room's picture", as
   assert.equal(card.glance.headline, "Sunken Temple");
   assert.equal(card.glance.detail, "Escaped · Puzzle Co · May 2027");
   assert.equal(card.glance.emoji, undefined, "no emoji over a picture");
-  assert.equal(card.glance.image, "https://hub.example.com/api/stream/image/escape-rooms%3Aroom-a00001");
+  assert.equal(card.glance.image, "https://hub.example.com/api/stream/image/escape-rooms%3Aroom-a00001?v=v1");
   assert.equal(card.data.room.image, card.glance.image);
   // Before the import: the published list.
   const [old] = await byId["escape-rooms"].cards(ctxWith({ data: { family: { escapeRooms: [{ room: "Old list", solved: true }] } } }));
@@ -164,4 +164,32 @@ test("the escape-rooms card uses the hub's rooms and shows a room's picture", as
   assert.equal(old.glance.headline, "Old list");
   assert.equal(old.glance.emoji, "🔐");
   assert.equal(old.glance.image, undefined);
+});
+
+test("a new picture gets a new link, so no browser keeps showing the old one", D1, async () => {
+  const { as } = setup();
+  const first = (await as("alex")("/rooms", room({ url: "https://venue.example/sunken-temple" }))).body.rooms[0];
+  const second = (await as("alex")("/rooms/room-temple1/image", { imageUrl: "https://cdn.example/new.jpg" })).body.rooms[0];
+  assert.ok(first.imageVersion && second.imageVersion);
+  assert.notEqual(first.imageVersion, second.imageVersion);
+});
+
+test("pictures are asked for as JPEG first, not AVIF", async () => {
+  let accept = "";
+  await imageResponse("https://cdn.example/p.jpg?auto=format", { fetcher: async (url, init) => { accept = init.headers.Accept; return new Response(new Uint8Array([1]), { headers: { "Content-Type": "image/jpeg" } }); } });
+  assert.match(accept, /^image\/jpeg/);
+  assert.doesNotMatch(accept, /avif/);
+});
+
+test("an AVIF from an auto-format CDN is asked for again as JPEG", async () => {
+  const asked = [];
+  const cdn = async url => {
+    asked.push(url);
+    return url.includes("fm=jpg")
+      ? new Response(new Uint8Array([0xff, 0xd8]), { headers: { "Content-Type": "image/jpeg" } })
+      : new Response(new Uint8Array([0]), { headers: { "Content-Type": "image/avif" } });
+  };
+  const res = await imageResponse("https://cdn.example/a.jpg?w=1920&auto=format", { fetcher: cdn });
+  assert.equal(res.headers.get("Content-Type"), "image/jpeg");
+  assert.deepEqual(asked, ["https://cdn.example/a.jpg?w=1920&auto=format", "https://cdn.example/a.jpg?w=1920&fm=jpg"]);
 });

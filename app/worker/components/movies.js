@@ -78,7 +78,7 @@ function keptCards(ctx, movies) {
   return list.map(m => {
     const want = Object.keys(m.marks ?? {}).filter(id => m.marks[id] === "want");
     const seen = Object.keys(m.marks ?? {}).filter(id => m.marks[id] === "seen");
-    const image = m.imageUrl ? ctx.image(`movies:${m.id}`) : null;
+    const image = m.imageUrl ? `${ctx.image(`movies:${m.id}`)}?v=${m.imageVersion ?? ""}` : null;
     return {
       id: `movies:${m.id}`,
       title: m.kind === "show" ? "Shows" : "Movies",

@@ -2619,7 +2619,7 @@ function renderEscapeRooms(rooms, kept, el) {
     } else {
       badge = `<span class="er-time-badge failed">✗ ${esc(room.failNote || 'Not solved')}</span>`;
     }
-    const pic = kept && room.imageUrl ? `<img src="/api/household/image/rooms/${encodeURIComponent(room.id)}" alt="" loading="lazy" onerror="this.remove()">` : '';
+    const pic = kept && room.imageUrl ? `<img src="/api/household/image/rooms/${encodeURIComponent(room.id)}?v=${encodeURIComponent(room.imageVersion || '')}" alt="" loading="lazy" onerror="this.remove()">` : '';
     const dots = (room.who || []).filter(Boolean).map(id => mdot(id, 20)).join('');
     html += `<div class="er-tile${isFastest ? ' er-card-fastest' : ''}">
       <div class="er-pic">${pic}<div class="er-pic-shade"></div>
@@ -2764,7 +2764,7 @@ function renderMovies() {
           title="${esc(mem.name)}">${mark === 'want' ? '★' : mark === 'seen' ? '✓' : esc(mem.name[0])}</button>`;
       }).join('');
       html += `<div class="mv-card">
-        <div class="mv-poster">${m.imageUrl ? `<img src="/api/household/image/movies/${encodeURIComponent(m.id)}" alt="" loading="lazy" onerror="this.remove()">` : ''}
+        <div class="mv-poster">${m.imageUrl ? `<img src="/api/household/image/movies/${encodeURIComponent(m.id)}?v=${encodeURIComponent(m.imageVersion || '')}" alt="" loading="lazy" onerror="this.remove()">` : ''}
           <span class="mv-kind">${m.kind === 'show' ? '📺' : '🍿'}</span>
           ${m.format ? `<span class="mv-format">${esc(m.format)}</span>` : ''}</div>
         <div class="mv-body">
