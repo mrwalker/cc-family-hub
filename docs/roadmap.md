@@ -49,12 +49,13 @@ Built so far:
 - **v2.5.2:** pet portraits full screen on the TV apps (Samsung and Roku) too.
 - **v2.6.0:** **chores:** jobs that rotate weekly among the kids, each with its chores on a
   clear schedule, ticked off on `/household/` by anyone in the family and shown on every screen.
+- **v2.6.1:** the **chore board** on the hub page: a column per kid, each chore a tile to tap,
+  for the wall tablet.
 
 The rest ships in steps:
 
 | Release | What it adds |
 |---------|--------------|
-| v2.6.1 | **The chore board** on the hub page, for ticking chores off on the wall tablet |
 | v2.7.0 | **Activities:** completing what the calendar leaves out |
 
 Activities stay in the calendar, where families already put them. But a practice typed in
