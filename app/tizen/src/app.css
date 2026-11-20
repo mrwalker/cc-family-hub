@@ -47,6 +47,17 @@ html, body { width: 1920px; height: 1080px; overflow: hidden; background: #000; 
   display: flex; align-items: center; font-size: 34px; background: rgba(0,0,0,.45); }
 .strip .sep { margin: 0 28px; opacity: .5; }
 
+/* pet-portraits: the pet's whole photo, as photos are, with its name and what's next */
+.whole.full { bottom: 0; }
+.no-photo { position: absolute; top: 0; right: 0; bottom: 0; left: 0; background: linear-gradient(135deg, #44403c, #1c1917); }
+.pet-shade { background: linear-gradient(180deg, rgba(0,0,0,0) 50%, rgba(0,0,0,.75) 100%); }
+.pet { position: absolute; left: 120px; right: 120px; bottom: 90px; text-shadow: 0 2px 16px rgba(0,0,0,.6); }
+.pet-name { font-size: 140px; font-weight: 700; line-height: 1; letter-spacing: -2px; }
+.pet-age { font-size: 38px; opacity: .85; margin-top: 12px; }
+.pet-next { font-size: 40px; margin-top: 14px; }
+.pet-next .when { opacity: .8; }
+.pet-next.overdue .when { color: #ff8a8a; opacity: 1; font-weight: 700; }
+
 /* grocery */
 .groc { margin-top: 40px; columns: 3; column-gap: 60px; }
 .groc div { font-size: 36px; margin-bottom: 16px; break-inside: avoid; }

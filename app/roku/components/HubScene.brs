@@ -6,6 +6,7 @@
 '   photos                an album photo with a strip: clock, next event, trip countdown
 '   trips, past-trips     the trip screen
 '   grocery               the shopping list
+'   pet-portraits         a pet over its photo, with its name and what's next
 '   anything else         the card's glance: headline, detail, colors, image
 ' Left/right on the remote switch the view (family, then each member).
 
@@ -32,9 +33,10 @@ sub init()
     m.tripLayer = m.top.findNode("tripLayer")
     m.groceryLayer = m.top.findNode("groceryLayer")
     m.glanceLayer = m.top.findNode("glanceLayer")
+    m.petLayer = m.top.findNode("petLayer")
     m.frontPoster = m.top.findNode("photoA")
     m.backPoster = m.top.findNode("photoB")
-    m.layers = { hub: m.layout, photo: m.photoLayer, trip: m.tripLayer, grocery: m.groceryLayer, glance: m.glanceLayer }
+    m.layers = { hub: m.layout, photo: m.photoLayer, trip: m.tripLayer, grocery: m.groceryLayer, glance: m.glanceLayer, pet: m.petLayer }
     m.top.findNode("swap").observeField("state", "onSwapState")
     m.top.findNode("dipOut").observeField("state", "onDipOut")
 
@@ -51,11 +53,12 @@ sub init()
     m.offline = false
     m.index = -1             ' the card showing (or being prepared)
     m.current = invalid      ' the card on screen
-    m.showing = "hub"        ' the layer on screen: hub | photo | trip | grocery | glance
+    m.showing = "hub"        ' the layer on screen: hub | photo | trip | grocery | glance | pet
     m.anchorId = ""          ' the last card shown that wasn't a photo
     m.sinceAnchor = 0        ' photos shown since it
     m.restart = true         ' show the first card as soon as the next stream arrives
     m.images = {}            ' card id → downloaded image (tmp:/)
+    m.imageUrls = {}         ' card id → the URL it was downloaded from
     m.failed = {}            ' card id → true: its image didn't download this stream
     m.downloads = {}         ' card id → FetchTask
     m.pendingId = ""         ' card waiting for its image before it can show
@@ -188,18 +191,28 @@ sub useCards(cards as object)
 end sub
 
 ' Deletes downloaded photos the new stream no longer has, so tmp:/ doesn't fill up.
+' A card whose image changed (a pet's next photo) keeps its id, so it's compared by URL.
 sub pruneImages()
     keep = {}
     for each c in m.cards
-        keep[c.id] = true
+        keep[c.id] = imageUrl(c)
     end for
     for each id in m.images.Keys()
-        if keep[id] = invalid then
-            DeleteFile(m.images[id])
+        if keep[id] = invalid or keep[id] <> m.imageUrls[id] then
+            if not isOnScreen(m.images[id]) then DeleteFile(m.images[id])
             m.images.Delete(id)
+            m.imageUrls.Delete(id)
         end if
     end for
 end sub
+
+' Whether a downloaded file is what a poster is showing now (it's deleted when replaced).
+function isOnScreen(path as string) as boolean
+    for each id in ["petPhoto", "glanceImage", "tripHero"]
+        if m.top.findNode(id).uri = path then return true
+    end for
+    return false
+end function
 
 sub showError(text as string)
     m.stream = invalid
@@ -303,6 +316,7 @@ function layerFor(card as object) as string
     if c = "photos" then return "photo"
     if c = "trips" or c = "past-trips" then return "trip"
     if c = "grocery" then return "grocery"
+    if c = "pet-portraits" then return "pet"
     return "glance"
 end function
 
@@ -314,6 +328,8 @@ sub renderCard(card as object)
         renderTripScreen(card)
     else if c = "grocery" then
         renderGrocery(card)
+    else if c = "pet-portraits" then
+        renderPortrait(card)
     else
         renderGlance(card)
     end if
@@ -350,6 +366,7 @@ sub onDownloaded(event as object)
     m.downloads.Delete(id)
     if result.path <> invalid then
         m.images[id] = result.path
+        m.imageUrls[id] = result.url
     else
         m.failed[id] = true
     end if
@@ -489,6 +506,7 @@ sub onClock()
         m.top.findNode("tripContent").translation = o
         m.top.findNode("groceryContent").translation = o
         m.top.findNode("glanceContent").translation = o
+        m.top.findNode("petContent").translation = o
         m.top.findNode("photoStrip").translation = [o[0], 0]
     end if
 end sub
@@ -871,6 +889,84 @@ function memberColor(id as dynamic, fallback as string) as string
     end for
     return fallback
 end function
+
+' ─── pet-portraits ───────────────────────────────────────────────────────────
+' The pet's whole photo over a soft copy of it, and along the bottom its name, its
+' age, and up to three things coming up (overdue ones in red). The emoji the other
+' screens show are left out: the Roku's system font has none.
+
+sub renderPortrait(card as object)
+    d = card.data
+    if d = invalid then d = {}
+    pet = d.pet
+    if pet = invalid then pet = {}
+    path = imagePath(card)
+    photo = m.top.findNode("petPhoto")
+    back = m.top.findNode("petBack")
+    m.top.findNode("petDim").visible = path <> ""
+    if photo.uri <> path then
+        ' Hidden until it's loaded and sized (onPetPhoto).
+        photo.opacity = 0
+        back.opacity = 0
+        photo.unobserveField("loadStatus")
+        photo.observeField("loadStatus", "onPetPhoto")
+        photo.uri = path
+        back.uri = path
+    end if
+
+    nextList = m.top.findNode("petNext")
+    clearChildren(nextList)
+    items = d.next
+    if items = invalid then items = []
+    rows = 0
+    for each n in items
+        if rows >= 3 then exit for
+        color = m.TEXT
+        if n.overdue = true then color = m.URGENT
+        addLabelTo(nextList, valueOr(n.title, "") + "  ·  " + valueOr(n.when, ""), 0, rows * 60, 40, n.overdue = true, color, 1700)
+        rows = rows + 1
+    end for
+
+    ' Laid out from the bottom up, so a pet with nothing coming up sits as low as one with three.
+    bottom = 1000
+    nextTop = bottom - rows * 60
+    nextList.translation = [106, nextTop]
+    age = m.top.findNode("petAge")
+    about = []
+    if valueOr(pet.species, "") <> "" then about.push(pet.species)
+    if valueOr(pet.age, "") <> "" then about.push(pet.age)
+    age.text = about.Join("  ·  ")
+    ageTop = nextTop - 24
+    if age.text <> "" then ageTop = nextTop - 70
+    age.translation = [106, ageTop]
+    name = m.top.findNode("petName")
+    name.text = valueOr(pet.name, valueOr(card.glance.headline, ""))
+    name.translation = [100, ageTop - 140]
+end sub
+
+' The photo at its own shape: whole and centered, over the soft copy covering the screen.
+sub onPetPhoto()
+    photo = m.top.findNode("petPhoto")
+    status = photo.loadStatus
+    if status <> "ready" and status <> "failed" then return
+    photo.unobserveField("loadStatus")
+    w = photo.bitmapWidth
+    h = photo.bitmapHeight
+    if status = "failed" or w <= 0 or h <= 0 then return
+    fit = 1920 / w
+    if 1080 / h < fit then fit = 1080 / h
+    photo.width = Int(w * fit)
+    photo.height = Int(h * fit)
+    photo.translation = [Int((1920 - w * fit) / 2), Int((1080 - h * fit) / 2)]
+    photo.opacity = 1
+    cover = 1920 / w
+    if 1080 / h > cover then cover = 1080 / h
+    back = m.top.findNode("petBack")
+    back.width = Int(w * cover)
+    back.height = Int(h * cover)
+    back.translation = [Int((1920 - w * cover) / 2), Int((1080 - h * cover) / 2)]
+    back.opacity = 1
+end sub
 
 ' ─── glance (every other component) ──────────────────────────────────────────
 

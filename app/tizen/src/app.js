@@ -118,8 +118,10 @@
     return (need ? image(need) : Promise.resolve(null)).then(function (src) {
       var back = document.getElementById(state.front === 0 ? "slide-b" : "slide-a");
       var front = document.getElementById(state.front === 0 ? "slide-a" : "slide-b");
-      // A photo is shown whole (render() draws it); other cards fill the screen with their image.
-      back.style.backgroundImage = src && card.component !== "photos" ? 'url("' + src + '")' : "";
+      // Photos and pet portraits are shown whole (render() draws them); other cards
+      // fill the screen with their image.
+      var whole = card.component === "photos" || card.component === "pet-portraits";
+      back.style.backgroundImage = src && !whole ? 'url("' + src + '")' : "";
       back.innerHTML = render(card, !!src, src);
       drift(back);
       back.className = "slide shown";
@@ -133,7 +135,7 @@
   function drift(el) {
     state.drift = (state.drift + 1) % 4;
     var x = [0, 14, 0, -14][state.drift], y = [0, 8, 16, 8][state.drift];
-    var inner = el.querySelector(".inner, .glance");
+    var inner = el.querySelector(".inner, .glance, .pet");
     if (inner) inner.style.transform = "translate(" + x + "px," + y + "px)";
   }
 
@@ -162,6 +164,7 @@
       case "trips": return trip(card, d, false, hasImage);
       case "past-trips": return trip(card, d, true, hasImage);
       case "grocery": return grocery(card, d);
+      case "pet-portraits": return portrait(card, d, src);
       default: return glance(card, hasImage);
     }
   }
@@ -227,6 +230,22 @@
       d.today.slice(0, 6).forEach(function (t) { html += '<div class="row">' + esc((t.time ? t.time + "  " : "") + t.title) + "</div>"; });
       html += "</div>";
     }
+    return html + "</div>";
+  }
+
+  /** A pet over its whole photo, with its name, age and what's next for it along the bottom. */
+  function portrait(card, d, src) {
+    var pet = d.pet || {};
+    var pic = src ? '<div class="backdrop" style="background-image:url(&quot;' + src + '&quot;)"></div>' +
+      '<div class="whole full" style="background-image:url(&quot;' + src + '&quot;)"></div>' : '<div class="no-photo"></div>';
+    var html = pic + '<div class="shade pet-shade"></div><div class="pet">' +
+      '<div class="pet-name">' + esc(pet.name || (card.glance && card.glance.headline)) + "</div>";
+    var about = [pet.species, pet.age].filter(Boolean).join(" · ");
+    if (about) html += '<div class="pet-age">' + esc(about) + "</div>";
+    (d.next || []).slice(0, 3).forEach(function (n) {
+      html += '<div class="pet-next' + (n.overdue ? " overdue" : "") + '">' + esc(n.emoji || "") + " " + esc(n.title) +
+        ' <span class="when">· ' + esc(n.when) + "</span></div>";
+    });
     return html + "</div>";
   }
 
