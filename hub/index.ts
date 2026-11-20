@@ -13,6 +13,7 @@ import { writeFileSync, mkdirSync, readFileSync, existsSync } from "fs";
 import { join } from "path";
 import yaml from "js-yaml";
 import { buildPlanningContext } from "./context/builder.js";
+import { loadHousehold } from "./context/household.js";
 import { loadFamilyConfig } from "./context/loader.js";
 import { renderDailyPlanPrompt, generateWeeklyPlan, generateWeeklySummary } from "./planner/engine.js";
 import { loadRegisteredIntegrations } from "./integrations/registry.js";
@@ -31,8 +32,9 @@ const PROMPT_PATH = join(STATE_DIR, "pending-prompt.md");
 async function runPlan() {
   console.log("Building planning context...");
   const ctx = buildPlanningContext({ daysAhead: daysAhead() });
+  ctx.household = (await loadHousehold(daysAhead())) ?? undefined;
 
-  console.log(`Context assembled: ${ctx.members.length} members, ${ctx.events.length} events, ${ctx.contextItems.length} context items`);
+  console.log(`Context assembled: ${ctx.members.length} members, ${ctx.events.length} events, ${ctx.contextItems.length} context items${ctx.household ? `, ${ctx.household.tasks.length} household tasks` : ""}`);
   console.log("Generating weekly plan...");
 
   const plan = await generateWeeklyPlan(ctx);
@@ -48,8 +50,9 @@ async function runPlan() {
 async function runRender() {
   console.log("Building planning context...");
   const ctx = buildPlanningContext({ daysAhead: daysAhead() });
+  ctx.household = (await loadHousehold(daysAhead())) ?? undefined;
 
-  console.log(`Context assembled: ${ctx.members.length} members, ${ctx.events.length} events, ${ctx.contextItems.length} context items`);
+  console.log(`Context assembled: ${ctx.members.length} members, ${ctx.events.length} events, ${ctx.contextItems.length} context items${ctx.household ? `, ${ctx.household.tasks.length} household tasks` : ""}`);
   console.log("Rendering daily-plan prompt...");
 
   const prompt = renderDailyPlanPrompt(ctx);

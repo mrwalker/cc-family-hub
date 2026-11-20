@@ -220,6 +220,46 @@ test("done finishes a one-off; undo and archive bring it back or put it away", D
   assert.equal((await post(env, "/tasks/task-dental/done", { doneOn: "2999-01-01" })).status, 400, "not in the future");
 });
 
+// ─── The planner's export ─────────────────────────────────────────────────────
+
+const exportReq = (token, query = "") => new Request(`${BASE}/export${query}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+const exportAs = (env, token, query) => handleHousehold(exportReq(token, query), { ...env, PUBLISH_TOKEN: "pub-secret" }, HUB, "/export", NOW);
+
+test("the export needs the publish token, and a sign-in isn't enough", D1, async () => {
+  const { env } = await withPet();
+  assert.equal((await exportAs(env, null)).status, 401);
+  assert.equal((await exportAs(env, "wrong")).status, 401);
+  assert.equal((await handleHousehold(exportReq("pub-secret"), env, HUB, "/export", NOW)).status, 503, "no PUBLISH_TOKEN on the Worker");
+  assert.equal((await exportAs(env, "pub-secret")).status, 200);
+});
+
+test("without a database the export says it's off", async () => {
+  assert.deepEqual(await (await exportAs({}, "pub-secret")).json(), { enabled: false });
+});
+
+test("the export has what's due soon or overdue, and what was lately done, by name", D1, async () => {
+  const { env } = await withPet();
+  await post(env, "/tasks", task({ id: "task-late01", kind: "medication", title: "Heartworm pill", dueDate: "2027-06-01", repeatEvery: 1, repeatUnit: "month", repeatFrom: "due" }));
+  await post(env, "/tasks", task({ id: "task-soon01", dueDate: "2027-06-30", provider: "Oak Vet" }));
+  await post(env, "/tasks", task({ id: "task-far001", dueDate: "2027-09-01" }));
+  await post(env, "/tasks", task({ id: "task-brush1", kind: "grooming", title: "Brush", dueDate: "2027-06-15", assignee: "sam", repeatEvery: 1, repeatUnit: "week" }));
+  await post(env, "/tasks/task-brush1/done", { doneOn: "2027-06-20", note: "Matted behind the ears" });
+  const body = await (await exportAs(env, "pub-secret")).json();
+  assert.equal(body.today, "2027-06-21");
+  assert.deepEqual(body.pets, [{ name: "Biscuit", species: "dog", birthday: null, notes: null }]);
+  assert.deepEqual(body.tasks.map(t => [t.title, t.pet, t.dueDate, t.daysUntil, t.overdue, t.repeats]), [
+    ["Heartworm pill", "Biscuit", "2027-06-01", -20, true, "every month"],
+    ["Brush", "Biscuit", "2027-06-27", 6, false, "every week"],
+    ["Rabies shot", "Biscuit", "2027-06-30", 9, false, null],
+  ], "the far-off task waits");
+  assert.equal(body.tasks[1].assignee, "Sam");
+  assert.deepEqual(body.recent, [{ title: "Brush", area: "pets", pet: "Biscuit", doneOn: "2027-06-20", doneBy: "Alex", note: "Matted behind the ears" }]);
+  const wider = await (await exportAs(env, "pub-secret", "?days=90")).json();
+  assert.equal(wider.days, 60, "at most 60 days ahead");
+  assert.equal(wider.tasks.length, 3, "September is still past 60 days");
+  assert.ok(!JSON.stringify(body).includes("task-"), "names, not ids");
+});
+
 // ─── Cards ────────────────────────────────────────────────────────────────────
 
 test("the stream reads what could show today, with one query's worth of rows", D1, async () => {

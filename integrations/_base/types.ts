@@ -149,7 +149,31 @@ export interface PlanningContext {
   events: CalendarEvent[];     // Next N days of events
   contextItems: ContextItem[];
   previousPlan?: WeeklyPlan;
+  household?: HouseholdContext; // From the hub's household records, when it has them
   generatedAt: string;
+}
+
+/** The hub's GET /api/household/export (app/worker/household.js). Names, not ids. */
+export interface HouseholdContext {
+  today: string;               // YYYY-MM-DD, in the family's timezone
+  days: number;                // how far ahead `tasks` looks
+  pets: Array<{ name: string; species: string | null; birthday: string | null; notes: string | null }>;
+  tasks: Array<{
+    area: string;              // "pets", later "house" and "kids"
+    kind: string;              // vaccination, medication, grooming, vet-visit, …
+    title: string;
+    pet: string | null;
+    assignee: string | null;   // a member's name
+    dueDate: string;
+    dueTime: string | null;    // HH:MM
+    daysUntil: number;         // negative when overdue
+    overdue: boolean;
+    repeats: string | null;    // "every month"
+    provider: string | null;
+    phone: string | null;
+    notes: string | null;
+  }>;
+  recent: Array<{ title: string; area: string; pet: string | null; doneOn: string; doneBy: string | null; note: string | null }>;
 }
 
 export interface WeeklyPlan {

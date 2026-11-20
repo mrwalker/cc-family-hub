@@ -11,6 +11,7 @@ import {
   loadCachedEvents,
   loadLastPlan,
 } from "./loader.js";
+import { renderHousehold } from "./household.js";
 
 export function buildPlanningContext(options?: {
   daysAhead?: number;
@@ -98,6 +99,9 @@ export function renderContextForPrompt(ctx: PlanningContext): string {
     }
     lines.push(``);
   }
+
+  // Household records (pets' care, later chores and the house)
+  lines.push(...renderHousehold(ctx.household));
 
   // Previous plan summary
   if (ctx.previousPlan) {
