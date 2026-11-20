@@ -30,14 +30,22 @@ The design is in [architecture.md](architecture.md#household-records). In short:
   tablet. Cards on the hub page link to it.
 - **Nothing to turn off.** A hub without a D1 database gets no cards and no changes.
 
-v2.0.0 shipped the base and the first area: D1, the write API, sign-in checks, the
-`/household/` page, and **pets**. v2.1.0 has the planner read them, and v2.2.0 adds **the
-house**: services, maintenance and fixes. The rest ships in steps:
+Built so far:
+
+- **v2.0.0:** the base (D1, the write API, sign-in checks, the `/household/` page) and **pets**.
+- **v2.1.0:** the planner reads household records.
+- **v2.2.0:** **the house:** services, maintenance and fixes.
+- **v2.3.0:** a family's **places** (more than one house), the same task for **several pets**
+  at once, **booking** an appointment, and **stays** such as boarding.
+
+The rest ships in steps:
 
 | Release | What it adds |
 |---------|--------------|
-| v2.3.0 | **Chores:** assigned to kids, daily and weekly, taking turns |
-| v2.4.0 | **Activities:** completing what the calendar leaves out |
+| v2.4.0 | Booked appointments written to a family Google Calendar, so they reach everyone's phone |
+| v2.5.0 | A photo for each pet, uploaded on `/household/`, and a **pet panel**: each pet full screen over its photo, with what's next for it. Then the same panel on the TV apps. |
+| v2.6.0 | **Chores:** assigned to kids, daily and weekly, taking turns |
+| v2.7.0 | **Activities:** completing what the calendar leaves out |
 
 Activities stay in the calendar, where families already put them. But a practice typed in
 a hurry is often missing its address, a phone number or a link. The hub keeps what it

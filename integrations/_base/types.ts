@@ -158,22 +158,28 @@ export interface HouseholdContext {
   today: string;               // YYYY-MM-DD, in the family's timezone
   days: number;                // how far ahead `tasks` looks
   pets: Array<{ name: string; species: string | null; birthday: string | null; notes: string | null }>;
+  places?: Array<{ name: string; address: string | null }>;   // v2.3+
   tasks: Array<{
     area: string;              // "pets", later "house" and "kids"
     kind: string;              // vaccination, medication, grooming, vet-visit, …
     title: string;
     pet: string | null;
+    place?: string | null;     // which house (v2.3+)
     assignee: string | null;   // a member's name
     dueDate: string;
     dueTime: string | null;    // HH:MM
     daysUntil: number;         // negative when overdue
     overdue: boolean;
     repeats: string | null;    // "every month"
+    booked?: boolean;          // an appointment is booked (v2.3+)
+    apptDate?: string | null;
+    apptTime?: string | null;
+    endDate?: string | null;   // a stay's last day (boarding)
     provider: string | null;
     phone: string | null;
     notes: string | null;
   }>;
-  recent: Array<{ title: string; area: string; pet: string | null; doneOn: string; doneBy: string | null; note: string | null }>;
+  recent: Array<{ title: string; area: string; pet: string | null; place?: string | null; doneOn: string; doneBy: string | null; note: string | null }>;
 }
 
 export interface WeeklyPlan {

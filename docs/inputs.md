@@ -111,12 +111,15 @@ and your phone agree.
 
 What it takes to run the house, kept by the hub itself:
 
-- **Pets:** vaccinations, medications, grooming and vet visits.
+- **Pets:** vaccinations, medications, teeth cleanings, grooming, vet visits and boarding.
+  One task can cover several pets: add it once and tick which ones.
 - **The house:** services that come to the house (lawn, cleaning, pest control),
-  maintenance on a schedule (filters, gutters, smoke detectors), and fixes.
+  maintenance on a schedule (filters, gutters, smoke detectors), and fixes. A family with
+  more than one house lists its places, and each task says which.
 
 Each is a task with a due date. It can repeat, and it keeps a record of every time it was
-done. A fix can go without a date: it waits on the page, with no card, until it's done.
+done. An appointment can be booked, with its own date and time, and a stay has an end
+date. A fix can go without a date: it waits on the page, with no card, until it's done.
 
 You add and change them at `/household/` on your hub, on a phone or the hub page. Adults
 can change anything. Everyone else can look. A task shows on every screen as a `pets` or
