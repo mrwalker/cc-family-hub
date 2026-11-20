@@ -135,6 +135,62 @@ export const MIGRATIONS = [
       `CREATE INDEX IF NOT EXISTS pet_photos_pet ON pet_photos (pet_id, created_at)`,
     ],
   },
+  {
+    // v2.6: chores. Jobs rotate weekly among the kids (the rotation is in household_meta
+    // under chore_rotation); each chore belongs to jobs or to named people, and comes round
+    // on its schedule. A tick is a chore_log row; a missed chore writes nothing.
+    version: 5,
+    statements: [
+      `CREATE TABLE IF NOT EXISTS chore_jobs (
+         id TEXT PRIMARY KEY,
+         name TEXT NOT NULL,
+         emoji TEXT,
+         position INTEGER NOT NULL DEFAULT 0,
+         archived INTEGER NOT NULL DEFAULT 0,
+         updated_at INTEGER NOT NULL,
+         updated_by TEXT
+       )`,
+      `CREATE TABLE IF NOT EXISTS chores (
+         id TEXT PRIMARY KEY,
+         title TEXT NOT NULL,
+         job_ids TEXT,
+         people TEXT,
+         cadence TEXT NOT NULL,
+         days TEXT,
+         every_weeks INTEGER NOT NULL DEFAULT 1,
+         anchor_week TEXT,
+         time TEXT,
+         time_kind TEXT,
+         season_from TEXT,
+         season_to TEXT,
+         asked_for TEXT,
+         notes TEXT,
+         position INTEGER NOT NULL DEFAULT 0,
+         archived INTEGER NOT NULL DEFAULT 0,
+         created_at INTEGER NOT NULL,
+         created_by TEXT,
+         updated_at INTEGER NOT NULL,
+         updated_by TEXT
+       )`,
+      `CREATE TABLE IF NOT EXISTS chore_log (
+         id TEXT PRIMARY KEY,
+         chore_id TEXT NOT NULL REFERENCES chores(id),
+         period TEXT NOT NULL,
+         done_for TEXT,
+         done_by TEXT,
+         action_id TEXT NOT NULL,
+         created_at INTEGER NOT NULL
+       )`,
+      `CREATE INDEX IF NOT EXISTS chore_log_period ON chore_log (period)`,
+      `CREATE INDEX IF NOT EXISTS chore_log_action ON chore_log (action_id)`,
+      `CREATE TABLE IF NOT EXISTS chore_swaps (
+         week TEXT NOT NULL,
+         job_id TEXT NOT NULL,
+         member TEXT NOT NULL,
+         PRIMARY KEY (week, job_id)
+       )`,
+    ],
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

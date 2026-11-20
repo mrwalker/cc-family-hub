@@ -47,12 +47,13 @@ Built so far:
 - **v2.5.0:** a **photo** for each pet, added on `/household/`, and **pet portraits**: each pet
   full screen over its photo on the hub page, with what's next for it.
 - **v2.5.2:** pet portraits full screen on the TV apps (Samsung and Roku) too.
+- **v2.6.0:** **chores:** jobs that rotate weekly among the kids, each with its chores on a
+  clear schedule, ticked off on `/household/` by anyone in the family and shown on every screen.
 
 The rest ships in steps:
 
 | Release | What it adds |
 |---------|--------------|
-| v2.6.0 | **Chores:** jobs that rotate weekly among the kids, each with chores on a clear schedule; ticked off on `/household/`, shown on every screen |
 | v2.6.1 | **The chore board** on the hub page, for ticking chores off on the wall tablet |
 | v2.7.0 | **Activities:** completing what the calendar leaves out |
 

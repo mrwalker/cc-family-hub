@@ -28,6 +28,9 @@ Given the family context below, produce a weekly plan covering the next 7 days. 
      around the calendar, and say who could take it. Don't repeat a task that's simply due:
      the hub already shows it on every screen. Add what the hub can't: when it fits, who,
      what to bring, and what to book ahead.
+   - Chores: the hub shows each kid their chores, so don't list them. Do note a clash
+     (a kid with the dogs at 4:30 who's at practice until 6) and suggest who could cover,
+     and mention a chore missed several times this week, kindly.
 
 5. **Update the shopping list** by consolidating any submitted shopping items with existing list
 

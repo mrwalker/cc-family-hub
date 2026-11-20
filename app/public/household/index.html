@@ -117,6 +117,36 @@
     .check input { width: auto; min-height: 0; margin-right: 6px; }
     .form-actions button { margin: 4px 8px 0 0; }
     .hidden { display: none !important; }
+
+    /* Chores */
+    .day-nav { position: relative; text-align: center; margin: 4px 0 12px; min-height: 42px; }
+    .day-nav .day-title { font-size: 18px; font-weight: 700; line-height: 42px; }
+    .day-nav .prev { position: absolute; left: 0; top: 0; }
+    .day-nav .next { position: absolute; right: 0; top: 0; }
+    .kid { border-left: 6px solid var(--border); }
+    .kid h2 .jobs { font-size: 14px; font-weight: 400; color: var(--muted); margin-left: 6px; }
+    .chore { border-top: 1px solid var(--border); padding: 12px 0; position: relative; padding-right: 120px; min-height: 66px; }
+    .chore:first-of-type { border-top: 0; }
+    .chore-title { font-size: 17px; font-weight: 600; }
+    .chore-when { font-size: 14px; color: var(--muted); }
+    .chore.is-late .chore-when { color: var(--urgent); font-weight: 600; }
+    .chore.is-done .chore-title { color: var(--muted); text-decoration: line-through; }
+    .chore.is-done .chore-when { color: #15803d; }
+    .chore.is-missed .chore-when { color: var(--urgent); }
+    .chore .chore-btn { position: absolute; right: 0; top: 12px; min-width: 104px; }
+    .chore .chore-btn.big { min-height: 48px; font-size: 17px; }
+    .jobs-table { width: 100%; border-collapse: collapse; font-size: 15px; table-layout: fixed; }
+    .jobs-table th:first-child { width: 32%; } .jobs-table th:last-child { width: 28%; }
+    .jobs-table td { overflow: hidden; text-overflow: ellipsis; }
+    .jobs-table th { text-align: left; font-size: 12px; color: var(--muted); font-weight: 700; text-transform: uppercase; letter-spacing: .05em; padding: 4px 6px 6px 0; }
+    .jobs-table td { border-top: 1px solid var(--border); padding: 8px 6px 8px 0; vertical-align: middle; }
+    .jobs-table select { min-height: 36px; padding: 4px 6px; font-size: 15px; }
+    .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; }
+    .setup-row { border-top: 1px solid var(--border); padding: 10px 0; position: relative; padding-right: 150px; min-height: 52px; }
+    .setup-row:first-of-type { border-top: 0; }
+    .setup-row .actions { position: absolute; right: 0; top: 8px; }
+    .setup-row .actions button { margin-left: 6px; }
+    .job-edit { display: grid; grid-template-columns: 1fr 70px 44px; grid-gap: 8px; margin-bottom: 8px; }
   </style>
 </head>
 <body>
@@ -205,12 +235,14 @@ function request(path, body) {
 }
 
 function load() {
-  return request("").then(data => { state = data; render(); }).catch(e => setStatus(`Couldn't load: ${e.message}`, true));
+  const path = area === "chores" && choreDay ? "/chores?day=" + choreDay : "";
+  return request(path).then(data => { state = data; render(); }).catch(e => setStatus(`Couldn't load: ${e.message}`, true));
 }
 
 /** Sends a change, then redraws from the hub's answer. */
 function send(path, body, doneText) {
   if (busy) return Promise.resolve(false);
+  if (choreDay && /^\/(chores|undo)/.test(path)) body = Object.assign({ day: choreDay }, body || {});
   busy = true;
   setStatus("Saving…");
   return request(path, body || {}).then(data => {
@@ -306,8 +338,10 @@ function render() {
   $("who").textContent = v ? `Signed in as ${v.name}` : "";
   const banner = $("banner");
   const cal = state.calendar || {};
-  if (!state.can.manage) {
-    banner.textContent = v ? "You can look, but only adults can make changes here." : `You can look, but changes are off: ${state.problem}`;
+  const choresTab = area === "chores" || (!area && v && v.role === "child");
+  if (!state.can.manage && !(choresTab && state.can.tick)) {
+    banner.textContent = v ? (state.can.tick ? "You can tick chores done. Only adults can change the rest." : "You can look, but only adults can make changes here.")
+      : `You can look, but changes are off: ${state.problem}`;
     banner.classList.remove("hidden");
   } else if (cal.problem) {
     // Saved here, but the calendar didn't get it.
@@ -315,13 +349,15 @@ function render() {
     banner.classList.remove("hidden");
   } else banner.classList.add("hidden");
 
-  const areas = Object.keys(state.areas);
-  if (!area || areas.indexOf(area) < 0) area = areas.indexOf(location.hash.slice(1)) >= 0 ? location.hash.slice(1) : areas[0];
+  const areas = Object.keys(state.areas).concat("chores");
+  const label = a => (state.areas[a] ? state.areas[a].label : "Chores");
+  // Kids start on their chores.
+  if (!area || areas.indexOf(area) < 0) area = areas.indexOf(location.hash.slice(1)) >= 0 ? location.hash.slice(1) : v && v.role === "child" ? "chores" : areas[0];
   const tabs = $("tabs");
   tabs.classList.toggle("hidden", areas.length < 2);
-  tabs.innerHTML = areas.map(a => `<button data-do="area" data-id="${a}" class="${a === area ? "active" : ""}">${esc(state.areas[a].label)}</button>`).join("");
+  tabs.innerHTML = areas.map(a => `<button data-do="area" data-id="${a}" class="${a === area ? "active" : ""}">${esc(label(a))}</button>`).join("");
 
-  main.innerHTML = area === "pets" ? petsView() : area === "house" ? houseView() : listView(area);
+  main.innerHTML = area === "pets" ? petsView() : area === "house" ? houseView() : area === "chores" ? choresView() : listView(area);
   wirePhotoInputs();
   const first = main.querySelector(".form input:not([type=checkbox]), .form select");
   if (first && form && form.fresh) { first.focus(); form.fresh = false; }
@@ -493,6 +529,331 @@ function archivedView(tasks) {
   if (!archived.length) return "";
   return `<div class="section-label"><button class="quiet" data-do="toggle-archived">${showArchived ? "Hide" : "Show"} archived (${archived.length})</button></div>` +
     (showArchived ? `<div class="card">${archived.map(t => bundleRow({ key: t.id, task: t, tasks: [t] })).join("")}</div>` : "");
+}
+
+// ── Chores ─────────────────────────────────────────────────────────
+// Each kid's chores for a day, the week's jobs, and (for adults) the setup.
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const CADENCE_LABELS = { daily: "Every day (or some days)", weekly: "Once a week", "as-needed": "As needed", "when-asked": "When asked" };
+let choreDay = null;      // the day the Chores tab is showing (null: today)
+let showSetup = false;    // adults: the chores setup is open
+let showArchivedChores = false;
+
+const C = () => state.chores || { setUp: false, jobs: [], chores: [], view: { people: [], jobs: [] }, holders: {}, log: [] };
+const kids = () => state.members.filter(m => m.role === "child");
+const liveJobs = () => C().jobs.filter(j => !j.archived);
+const memberColor = id => { const m = state.members.find(x => x.id === id); return m && m.color ? m.color : "#a1a1aa"; };
+const dot = id => `<span class="dot" style="background:${esc(memberColor(id))}"></span>`;
+const clockText = ms => new Date(ms).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+
+function scheduleText(c) {
+  const days = c.days && c.days.length ? c.days : null;
+  let s;
+  if (c.cadence === "daily") s = !days ? "Every day" : days.join() === "1,2,3,4,5" ? "Weekdays" : days.join() === "0,6" ? "Weekends" : days.map(d => WEEKDAYS[d]).join(", ");
+  else if (c.cadence === "weekly") {
+    const every = c.everyWeeks > 1 ? `Every ${c.everyWeeks} weeks` : "Every week";
+    s = days ? `${every} on ${days.map(d => WEEKDAYS[d]).join(" & ")}` : c.everyWeeks > 1 ? `${every}, any day` : "Once a week, any day";
+  } else s = c.cadence === "as-needed" ? "As needed" : "When asked";
+  if (c.time) s += ` · ${c.timeKind === "by" ? "by" : "at"} ${timeText(c.time)}`;
+  if (c.seasonFrom) s += ` · ${dateText("2001-" + c.seasonFrom, { month: "short", day: "numeric" })} – ${dateText("2001-" + c.seasonTo, { month: "short", day: "numeric" })}`;
+  return s;
+}
+
+/** Whose a chore is: its jobs, or its people. */
+function ownerText(c) {
+  if (c.people && c.people.length) return c.people.map(memberName).join(" & ");
+  return (c.jobIds || []).map(id => { const j = C().jobs.find(x => x.id === id); return j ? j.name : "?"; }).join(" & ");
+}
+
+/** May this sign-in take back this tick? (The hub checks too.) */
+function canUndoTick(doneBy, doneAt) {
+  if (state.can.manage) return true;
+  return !!state.viewer && doneBy === state.viewer.id && new Date(doneAt).toDateString() === new Date().toDateString();
+}
+
+function choreRow(c, day) {
+  const tick = state.can.tick;
+  const late = c.status === "late", done = c.status === "done";
+  let when = c.when ? c.when.charAt(0).toUpperCase() + c.when.slice(1) : "";
+  const withText = c.with && c.with.length ? ` · with ${c.with.map(memberName).join(" & ")}` : "";
+  let btn = "";
+  if (c.cadence === "as-needed") {
+    when = c.count ? `Done ${c.count === 1 ? "once" : c.count + " times"} today` : "As needed";
+    if (tick) btn = `<button class="chore-btn" data-do="chore-done" data-id="${c.id}">+1 Done</button>`;
+  } else if (done) {
+    when = `Done ${c.doneAt ? clockText(c.doneAt) : ""}${c.doneBy ? ` · ticked by ${memberName(c.doneBy)}` : ""}`;
+    if (c.actionId && canUndoTick(c.doneBy, c.doneAt)) btn = `<button class="chore-btn quiet" data-do="chore-undo" data-id="${c.actionId}">Undo</button>`;
+  } else if (c.status === "missed") {
+    when = "Missed";
+    if (tick && daysUntil(day) >= -7) btn = `<button class="chore-btn" data-do="chore-done" data-id="${c.id}">Done late</button>`;
+  } else if (c.status === "tomorrow") {
+    when = "Tomorrow" + (c.when ? ` ${c.when}` : "");
+  } else {
+    if (late) when = (when ? when + " · " : "") + "Late";
+    else if (c.cadence === "when-asked" && c.period) when = `By ${shortDate(c.period)}`;
+    else if (!when) when = c.period && c.period !== day ? "This week" : "Today";
+    if (tick) btn = `<button class="chore-btn big primary" data-do="chore-done" data-id="${c.id}">Done</button>`;
+  }
+  return `<div class="chore is-${c.status}">
+    <div class="chore-title">${esc(c.title)}</div>
+    <div class="chore-when">${esc(when + withText)}</div>
+    ${c.notes ? `<div class="task-more">${esc(c.notes)}</div>` : ""}
+    ${btn}
+  </div>`;
+}
+
+function choresView() {
+  const c = C();
+  const manage = state.can.manage;
+  if (!c.setUp && !showSetup) {
+    return `<div class="card"><h2>No chores yet</h2><p class="sub" style="margin-top:6px">
+      Chores are the kids' jobs (trash, dishes, the dogs), which take turns each week, and what each job involves and when.</p>
+      ${manage ? `<div class="task-actions" style="margin-top:12px"><button class="primary" data-do="chores-setup">Set up chores</button></div>` : ""}</div>`;
+  }
+  const v = c.view, day = c.day || state.today;
+  let html = "";
+  const title = day === state.today ? `Today · ${shortDate(day)}` : daysUntil(day) === -1 ? `Yesterday · ${shortDate(day)}` : shortDate(day);
+  html += `<div class="day-nav"><button class="prev small" data-do="chore-day" data-id="-1">‹</button>
+    <span class="day-title">${esc(title)}</span>
+    ${day < state.today ? `<button class="next small" data-do="chore-day" data-id="1">›</button>` : ""}</div>`;
+
+  // A kid sees their own chores first.
+  const people = v.people.slice();
+  const me = state.viewer && people.findIndex(p => p.id === state.viewer.id);
+  if (me > 0) people.unshift(people.splice(me, 1)[0]);
+  people.forEach(p => {
+    html += `<div class="card kid" style="border-left-color:${esc(p.color || "#a1a1aa")}">
+      <div class="card-head"><h2>${esc(p.name)}${p.jobs.length ? `<span class="jobs">${esc(p.jobs.join(", "))}</span>` : ""}</h2></div>
+      ${p.chores.length ? p.chores.map(ch => choreRow(ch, day)).join("") : `<div class="empty">Nothing ${day === state.today ? "today" : "that day"}.</div>`}
+    </div>`;
+  });
+
+  html += weekJobsView();
+  if (manage) {
+    html += `<div class="section-label"><button class="quiet" data-do="chores-setup">${showSetup ? "Hide" : "Show"} setup</button></div>`;
+    if (showSetup) html += choresSetupView();
+  }
+  return html + choreLogView();
+}
+
+/** Who has which job this week and next. Adults can give one week's job to someone else. */
+function weekJobsView() {
+  const c = C(), jobs = liveJobs();
+  if (!jobs.length) return "";
+  const weeks = Object.keys(c.holders || {}).sort();
+  const [thisWeek, nextWeek] = weeks;
+  const swapped = id => (c.swaps || []).some(s => s.week === thisWeek && s.jobId === id);
+  const rows = jobs.map(j => {
+    const now = c.holders[thisWeek] ? c.holders[thisWeek][j.id] : null;
+    const next = nextWeek && c.holders[nextWeek] ? c.holders[nextWeek][j.id] : null;
+    const cell = state.can.manage
+      ? `<select class="f-swap" data-id="${j.id}" data-week="${thisWeek}">${kids().concat(state.members.filter(m => m.role !== "child")).map(m => opt(m.id, m.name, now || "")).join("")}</select>${swapped(j.id) ? ` <button class="small quiet" data-do="swap-clear" data-id="${j.id}" data-key="${thisWeek}">Undo swap</button>` : ""}`
+      : now ? `${dot(now)}${esc(memberName(now))}` : "–";
+    return `<tr><td>${j.emoji ? esc(j.emoji) + " " : ""}${esc(j.name)}</td><td>${cell}</td><td>${next ? dot(next) + esc(memberName(next)) : "–"}</td></tr>`;
+  }).join("");
+  return `<div class="section-label">This week's jobs</div><div class="card">
+    <table class="jobs-table"><tr><th>Job</th><th>This week</th><th>Next week</th></tr>${rows}</table>
+    ${state.can.manage ? `<div class="hint sub" style="margin-top:8px">Changing someone here is for this week only.</div>` : ""}
+  </div>`;
+}
+
+function choresSetupView() {
+  const c = C();
+  let html = "";
+  // Jobs and the rotation.
+  if (form && form.type === "jobs") html += jobsForm();
+  else {
+    const jobs = liveJobs();
+    const r = c.rotation;
+    html += `<div class="card"><div class="card-head"><h2>Jobs and turns</h2>
+      <button class="quiet" data-do="edit-jobs">Edit</button></div>
+      ${jobs.length ? `<div class="sub">${jobs.map(j => esc((j.emoji ? j.emoji + " " : "") + j.name)).join(" · ")}</div>` : `<div class="empty">No jobs yet.</div>`}
+      <div class="sub" style="margin-top:4px">${r ? `${esc(r.people.map(memberName).join(", "))} take turns. Jobs move ${r.direction === -1 ? "back" : "on"} one every ${WEEKDAYS[r.startsOn == null ? 1 : r.startsOn]}.` : "Nobody's taking turns yet."}</div>
+    </div>`;
+  }
+  // The chores, by job.
+  const live = c.chores.filter(ch => !ch.archived);
+  html += `<div class="card"><div class="card-head"><h2>Chores</h2></div>`;
+  if (!live.length && !(form && form.type === "chore")) html += `<div class="empty">No chores yet.</div>`;
+  live.forEach(ch => {
+    if (form && form.type === "chore" && form.id === ch.id) { html += choreForm(ch); return; }
+    const asked = ch.cadence === "when-asked";
+    html += `<div class="setup-row">
+      <div class="chore-title">${esc(ch.title)}</div>
+      <div class="sub">${esc(ownerText(ch))} · ${esc(scheduleText(ch))}${asked && ch.askedFor ? ` · asked for ${esc(shortDate(ch.askedFor))}` : ""}</div>
+      ${form && form.type === "ask" && form.id === ch.id ? `<div class="form"><div class="row">
+          <div class="field"><label for="a-by">By</label><input id="a-by" type="date" value="${esc(ch.askedFor || state.today)}"></div><div></div></div>
+          <div class="form-actions"><button class="primary" data-do="save-ask" data-id="${ch.id}">Ask</button><button data-do="cancel">Cancel</button>
+          ${ch.askedFor ? `<button class="danger" data-do="unask" data-id="${ch.id}">Not needed</button>` : ""}</div></div>` : ""}
+      <div class="actions">${asked ? `<button class="small" data-do="ask" data-id="${ch.id}">${ch.askedFor ? "Asked" : "Ask"}</button>` : ""}<button class="small" data-do="edit-chore" data-id="${ch.id}">Edit</button></div>
+    </div>`;
+  });
+  if (form && form.type === "chore" && !form.id) html += choreForm(null);
+  else if (liveJobs().length || kids().length) html += `<div class="task-actions" style="margin-top:10px"><button data-do="add-chore">+ Add a chore</button></div>`;
+  html += `</div>`;
+  const archived = c.chores.filter(ch => ch.archived);
+  if (archived.length) {
+    html += `<div class="section-label"><button class="quiet" data-do="toggle-archived-chores">${showArchivedChores ? "Hide" : "Show"} archived chores (${archived.length})</button></div>`;
+    if (showArchivedChores) html += `<div class="card">${archived.map(ch => `<div class="setup-row"><div class="chore-title">${esc(ch.title)}</div><div class="sub">${esc(scheduleText(ch))}</div>
+      <div class="actions"><button class="small" data-do="restore-chore" data-id="${ch.id}">Restore</button></div></div>`).join("")}</div>`;
+  }
+  return html;
+}
+
+function jobsForm() {
+  const c = C();
+  const rows = form.jobs;
+  const r = c.rotation || { people: [], startsOn: 1, direction: 1 };
+  const thisWeek = Object.keys(c.holders || {}).sort()[0];
+  const now = (c.holders && c.holders[thisWeek]) || {};
+  const holderOf = j => form.holders[j.id] !== undefined ? form.holders[j.id] : now[j.id] || "";
+  const assigned = rows.filter(j => !j.archived).map(holderOf).filter(Boolean);
+  return `<div class="form" data-form="jobs">
+    <h3>Jobs and turns</h3>
+    <div class="field-label">The jobs, in order</div>
+    ${rows.map((j, i) => j.archived ? "" : `<div class="job-edit">
+      <input class="f-job-name" data-i="${i}" maxlength="40" placeholder="Trash" value="${esc(j.name)}">
+      <input class="f-job-emoji" data-i="${i}" maxlength="8" placeholder="🗑️" value="${esc(j.emoji)}">
+      <button class="small" data-do="remove-job" data-id="${i}" title="Remove">✕</button></div>`).join("")}
+    <div class="task-actions"><button class="small" data-do="add-job">+ Add a job</button></div>
+    <div class="field" style="margin-top:14px"><span class="field-label">Who has each job this week</span>
+      ${rows.map((j, i) => j.archived || !j.name ? "" : `<div class="row" style="margin-bottom:6px"><div style="line-height:42px">${esc(j.name)}</div>
+        <select class="f-holder" data-i="${i}">${opt("", "Nobody", holderOf(j))}${state.members.map(m => opt(m.id, m.name, holderOf(j))).join("")}</select></div>`).join("")}
+    </div>
+    <div class="field"><span class="field-label">Also taking turns (no job this week)</span>
+      ${kids().filter(k => assigned.indexOf(k.id) < 0).map(k => `<label class="check"><input type="checkbox" class="f-extra" value="${k.id}"${r.people.indexOf(k.id) >= 0 ? " checked" : ""}>${esc(k.name)}</label>`).join("") || `<div class="hint">Everyone has a job.</div>`}
+    </div>
+    <div class="row">
+      <div class="field"><label for="f-starts">New jobs every</label><select id="f-starts">${[1, 0, 6].map(d => opt(String(d), ["Sunday", "Monday", "", "", "", "", "Saturday"][d], String(r.startsOn == null ? 1 : r.startsOn))).join("")}</select></div>
+      <div class="field"><label for="f-dir">Each week, everyone moves</label><select id="f-dir">${opt("1", "To the next job down", String(r.direction))}${opt("-1", "To the job above", String(r.direction))}</select></div>
+    </div>
+    <div class="form-actions"><button class="primary" data-do="save-jobs">Save</button><button data-do="cancel">Cancel</button></div>
+  </div>`;
+}
+
+/** Reads the jobs form's fields back into form.jobs, so a redraw keeps what's typed. */
+function readJobsForm() {
+  Array.prototype.forEach.call(document.querySelectorAll(".f-job-name"), el => { form.jobs[+el.getAttribute("data-i")].name = el.value; });
+  Array.prototype.forEach.call(document.querySelectorAll(".f-job-emoji"), el => { form.jobs[+el.getAttribute("data-i")].emoji = el.value; });
+  Array.prototype.forEach.call(document.querySelectorAll(".f-holder"), el => { form.holders[form.jobs[+el.getAttribute("data-i")].id] = el.value; });
+}
+
+function saveJobs() {
+  readJobsForm();
+  const jobs = form.jobs.filter(j => j.name.trim() || j.archived && j.saved);
+  const live = jobs.filter(j => !j.archived);
+  if (!live.length) { setStatus("Add at least one job", true); return; }
+  const people = [];
+  live.forEach(j => { const h = form.holders[j.id]; if (h && people.indexOf(h) < 0) people.push(h); });
+  if (people.length !== live.filter(j => form.holders[j.id]).length) { setStatus("Give each person one job this week (or nobody)", true); return; }
+  Array.prototype.forEach.call(document.querySelectorAll(".f-extra"), el => { if (el.checked && people.indexOf(el.value) < 0) people.push(el.value); });
+  // The rotation is anchored this week: the first person in it holds the first job, and so on.
+  // Jobs with nobody go to the end, so the people line up with the jobs they hold.
+  const ordered = live.filter(j => form.holders[j.id]).concat(live.filter(j => !form.holders[j.id]));
+  const sent = ordered.map((j, i) => ({ id: j.id, name: j.name.trim(), emoji: j.emoji.trim(), position: i }))
+    .concat(jobs.filter(j => j.archived).map(j => ({ id: j.id, name: j.name || "Job", emoji: j.emoji || "", position: 99, archived: true })));
+  const rotation = { people, anchorWeek: state.today, startsOn: Number(val("f-starts")), direction: Number(val("f-dir")) };
+  send("/chores/jobs", { jobs: sent }).then(ok => ok && send("/chores/rotation", rotation, "Saved")).then(ok => { if (ok) form = null; render(); });
+}
+
+function choreForm(ch) {
+  const d = form.draft || ch || { cadence: "daily", jobIds: [], people: [], everyWeeks: 1, timeKind: "at" };
+  const byPeople = form.byPeople != null ? form.byPeople : !!(d.people && d.people.length);
+  const cad = d.cadence;
+  const days = d.days || [];
+  const thisWeek = Object.keys(C().holders || {}).sort()[0] || state.today;
+  return `<div class="form" data-form="chore">
+    <h3>${ch ? `Edit ${esc(ch.title)}` : "Add a chore"}</h3>
+    <div class="field"><label for="c-title">What</label><input id="c-title" maxlength="80" placeholder="Feed the dogs" value="${esc(d.title)}"></div>
+    <div class="field"><span class="field-label">Whose</span>
+      <label class="check"><input type="radio" name="c-whose" id="c-by-job"${byPeople ? "" : " checked"}>Whoever has the job</label>
+      <label class="check"><input type="radio" name="c-whose" id="c-by-people"${byPeople ? " checked" : ""}>Particular people</label>
+      <div style="margin-top:4px">${byPeople
+        ? state.members.map(m => `<label class="check"><input type="checkbox" class="c-person" value="${m.id}"${(d.people || []).indexOf(m.id) >= 0 ? " checked" : ""}>${esc(m.name)}</label>`).join("")
+        : liveJobs().map(j => `<label class="check"><input type="checkbox" class="c-job" value="${j.id}"${(d.jobIds || []).indexOf(j.id) >= 0 ? " checked" : ""}>${esc(j.name)}</label>`).join("") || `<span class="hint">Add jobs first, under Jobs and turns.</span>`}</div>
+      ${byPeople ? "" : `<div class="hint">Tick two jobs for a chore they do together.</div>`}</div>
+    <div class="field"><label for="c-cadence">How often</label><select id="c-cadence">${Object.keys(CADENCE_LABELS).map(k => opt(k, CADENCE_LABELS[k], cad)).join("")}</select></div>
+    ${cad === "daily" ? `<div class="field"><span class="field-label">On</span>${WEEKDAYS.map((w, i) => `<label class="check"><input type="checkbox" class="c-day" value="${i}"${!days.length || days.indexOf(i) >= 0 ? " checked" : ""}>${w}</label>`).join("")}</div>` : ""}
+    ${cad === "weekly" ? `<div class="row">
+      <div class="field"><label for="c-weekday">On</label><select id="c-weekday">${opt("", "Any day that week", days.length ? String(days[0]) : "")}${WEEKDAYS.map((w, i) => opt(String(i), w, days.length ? String(days[0]) : "")).join("")}</select></div>
+      <div class="field"><label for="c-every">Every</label><select id="c-every">${[1, 2, 3, 4].map(n => opt(String(n), n === 1 ? "week" : `${n} weeks`, String(d.everyWeeks || 1))).join("")}</select></div></div>
+      <div class="field ${d.everyWeeks > 1 ? "" : "hidden"}" id="c-anchor-box"><label for="c-anchor">Starting the week of</label><input id="c-anchor" type="date" value="${esc(d.anchorWeek || thisWeek)}">
+        <div class="hint">For things that alternate (the recycling every other week), add one chore for each week, starting a week apart.</div></div>` : ""}
+    ${cad === "daily" || cad === "weekly" ? `<div class="row3">
+      <div class="field"><label for="c-timekind">Time</label><select id="c-timekind">${opt("at", "At", d.timeKind || "at")}${opt("by", "By", d.timeKind || "at")}</select></div>
+      <div class="field"><label for="c-time">&nbsp;</label><input id="c-time" type="time" value="${esc(d.time)}"></div></div>
+      <div class="field"><label class="check"><input type="checkbox" id="c-seasonal"${d.seasonFrom ? " checked" : ""}>Only part of the year</label>
+        <div class="row ${d.seasonFrom ? "" : "hidden"}" id="c-season-box">
+          <div class="field"><label for="c-from">From</label><input id="c-from" type="date" value="${d.seasonFrom ? "2027-" + esc(d.seasonFrom) : ""}"></div>
+          <div class="field"><label for="c-to">Until</label><input id="c-to" type="date" value="${d.seasonTo ? "2027-" + esc(d.seasonTo) : ""}"></div>
+        </div><div class="hint">The year doesn't matter; it comes back every year.</div></div>` : ""}
+    ${cad === "when-asked" ? `<div class="field"><div class="hint">It shows on screens once an adult taps Ask, until it's done.</div></div>` : ""}
+    <div class="field"><label for="c-notes">Notes</label><textarea id="c-notes" maxlength="300" placeholder="How to do it, where things go">${esc(d.notes)}</textarea></div>
+    <div class="form-actions"><button class="primary" data-do="save-chore">Save</button><button data-do="cancel">Cancel</button>
+      ${ch ? `<button class="danger" data-do="archive-chore" data-id="${ch.id}">Archive</button>` : ""}</div>
+  </div>`;
+}
+
+/** The chore form's fields, as a chore. */
+function readChoreForm() {
+  const old = form.id ? C().chores.find(x => x.id === form.id) : null;
+  const checked = cls => Array.prototype.filter.call(document.querySelectorAll(cls), el => el.checked).map(el => el.value);
+  const cadence = val("c-cadence");
+  const byPeople = $("c-by-people") && $("c-by-people").checked;
+  let days = null;
+  if (cadence === "daily") days = checked(".c-day").map(Number);
+  if (cadence === "weekly") days = val("c-weekday") === "" ? null : [Number(val("c-weekday"))];
+  const seasonal = $("c-seasonal") && $("c-seasonal").checked;
+  return {
+    id: old ? old.id : form.newId, title: val("c-title"), cadence,
+    jobIds: byPeople ? [] : checked(".c-job"), people: byPeople ? checked(".c-person") : [],
+    days, everyWeeks: cadence === "weekly" ? Number(val("c-every") || 1) : 1,
+    anchorWeek: cadence === "weekly" && Number(val("c-every") || 1) > 1 ? val("c-anchor") || null : null,
+    time: val("c-time") || null, timeKind: val("c-timekind") || "at",
+    seasonFrom: seasonal && val("c-from") ? val("c-from").slice(5) : null, seasonTo: seasonal && val("c-to") ? val("c-to").slice(5) : null,
+    askedFor: old ? old.askedFor : null,
+    notes: val("c-notes"), position: old ? old.position : C().chores.length,
+  };
+}
+
+function saveChore() {
+  const ch = readChoreForm();
+  if (!ch.title) { setStatus("Say what the chore is", true); return; }
+  if (!ch.jobIds.length && !ch.people.length) { setStatus("Pick a job, or the people it's for", true); return; }
+  if (ch.cadence === "daily" && !ch.days.length) { setStatus("Pick at least one day", true); return; }
+  if ((ch.seasonFrom || ch.seasonTo) && !(ch.seasonFrom && ch.seasonTo)) { setStatus("Pick when the season starts and ends", true); return; }
+  send("/chores", ch).then(ok => { if (ok) form = null; render(); });
+}
+
+/** A tick's day, or its week for a chore done any day that week. */
+function periodText(r) {
+  const ch = C().chores.find(x => x.id === r.choreId);
+  const weekly = ch && ch.cadence === "weekly" && !(ch.days && ch.days.length);
+  return weekly ? `Week of ${dateText(r.period, { month: "short", day: "numeric" })}` : dateText(r.period, { weekday: "short", month: "short", day: "numeric" });
+}
+
+/** Ticks and undos for the day showing. */
+function choreLogView() {
+  const c = C();
+  const rows = (c.log || []).slice(0, 15);
+  if (!rows.length) return "";
+  const title = id => { const ch = c.chores.find(x => x.id === id); return ch ? ch.title : "A chore"; };
+  return `<div class="section-label">Lately</div><div class="card">` + rows.map((r, i) => `<div class="log-row" ${i === 0 ? 'style="border-top:0"' : ""}>
+      <strong>${esc(title(r.choreId))}</strong>${r.doneFor && r.doneFor.length ? ` · ${esc(r.doneFor.map(memberName).join(" & "))}` : ""}
+      · ${esc(periodText(r))}
+      <div class="sub">Ticked ${esc(new Date(r.createdAt).toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" }))}${r.doneBy ? ` by ${esc(memberName(r.doneBy))}` : ""}</div>
+      ${canUndoTick(r.doneBy, r.createdAt) ? `<button class="small" data-do="chore-undo" data-id="${r.actionId}">Undo</button>` : ""}
+    </div>`).join("") + `</div>`;
+}
+
+/** Shows another day's chores. */
+function goChoreDay(step) {
+  const from = (state.chores && state.chores.day) || state.today;
+  const d = new Date(from + "T12:00:00Z");
+  d.setUTCDate(d.getUTCDate() + step);
+  const next = d.toISOString().slice(0, 10);
+  choreDay = next >= state.today ? null : next;
+  load();
 }
 
 // ── Forms ──────────────────────────────────────────────────────────
@@ -721,7 +1082,34 @@ document.addEventListener("click", e => {
   const redraw = () => render();
   const closeThen = ok => { if (ok) form = null; render(); };
   switch (btn.getAttribute("data-do")) {
-    case "area": area = id; form = null; history.replaceState(null, "", "#" + id); render(); break;
+    case "area": area = id; form = null; choreDay = null; history.replaceState(null, "", "#" + id); if (id === "chores") load(); else render(); break;
+    case "chore-day": goChoreDay(Number(id)); break;
+    case "chore-done": send(`/chores/${id}/done`, {}, "Done! It's under Lately if you need to undo it.").then(redraw); break;
+    case "chore-undo": send("/undo", { actionId: id }, "Put back").then(redraw); break;
+    case "chores-setup": showSetup = !showSetup; form = null; render(); break;
+    case "edit-jobs": {
+      const jobs = C().jobs.filter(j => !j.archived).map(j => ({ id: j.id, name: j.name, emoji: j.emoji || "", saved: true }));
+      if (!jobs.length) jobs.push({ id: newId("job"), name: "", emoji: "" });
+      form = { type: "jobs", jobs, holders: {}, fresh: true }; render(); break;
+    }
+    case "add-job": readJobsForm(); form.jobs.push({ id: newId("job"), name: "", emoji: "" }); render(); break;
+    case "remove-job": {
+      readJobsForm();
+      const j = form.jobs[Number(id)];
+      if (j.saved) j.archived = true; else form.jobs.splice(Number(id), 1);
+      render(); break;
+    }
+    case "save-jobs": saveJobs(); break;
+    case "add-chore": form = { type: "chore", id: null, newId: newId("chore"), fresh: true }; render(); break;
+    case "edit-chore": form = { type: "chore", id, fresh: true }; render(); break;
+    case "save-chore": saveChore(); break;
+    case "archive-chore": if (confirm("Archive this chore? Its history is kept.")) send(`/chores/${id}/archive`, { archived: true }, "Archived").then(closeThen); break;
+    case "restore-chore": send(`/chores/${id}/archive`, { archived: false }, "Restored").then(redraw); break;
+    case "toggle-archived-chores": showArchivedChores = !showArchivedChores; render(); break;
+    case "ask": form = { type: "ask", id }; render(); break;
+    case "save-ask": send(`/chores/${id}/ask`, { by: val("a-by") || state.today }, "Asked. It's on the screens until it's done.").then(closeThen); break;
+    case "unask": send(`/chores/${id}/ask`, { by: null }, "Not needed after all").then(closeThen); break;
+    case "swap-clear": send("/chores/swap", { week: key, jobId: id, member: null }, "Back to the usual turns").then(redraw); break;
     case "add-pet": form = { type: "pet", id: null, fresh: true }; render(); break;
     case "edit-pet": form = { type: "pet", id, fresh: true }; render(); break;
     case "add-place": form = { type: "place", id: null, fresh: true }; render(); break;
@@ -827,6 +1215,18 @@ document.addEventListener("change", e => {
   if (id === "f-repeats") $("f-repeat-box").classList.toggle("hidden", !e.target.checked);
   if (id === "f-booked") $("f-booked-box").classList.toggle("hidden", !e.target.checked);
   if (id === "f-preset" && form && !form.key) applyPreset(Number(e.target.value));
+  // Chores: a different "how often" or "whose" means different fields; keep what's typed.
+  if ((id === "c-cadence" || id === "c-by-job" || id === "c-by-people") && form && form.type === "chore") {
+    const draft = readChoreForm();
+    if (id !== "c-cadence") { form.byPeople = id === "c-by-people"; draft.jobIds = draft.jobIds || []; }
+    if (id === "c-cadence" && draft.cadence === "daily") draft.days = null;
+    form.draft = draft; render();
+  }
+  if (id === "c-every") $("c-anchor-box").classList.toggle("hidden", Number(e.target.value) < 2);
+  if (id === "c-seasonal") $("c-season-box").classList.toggle("hidden", !e.target.checked);
+  if (e.target.classList && e.target.classList.contains("f-swap")) {
+    send("/chores/swap", { week: e.target.getAttribute("data-week"), jobId: e.target.getAttribute("data-id"), member: e.target.value }, "Swapped for this week").then(() => render());
+  }
   // A different kind can mean different fields (a stay's dates, a booking): redraw, keeping what's typed.
   if (id === "f-kind" && form && form.type === "task") {
     const b = form.key ? findBundle(form.key) : null;

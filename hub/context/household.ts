@@ -57,7 +57,7 @@ export async function loadHousehold(daysAhead = 14, log: (line: string) => void 
     const body = (await res.json()) as HouseholdContext & { enabled: boolean; error?: string };
     if (!res.ok) throw new Error(`${res.status}: ${body.error ?? "no reason given"}`);
     if (!body.enabled) return null;
-    log(`  household: ${body.pets.length} pets, ${body.tasks.length} tasks due within ${body.days} days, ${body.recent.length} done lately`);
+    log(`  household: ${body.pets.length} pets, ${body.tasks.length} tasks due within ${body.days} days, ${body.recent.length} done lately${body.chores ? `, chores for ${body.chores.today.length} people` : ""}`);
     return body;
   } catch (err) {
     log(`  household: skipped (${endpoint}: ${(err as Error).message})`);
@@ -67,7 +67,7 @@ export async function loadHousehold(daysAhead = 14, log: (line: string) => void 
 
 /** The household section of the planner's context, or nothing when there's nothing to say. */
 export function renderHousehold(h: HouseholdContext | undefined | null): string[] {
-  if (!h || (!h.tasks.length && !h.pets.length)) return [];
+  if (!h || (!h.tasks.length && !h.pets.length && !h.chores)) return [];
   const lines: string[] = [`## Household`];
   if (h.pets.length) {
     lines.push(`Pets: ${h.pets.map((p) => [p.name, p.species ? `(${p.species.toLowerCase()})` : ""].filter(Boolean).join(" ")).join(", ")}`);
@@ -100,6 +100,19 @@ export function renderHousehold(h: HouseholdContext | undefined | null): string[
     lines.push(`### Done in the last 30 days`);
     for (const r of h.recent) {
       lines.push(`- ${r.title}${r.pet ? ` for ${r.pet}` : ""}${r.place ? ` at ${r.place}` : ""}, ${r.doneOn}${r.doneBy ? ` by ${r.doneBy}` : ""}${r.note ? `: ${r.note}` : ""}`);
+    }
+  }
+  if (h.chores) {
+    const c = h.chores;
+    lines.push(``);
+    lines.push(`### Chores (week of ${c.week})`);
+    lines.push(`Jobs this week: ${c.jobs.map((j) => `${j.member ?? "nobody"}: ${j.job}`).join(", ")}`);
+    for (const p of c.today) {
+      if (!p.chores.length) continue;
+      lines.push(`- ${p.person} today: ${p.chores.map((x) => `${x.title}${x.when ? ` ${x.when}` : ""} (${x.status})`).join("; ")}`);
+    }
+    if (c.missedThisWeek.length) {
+      lines.push(`Missed this week: ${c.missedThisWeek.map((m) => `${m.person}, ${m.chore} on ${m.day}`).join("; ")}`);
     }
   }
   lines.push(``);

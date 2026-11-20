@@ -180,6 +180,13 @@ export interface HouseholdContext {
     notes: string | null;
   }>;
   recent: Array<{ title: string; area: string; pet: string | null; place?: string | null; doneOn: string; doneBy: string | null; note: string | null }>;
+  /** The kids' chores (v2.6+); null when none are set up. */
+  chores?: {
+    week: string;              // the week's first day
+    jobs: Array<{ job: string; member: string | null }>;
+    today: Array<{ person: string; chores: Array<{ title: string; when: string | null; status: string }> }>;
+    missedThisWeek: Array<{ person: string; chore: string; day: string }>;
+  } | null;
 }
 
 export interface WeeklyPlan {

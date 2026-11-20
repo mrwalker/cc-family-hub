@@ -154,7 +154,8 @@ Nothing else is stateful. You can rebuild the Worker and re-run the pipeline at 
 
 ## Household records
 
-*Pets, the house, the planner's feed and the calendar are built. Chores are being built;
+*Pets, the house, the planner's feed, the calendar and chores are built. The chore board on
+the hub page is next;
 [roadmap.md](roadmap.md#managing-the-household) has the order.*
 
 Household records are the hub's own data: the pets' care, the kids' chores, the upkeep of

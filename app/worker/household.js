@@ -1,9 +1,11 @@
 /**
- * Household records: the pets' care and the upkeep of the house (and, in a
- * later release, the kids' chores). Stored in D1 (HUB_DB), edited at /household/.
+ * Household records: the pets' care, the upkeep of the house, and the kids' chores
+ * (chores.js). Stored in D1 (HUB_DB), edited at /household/.
  *
  *   GET  /api/household                    → { enabled, viewer, can, problem, today, areas, members,
- *                                              pets, places, tasks, log, serverTime }
+ *                                              pets, places, tasks, log, chores, serverTime }
+ *   GET  /api/household/chores?day=        → the same, with chores as of that day
+ *   POST /api/household/chores…             see chores.js
  *   POST /api/household/pets                 { id, name, species?, birthday?, notes?, archived? }
  *   POST /api/household/places               { id, name, address?, notes?, archived? }
  *   POST /api/household/tasks                a task, or { tasks: [task…], archive: [id…] } in one go
@@ -12,7 +14,7 @@
  *                endDate?, provider?, phone?, url?, notes? }
  *   POST /api/household/tasks/:id/done       { doneOn?, note?, group? }   group: its group's tasks on the same day
  *   POST /api/household/tasks/:id/undo       takes back the last time it was done
- *   POST /api/household/undo                 { actionId }  takes back one action (a group's done)
+ *   POST /api/household/undo                 { actionId }  takes back one action (a group's done, a chore's tick)
  *   POST /api/household/tasks/:id/archive    { archived }
  *   POST /api/household/pets/:id/photo       { data: "data:image/jpeg;base64,…", width?, height? }
  *   POST /api/household/photos/:id/remove
@@ -27,8 +29,9 @@
  * done or booked at once. Booking an appointment gives it a date and time of its
  * own; a stay (boarding) also has an end date.
  *
- * Who may write (access.js works out who's asking): adults manage everything; a
- * child may mark their own chore done and undo it; guests and screens only read.
+ * Who may write (access.js works out who's asking): adults manage everything; anyone
+ * in the family may tick a chore, for anyone, and undo their own tick that day;
+ * guests and screens only read.
  * The export is for the pipeline, which proves itself with the PUBLISH_TOKEN
  * bearer (and, behind Access, a service token) rather than a sign-in.
  *
@@ -45,6 +48,7 @@ import { ymd, addDays, daysBetween, json } from "./util.js";
 import { timingSafeEqual } from "./data-api.js";
 import { calendarClient } from "./google.js";
 import { pushToCalendar, pullFromCalendar, PULL_EVERY_MS } from "./household-calendar.js";
+import { choresSnapshot, choresExport, handleChoreWrite, canUndoTick, undoTickStatements } from "./chores.js";
 
 /**
  * Each area's kinds of task.
@@ -287,9 +291,10 @@ async function getTask(db, id) {
   return row ? taskFromRow(row) : null;
 }
 
-async function snapshot(env, hub, who, now, calendarProblem = null) {
+async function snapshot(env, hub, who, now, calendarProblem = null, choresDay = null) {
   const db = env.HUB_DB;
-  const [pets, photos, places, tasks, log] = await Promise.all([
+  const today = ymd(new Date(now), hub.timezone);
+  const [pets, photos, places, tasks, log, chores] = await Promise.all([
     db.prepare("SELECT * FROM pets ORDER BY archived, name").all(),
     db.prepare("SELECT id, pet_id, width, height FROM pet_photos ORDER BY created_at DESC").all(),
     db.prepare("SELECT * FROM places ORDER BY archived, name").all(),
@@ -298,14 +303,17 @@ async function snapshot(env, hub, who, now, calendarProblem = null) {
     db.prepare(`SELECT l.id, l.task_id, l.done_on, l.done_by, l.note, l.action_id, t.title, t.area, t.group_id, p.name AS pet_name
                 FROM task_log l JOIN tasks t ON t.id = l.task_id LEFT JOIN pets p ON p.id = t.pet_id
                 ORDER BY l.created_at DESC, l.rowid DESC LIMIT ${LOG_ROWS}`).all(),
+    choresSnapshot(db, hub, { day: choresDay ?? today, today, now }),
   ]);
+  const family = who.viewer?.role === "adult" || who.viewer?.role === "child";
   return {
     enabled: true,
     viewer: who.viewer,
-    can: { manage: canManage(who.viewer) },
+    can: { manage: canManage(who.viewer), tick: family },
     // Why this person can't write, when they can't: for whoever is setting the hub up.
     problem: who.viewer ? null : who.problem,
-    today: ymd(new Date(now), hub.timezone),
+    today,
+    chores,
     areas: AREAS,
     members: hub.members.map(({ id, name, color, role }) => ({ id, name, color, role: role === "child" ? "child" : "adult" })),
     pets: pets.results.map(r => ({ ...petFromRow(r), photos: photos.results.filter(p => p.pet_id === r.id).map(p => ({ id: p.id, width: p.width, height: p.height })) })),
@@ -364,6 +372,8 @@ export async function householdExport(env, hub, { now = Date.now(), days = EXPOR
       };
     }),
     recent: recent.results.map(r => ({ title: r.title, area: r.area, pet: r.pet_name ?? null, place: r.place_name ?? null, doneOn: r.done_on, doneBy: name(r.done_by), note: r.note ?? null })),
+    // Who has which job this week, each kid's chores today, and what was missed (null: no chores).
+    chores: await choresExport(db, hub, { today, now }),
   };
 }
 
@@ -557,6 +567,13 @@ export async function handleHousehold(request, env, hub, path, opts = {}) {
   if (request.method === "GET") {
     const photo = path.match(/^\/photo\/([A-Za-z0-9_-]{6,40})$/);
     if (photo) return photoResponse(env, photo[1]);
+    if (path === "/chores") {
+      // The page looking at another day's chores; no calendar sync for that.
+      const day = new URL(request.url).searchParams.get("day");
+      const today = ymd(new Date(now), hub.timezone);
+      const valid = day && /^\d{4}-\d{2}-\d{2}$/.test(day) && Math.abs(daysBetween(today, day)) <= 60;
+      return json(await snapshot(env, hub, who, now, null, valid ? day : null));
+    }
     if (path !== "") return json({ error: "Not found" }, 404);
     await syncCalendar(env, hub, { origin, google: opts.google, pullEvery: 60_000, pushAfterPull: true });
     return json(await snapshot(env, hub, who, now, hub.householdCalendar ? (await meta(db, "calendar_problem")) || null : null));
@@ -584,6 +601,16 @@ export async function handleHousehold(request, env, hub, path, opts = {}) {
     return json(await snapshot(env, hub, who, now, problem));
   };
   const today = ymd(new Date(now), hub.timezone);
+
+  if (path === "/chores" || path.startsWith("/chores/")) {
+    // Chores don't touch the calendar: answer with the fresh records straight away.
+    const choresDay = typeof body.day === "string" && isDate(body.day) ? body.day : null;
+    const reply = await handleChoreWrite({
+      db, hub, path, body, viewer, now, today, json,
+      answer: async (extra = {}) => json({ ...(await snapshot(env, hub, who, now, null, choresDay)), ...extra }),
+    });
+    return reply ?? json({ error: "Not found" }, 404);
+  }
 
   if (path === "/pets") {
     if (!canManage(viewer)) return forbidden("add or change pets");
@@ -676,7 +703,16 @@ export async function handleHousehold(request, env, hub, path, opts = {}) {
   if (path === "/undo") {
     const actionId = typeof body.actionId === "string" ? body.actionId : "";
     const { results } = await db.prepare(`SELECT l.*, t.kind, t.assignee FROM task_log l JOIN tasks t ON t.id = l.task_id WHERE l.action_id = ?`).bind(actionId).all();
-    if (!results.length) return json({ error: "Nothing to undo" }, 400);
+    if (!results.length) {
+      // A chore's tick, then.
+      const ticks = (await db.prepare(`SELECT l.*, c.cadence FROM chore_log l JOIN chores c ON c.id = l.chore_id WHERE l.action_id = ?`).bind(actionId).all()).results;
+      if (!ticks.length) return json({ error: "Nothing to undo" }, 400);
+      if (!ticks.every(r => canUndoTick(viewer, r, today, hub.timezone))) {
+        return json({ error: "Only an adult can take back someone else's tick, or one from another day" }, 403);
+      }
+      await db.batch(undoTickStatements(db, ticks, now, viewer));
+      return json(await snapshot(env, hub, who, now, null, isDate(body.day) ? body.day : null));
+    }
     if (!results.every(r => canComplete(viewer, r))) return json({ error: "You can only undo your own chores" }, 403);
     await db.batch(results.flatMap(r => undoStatements(db, r, viewer, now)));
     return answer();
