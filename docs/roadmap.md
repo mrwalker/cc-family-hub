@@ -22,10 +22,16 @@ KV, which suits data that's written rarely and read constantly.
 
 The design is in [architecture.md](architecture.md#household-records). In short:
 
-- **One kind of record.** A task is something due on a date. It may repeat, and it keeps a
-  history. A vaccination, a filter change and a chore are all tasks.
-- **Who can write.** Adults manage everything. Kids can mark their own chores done. Guests
-  and screens can't write. The Worker checks the Access sign-in itself before any write.
+- **Tasks.** A task is something due on a date that waits until it's done. It may repeat,
+  and it keeps a history. A vaccination and a filter change are tasks.
+- **Chores are different.** A chore comes round on a schedule (every evening at 4:30, every
+  other Tuesday) and doesn't pile up: a feed nobody did on Tuesday is missed, not owed twice
+  on Wednesday. Who does it comes from a weekly rotation of jobs among the kids, as on a
+  fridge whiteboard. So chores have their own small model, beside tasks.
+- **Who can write.** Adults manage everything. Anyone in the family can tick a chore done,
+  for anyone, which suits a shared wall tablet: the hub records whose chore it was and who
+  ticked it. Guests and screens can't write. The Worker checks the Access sign-in itself
+  before any write.
 - **Where you write.** One small page, `/household/`, made for phones and safe for the wall
   tablet. Cards on the hub page link to it.
 - **Nothing to turn off.** A hub without a D1 database gets no cards and no changes.
@@ -46,7 +52,8 @@ The rest ships in steps:
 
 | Release | What it adds |
 |---------|--------------|
-| v2.6.0 | **Chores:** assigned to kids, daily and weekly, taking turns |
+| v2.6.0 | **Chores:** jobs that rotate weekly among the kids, each with chores on a clear schedule; ticked off on `/household/`, shown on every screen |
+| v2.6.1 | **The chore board** on the hub page, for ticking chores off on the wall tablet |
 | v2.7.0 | **Activities:** completing what the calendar leaves out |
 
 Activities stay in the calendar, where families already put them. But a practice typed in
@@ -54,7 +61,7 @@ a hurry is often missing its address, a phone number or a link. The hub keeps wh
 knows about each activity, fills those gaps on the Today and Week cards, and asks on a
 card when it can't ("Where is Saturday's recital?"). An answer is kept and used again.
 
-Allowances come after chores, built on the record of what each kid has done.
+Allowances come after chores, built on the record of what each kid has done and missed.
 
 ### Samsung TVs
 

@@ -30,6 +30,7 @@ Every output shows the same thing: a rotating stream of **cards**. Each card com
 | `plan` | Claude's read on the week: summary, conflicts, things to do | The planner |
 | `pets` | What a pet needs soon: a shot, a pill, grooming, a vet visit | Household records, kept on the hub |
 | `house` | What the house needs soon: a service visit, a filter, a fix | Household records, kept on the hub |
+| `chores` | Each kid's chores for today, from jobs that rotate weekly, and who's next | Household records, kept on the hub |
 | `pet-portraits` | Each pet full screen over its photo, with what's next for it | Household records and their photos |
 | `photos` | A photo from the family album | iCloud shared album |
 | `trips` | An upcoming trip: countdown, hero photo, quest leaderboard, today's schedule | `trips.yaml`, trip apps |
