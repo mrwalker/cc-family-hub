@@ -19,7 +19,7 @@
  * published one (data:family.escapeRooms), so nothing goes missing in between.
  */
 
-import { findImage } from "./link-image.js";
+import { findImage, imageVersion } from "./link-image.js";
 
 const ID_RE = /^[A-Za-z0-9_-]{6,40}$/;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -53,6 +53,7 @@ export function cleanRoom(c, { memberIds }) {
 export const roomFromRow = r => ({
   id: r.id, room: r.room, venue: r.venue ?? null, city: r.city ?? null, date: r.date ?? null,
   approxDate: !!r.approx_date, url: r.url ?? null, imageUrl: r.image_url ?? null, imageCheckedAt: r.image_checked_at ?? null,
+  imageVersion: imageVersion(r.image_url),
   who: parse(r.who, []), solved: !!r.solved, escapeTime: r.escape_time ?? null, failNote: r.fail_note ?? null,
   difficulty: r.difficulty ?? null, rating: r.rating ?? null, notes: r.notes ?? null, archived: !!r.archived,
 });

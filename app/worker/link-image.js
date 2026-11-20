@@ -29,6 +29,14 @@ const tiny = src => {
   return (w && +w[1] < 300) || (h && +h[1] < 200);
 };
 
+/** A short version of a picture's address, for its link (?v=…): a new picture is a new link. */
+export function imageVersion(url) {
+  if (!url) return null;
+  let h = 5381;
+  for (let i = 0; i < url.length; i++) h = ((h * 33) ^ url.charCodeAt(i)) >>> 0;
+  return h.toString(36);
+}
+
 const decode = s => s.replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&#39;|&#x27;/g, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">").trim();
 
 function attr(tag, name) {
@@ -115,11 +123,18 @@ export async function imageResponse(imageUrl, { fetcher = fetch } = {}) {
   const missing = () => new Response("No picture", { status: 404, headers: { "Cache-Control": "no-store" } });
   if (!absolute(imageUrl)) return missing();
   const cache = typeof caches !== "undefined" ? caches.default : null;
-  const key = new Request(`https://link-image.family-hub.invalid/${encodeURIComponent(imageUrl)}`);
+  const key = new Request(`https://link-image.family-hub.invalid/v2/${encodeURIComponent(imageUrl)}`);
   const hit = cache && (await cache.match(key));
   if (hit) return hit;
   try {
-    const res = await fetcher(imageUrl, { headers: { "User-Agent": UA, Accept: "image/*" }, redirect: "follow", signal: AbortSignal.timeout(PAGE_TIMEOUT_MS) });
+    // JPEG first. The wall tablet's old browser and the TVs can't show AVIF, which an
+    // image CDN may send for ?auto=format whatever's asked for; then ask for ?fm=jpg.
+    const get = u => fetcher(u, { headers: { "User-Agent": UA, Accept: "image/jpeg,image/png;q=0.9,image/webp;q=0.8,image/*;q=0.5" }, redirect: "follow", signal: AbortSignal.timeout(PAGE_TIMEOUT_MS) });
+    let res = await get(imageUrl);
+    if (/avif/i.test(res.headers.get("Content-Type") || "") && /[?&]auto=format\b/.test(imageUrl)) {
+      const jpeg = await get(imageUrl.replace(/([?&])auto=format\b/, "$1fm=jpg"));
+      if (jpeg.ok && /^image\//i.test(jpeg.headers.get("Content-Type") || "")) res = jpeg;
+    }
     const type = res.headers.get("Content-Type") || "";
     if (!res.ok || !/^image\//i.test(type) || /svg/i.test(type)) return missing();
     const body = await res.arrayBuffer();

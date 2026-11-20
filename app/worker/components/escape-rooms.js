@@ -22,7 +22,7 @@ export async function cards(ctx) {
   if (!rooms.length) return [];
   const escaped = rooms.filter(r => r.solved).length;
   const r = rooms[ctx.turn % rooms.length];
-  const image = kept && r.imageUrl ? ctx.image(`escape-rooms:${r.id}`) : null;
+  const image = kept && r.imageUrl ? `${ctx.image(`escape-rooms:${r.id}`)}?v=${r.imageVersion ?? ""}` : null;
   // The room leads (over its picture); the family's record rides in the title.
   const result = r.solved
     ? (r.escapeTime === "-10 seconds" ? "Escaped at the buzzer" : r.escapeTime ? `Escaped in ${r.escapeTime}` : "Escaped")

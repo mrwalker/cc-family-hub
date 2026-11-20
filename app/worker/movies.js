@@ -20,7 +20,7 @@
  * wall tablet is one sign-in for everyone). Guests and screens only read.
  */
 
-import { findImage } from "./link-image.js";
+import { findImage, imageVersion } from "./link-image.js";
 import { addDays } from "./util.js";
 
 const ID_RE = /^[A-Za-z0-9_-]{6,40}$/;
@@ -64,7 +64,7 @@ export function cleanMovie(c, { id = null } = {}) {
 const movieFromRow = (r, marks = {}) => ({
   id: r.id, title: r.title, kind: r.kind, releaseDate: r.release_date ?? null, where: r.where_to ?? null,
   format: r.format ?? null, blurb: r.blurb ?? null, forWhom: r.for_whom ?? null, url: r.url ?? null,
-  imageUrl: r.image_url ?? null, source: r.source, batch: r.batch ?? null, archived: !!r.archived, marks,
+  imageUrl: r.image_url ?? null, imageVersion: imageVersion(r.image_url), source: r.source, batch: r.batch ?? null, archived: !!r.archived, marks,
 });
 
 /** The movies (newest release first), each with everyone's marks. */

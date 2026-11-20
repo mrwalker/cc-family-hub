@@ -905,7 +905,7 @@ function roomsView() {
     if (form && form.type === "room" && form.id === r.id) { html += roomForm(r); return; }
     const who = (r.who || []).map(memberName).join(", ");
     html += `<div class="room">
-      ${r.imageUrl ? `<img class="pic" src="${API}/image/rooms/${esc(r.id)}" alt="" loading="lazy">` : `<span class="pic none">🔐</span>`}
+      ${r.imageUrl ? `<img class="pic" src="${API}/image/rooms/${esc(r.id)}?v=${esc(r.imageVersion || '')}" alt="" loading="lazy">` : `<span class="pic none">🔐</span>`}
       <div class="chore-title">${esc(r.room)}</div>
       <div class="sub">${esc([r.venue, r.city].filter(Boolean).join(" · "))}${r.date ? " · " + esc(roomDate(r)) : ""}</div>
       <div class="result${r.solved ? "" : " failed"}">${r.solved ? "Escaped" + (r.escapeTime ? " · " + esc(r.escapeTime) : "") : "Didn't escape" + (r.failNote ? " · " + esc(r.failNote) : "")}</div>
