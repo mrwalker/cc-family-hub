@@ -48,8 +48,8 @@ line, and photo.
 | `trips` | full | full | full | full | glance |
 | `past-trips` | full | full | glance | glance | – |
 | `grocery` | full, editable | full | full | full | glance |
-| `escape-rooms` | full | glance | glance | glance | – |
-| `movies` | full | glance | glance | glance | – |
+| `escape-rooms` | full: a picture for each room | glance, with the room's picture | glance | glance | – |
+| `movies` | full: posters, tap a dot to mark who wants to see or saw it | glance, with the poster | glance | glance | – |
 | `workouts` | full | glance | glance | glance | – |
 
 The smallest widgets have room for one thing, so they stay on `today` unless you point them

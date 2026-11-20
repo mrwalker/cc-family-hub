@@ -222,6 +222,41 @@ export const MIGRATIONS = [
       `CREATE INDEX IF NOT EXISTS escape_rooms_date ON escape_rooms (archived, date)`,
     ],
   },
+  {
+    // v2.8: movies and shows worth seeing, most picked monthly by the family's assistant,
+    // and who wants to see (or has seen) each.
+    version: 7,
+    statements: [
+      `CREATE TABLE IF NOT EXISTS movies (
+         id TEXT PRIMARY KEY,
+         title TEXT NOT NULL,
+         kind TEXT NOT NULL DEFAULT 'movie',
+         release_date TEXT,
+         where_to TEXT,
+         format TEXT,
+         blurb TEXT,
+         for_whom TEXT,
+         url TEXT,
+         image_url TEXT,
+         image_checked_at INTEGER,
+         source TEXT NOT NULL DEFAULT 'family',
+         batch TEXT,
+         archived INTEGER NOT NULL DEFAULT 0,
+         created_at INTEGER NOT NULL,
+         updated_at INTEGER NOT NULL,
+         updated_by TEXT
+       )`,
+      `CREATE INDEX IF NOT EXISTS movies_release ON movies (archived, release_date)`,
+      `CREATE TABLE IF NOT EXISTS movie_marks (
+         movie_id TEXT NOT NULL REFERENCES movies(id),
+         member TEXT NOT NULL,
+         mark TEXT NOT NULL,
+         at INTEGER NOT NULL,
+         by TEXT,
+         PRIMARY KEY (movie_id, member)
+       )`,
+    ],
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

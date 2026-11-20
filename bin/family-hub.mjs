@@ -10,6 +10,8 @@
  *   family-hub publish           Validate the assistant's plan and publish it
  *   family-hub run               sync, then plan (the daily job)
  *   family-hub summary           Print a readable summary of the week
+ *   family-hub movies history    Print past movie picks and who wanted or saw each
+ *   family-hub movies publish F  Hand the hub this month's movie picks (a JSON file)
  *   family-hub build             Validate the workspace and assemble the Worker's site
  *   family-hub setup calendars   Check the Google service account and calendar sharing
  *   family-hub setup strava      Connect a member's Strava account
@@ -28,7 +30,7 @@ const VERSION = JSON.parse(readFileSync(join(PKG, "package.json"), "utf8")).vers
 
 const USAGE = readFileSync(fileURLToPath(import.meta.url), "utf8")
   .match(/\/\*\*\n \* family-hub:[\s\S]*?\*\//)[0]
-  .split("\n").slice(3, 15).map(l => l.replace(/^ \* ?/, "")).join("\n");
+  .split("\n").slice(3, 17).map(l => l.replace(/^ \* ?/, "")).join("\n");
 
 /** Runs a TypeScript entry point of this package with tsx, in the caller's directory. */
 function tsx(file, args = []) {
@@ -49,6 +51,7 @@ const COMMANDS = {
   render:  () => tsx("hub/index.ts", ["render"]),
   publish: () => tsx("hub/index.ts", ["publish"]),
   summary: () => tsx("hub/index.ts", ["summary"]),
+  movies: (what, file) => tsx("hub/movies.ts", [what, file].filter(Boolean)),
   build:   () => node("app/build.mjs"),
   run() {
     const synced = tsx("hub/index.ts", ["sync"]);

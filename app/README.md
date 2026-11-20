@@ -54,7 +54,7 @@ leaves the live hub as it was.
 | `PUT /api/data/:kind` | The pipeline | Publish `plan`, `family`, or `strava`. Validated, then stored. |
 | `GET /api/data/:kind` | You, when debugging | What's published, and when |
 | `/api/grocery` | The hub page | The shared grocery list |
-| `/api/household…` | The household page | Household records: read them, add and change pets, places and tasks (one or several at once), mark a task or a group done, undo it, add pets' photos, set up chores and tick them off, add escape rooms (and their pictures, fetched once and cached). Writes check the Access sign-in. `GET /api/household/export` is the pipeline's, with the publish token. See [docs/architecture.md](../docs/architecture.md#household-records). |
+| `/api/household…` | The household page | Household records: read them, add and change pets, places and tasks (one or several at once), mark a task or a group done, undo it, add pets' photos, set up chores and tick them off, add escape rooms (and their pictures, fetched once and cached), mark movies, and take the month's movie picks from the pipeline. Writes check the Access sign-in. `GET /api/household/export` is the pipeline's, with the publish token. See [docs/architecture.md](../docs/architecture.md#household-records). |
 | `/api/trip/:appId/checkins`, `/packing` | Trip apps | Quest check-ins and packing lists |
 | Everything else | Browsers | Static assets: the hub page and trip apps |
 

@@ -792,6 +792,28 @@
     [data-theme="dark"] .er-time-badge.failed   { background: #2d1515; color: #fca5a5; }
     [data-theme="dark"] .er-time-badge.er-clutch { background: #2d1f0a; color: #fbbf24; }
     .er-notes { font-size: 12px; color: var(--muted); font-style: italic; margin-top: 7px; line-height: 1.45; }
+    .mv-seen { font-size: 14px; color: var(--muted); margin: 4px 0 2px; }
+    .mv-seen span { display: inline-block; margin: 0 14px 4px 0; color: var(--text); font-weight: 600; }
+    .mv-hint { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+    .mv-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); grid-gap: 14px; }
+    .mv-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+    .mv-poster { position: relative; height: 240px; background: linear-gradient(160deg, #be185d, #1e1b4b); overflow: hidden; }
+    .mv-poster img { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; }
+    .mv-poster .mv-kind { position: absolute; left: 10px; bottom: 8px; font-size: 26px; }
+    .mv-poster img + .mv-kind { display: none; }
+    .mv-format { position: absolute; top: 8px; right: 8px; background: rgba(0,0,0,.7); color: #fde68a; font-size: 11px; font-weight: 800;
+      letter-spacing: .06em; padding: 3px 7px; border-radius: 6px; text-transform: uppercase; }
+    .mv-body { padding: 10px 12px 12px; }
+    .mv-body .movie-title a { color: inherit; text-decoration: none; }
+    .mv-when { font-size: 13px; color: var(--accent); font-weight: 700; margin-top: 2px; }
+    .mv-blurb { font-size: 13px; color: var(--text); margin-top: 6px; line-height: 1.4; }
+    .mv-for { font-size: 12px; color: var(--muted); margin-top: 4px; }
+    .mv-dots { margin-top: 8px; }
+    .mv-dot { width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--c); background: transparent; color: var(--c);
+      font-size: 12px; font-weight: 800; margin: 0 3px 4px 0; padding: 0; cursor: pointer; opacity: .5; vertical-align: top; }
+    .mv-dot.want { background: var(--c); color: #fff; opacity: 1; }
+    .mv-dot.seen { background: var(--c); color: #fff; opacity: 1; border-color: #fff; }
+    .mv-seen .sw { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; }
     .er-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); grid-gap: 14px; }
     .er-tile { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
     .er-pic { position: relative; height: 150px; background: linear-gradient(135deg, #4f46e5, #0f172a); overflow: hidden; }
@@ -1450,7 +1472,7 @@ const MODULES = [
   { id: "past-trips",   component: "past-trips",   label: "Past Trips",   build: buildPastTrips,   onCard: c => renderPastTrips(c.id, c), onActivate: () => renderPastTrips(null) },
   { id: "grocery",      component: "grocery",      label: "Grocery",      build: buildGroceryList, onActivate: loadGrocery },
   { id: "escape-rooms", component: "escape-rooms", label: "Escape Rooms", build: buildEscapeRooms, onActivate: loadEscapeRooms },
-  { id: "movies",       component: "movies",       label: "Movies",       build: buildMovies },
+  { id: "movies",       component: "movies",       label: "Movies",       build: buildMovies, onActivate: loadMoviesView },
   { id: "workouts",     component: "workouts",     label: "Workouts",     build: buildStrava },
   // Any component without a view above is drawn from its cards' glance, so a
   // new component shows here the day it's added (docs/stream.md).
@@ -2550,7 +2572,7 @@ function tripDetails(trip) {
 // ── Escape Rooms module ────────────────────────────────────────────
 function buildEscapeRooms(container) {
   container.innerHTML = '<div id="er-wrap"></div>';
-  renderEscapeRooms(family.escapeRooms || [], false);
+  renderEscapeRooms(family.escapeRooms || [], false, container.querySelector('#er-wrap'));
 }
 
 /** The hub's rooms (v2.7), or the published list before they're brought in. */
@@ -2564,8 +2586,8 @@ function loadEscapeRooms() {
     .catch(() => renderEscapeRooms(family.escapeRooms || [], false));
 }
 
-function renderEscapeRooms(rooms, kept) {
-  const wrap = document.getElementById('er-wrap');
+function renderEscapeRooms(rooms, kept, el) {
+  const wrap = el || document.getElementById('er-wrap');
   if (!wrap) return;
   if (!rooms.length) {
     wrap.innerHTML = '<p style="color:var(--muted);font-size:14px;padding:20px 0">No escape rooms yet. Add one at <a href="/household/#rooms">Household › Escape rooms</a>.</p>';
@@ -2679,6 +2701,87 @@ function nextPhoto() {
 }
 
 function buildMovies(container) {
+  // Built before it's in the page: find the wrapper in the container, not the document.
+  container.innerHTML = '<div id="mv-wrap"></div>';
+  buildOldMovies(container.querySelector('#mv-wrap'));
+}
+
+// ── Movies (v2.8): the assistant's monthly picks, with everyone's marks ──
+const movieState = { list: null, busy: false };
+
+function loadMoviesView() {
+  return fetch('/api/household/movies', { credentials: 'same-origin' })
+    .then(r => (r.ok ? r.json() : null))
+    .then(d => { if (d && d.enabled && (d.movies || []).length) { movieState.list = d.movies; renderMovies(); } })
+    .catch(() => {});
+}
+
+function markMovie(id, member) {
+  const m = (movieState.list || []).find(x => x.id === id);
+  if (!m || movieState.busy) return;
+  const now = (m.marks || {})[member] || null;
+  const next = now === null ? 'want' : now === 'want' ? 'seen' : null;
+  m.marks = Object.assign({}, m.marks, { [member]: next });
+  if (!next) delete m.marks[member];
+  renderMovies();
+  movieState.busy = true;
+  fetch(`/api/household/movies/${encodeURIComponent(id)}/mark`, {
+    method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ member, mark: next }),
+  }).then(r => r.json()).then(d => { if (d.movies) movieState.list = d.movies; })
+    .catch(() => {}).then(() => { movieState.busy = false; renderMovies(); });
+}
+
+function renderMovies() {
+  const wrap = document.getElementById('mv-wrap');
+  const list = movieState.list;
+  if (!wrap || !list) return;
+  const today = new Date().toISOString().slice(0, 10);
+  const recent = new Date(Date.now() - 45 * 86400000).toISOString().slice(0, 10);
+  const live = list.filter(m => !m.releaseDate || m.releaseDate >= recent);
+  const theaters = m => !m.where || /theat/i.test(m.where);
+  const groups = [
+    ['Coming to theaters', live.filter(m => theaters(m) && m.releaseDate && m.releaseDate > today).sort((a, b) => a.releaseDate.localeCompare(b.releaseDate))],
+    ['In theaters now', live.filter(m => theaters(m) && (!m.releaseDate || m.releaseDate <= today)).sort((a, b) => (b.releaseDate || '').localeCompare(a.releaseDate || ''))],
+    ['Streaming', live.filter(m => !theaters(m)).sort((a, b) => (a.releaseDate || '').localeCompare(b.releaseDate || ''))],
+  ];
+  const members = HUB_CONFIG.members;
+  const seen = members.map(mem => [mem, list.filter(m => (m.marks || {})[mem.id] === 'seen').length]).filter(x => x[1]);
+  const day = d => new Date(d + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  let html = seen.length ? `<div class="mv-seen">Seen: ${seen.sort((a, b) => b[1] - a[1]).map(([mem, n]) => `<span><span class="sw" style="background:${esc(MEMBER_COLORS[mem.id] || '#888')}"></span>${esc(mem.name)} ${n}</span>`).join('')}</div>` : '';
+  html += '<div class="mv-hint">Tap a dot: want to see ★, then seen ✓.</div>';
+  groups.forEach(([title, items]) => {
+    if (!items.length) return;
+    html += `<div class="section-title">${title}</div><div class="mv-grid">`;
+    items.forEach(m => {
+      const when = m.releaseDate ? (m.releaseDate > today ? day(m.releaseDate) : theaters(m) ? 'Now' : 'Now on ' + m.where)
+        : theaters(m) ? 'Now' : 'On ' + m.where;
+      const where = !theaters(m) && m.releaseDate && m.releaseDate > today ? ' · ' + esc(m.where) : '';
+      const dots = members.map(mem => {
+        const mark = (m.marks || {})[mem.id] || '';
+        return `<button type="button" class="mv-dot ${mark}" style="--c:${esc(MEMBER_COLORS[mem.id] || '#888')}" data-movie="${esc(m.id)}" data-member="${esc(mem.id)}"
+          title="${esc(mem.name)}">${mark === 'want' ? '★' : mark === 'seen' ? '✓' : esc(mem.name[0])}</button>`;
+      }).join('');
+      html += `<div class="mv-card">
+        <div class="mv-poster">${m.imageUrl ? `<img src="/api/household/image/movies/${encodeURIComponent(m.id)}" alt="" loading="lazy" onerror="this.remove()">` : ''}
+          <span class="mv-kind">${m.kind === 'show' ? '📺' : '🍿'}</span>
+          ${m.format ? `<span class="mv-format">${esc(m.format)}</span>` : ''}</div>
+        <div class="mv-body">
+          <div class="movie-title">${m.url ? `<a href="${esc(m.url)}" target="_blank" rel="noopener">${esc(m.title)}</a>` : esc(m.title)}</div>
+          <div class="mv-when">${esc(when)}${where}</div>
+          ${m.blurb ? `<div class="mv-blurb">${esc(m.blurb)}</div>` : ''}
+          ${m.forWhom ? `<div class="mv-for">For ${esc(m.forWhom)}</div>` : ''}
+          <div class="mv-dots">${dots}</div>
+        </div></div>`;
+    });
+    html += '</div>';
+  });
+  wrap.innerHTML = html;
+  Array.prototype.forEach.call(wrap.querySelectorAll('.mv-dot'), b =>
+    b.addEventListener('click', () => markMovie(b.getAttribute('data-movie'), b.getAttribute('data-member'))));
+}
+
+function buildOldMovies(container) {
   const movies = family.movies || [];
   if (!movies.length) {
     container.innerHTML = '<p style="color:var(--muted);font-size:14px;padding:20px 0">No movies yet — add entries to workspace/movies.yaml</p>';
