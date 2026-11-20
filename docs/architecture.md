@@ -154,8 +154,7 @@ Nothing else is stateful. You can rebuild the Worker and re-run the pipeline at 
 
 ## Household records
 
-*Pets, the house, the planner's feed, the calendar and chores are built. The chore board on
-the hub page is next;
+*Pets, the house, the planner's feed, the calendar and chores are built. Activities are next;
 [roadmap.md](roadmap.md#managing-the-household) has the order.*
 
 Household records are the hub's own data: the pets' care, the kids' chores, the upkeep of
@@ -294,7 +293,8 @@ can add and archive. The Chores tab shows each kid's chores for today with a Don
 the week's rotation, and for adults, the setup. A kid signed in on their own phone sees
 their own chores first.
 
-The hub page gets a chore board too, so chores can be ticked on the wall tablet.
+The hub page has a chore board too, so chores can be ticked on the wall tablet: a column per
+kid, each of today's chores a tile. Tap one to tick it; tap a done one to take it back.
 
 The other screens don't write. A widget, the Mac app and the TVs show the cards, and the
 hub page links each one to `/household/`.

@@ -42,7 +42,7 @@ line, and photo.
 | `plan` | full | glance | glance | glance | – |
 | `pets` | glance, links to `/household/` | glance | glance | glance | – |
 | `house` | glance, links to `/household/` | glance | glance | glance | – |
-| `chores` | glance, links to `/household/` | glance | glance | glance | – |
+| `chores` | full: a column per kid, tap a chore to tick it | glance | glance | glance | – |
 | `pet-portraits` | full: the pet full screen over its photo | full | glance | glance | – |
 | `photos` | full | full | full | full | – |
 | `trips` | full | full | full | full | glance |

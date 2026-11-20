@@ -305,6 +305,46 @@
     }
     .hub-link.shown { display: inline-block; }
 
+    /* ── Chores: a column per kid, each chore a big tile to tap ──────── */
+    /* For the wall tablet's old WebView: grid with grid-gap, no flex gap, no inset. */
+    .cb-head { position: relative; margin: 6px 0 12px; min-height: 30px; }
+    .cb-head .cb-day { font-size: 22px; font-weight: 800; }
+    .cb-head .cb-link { position: absolute; right: 0; top: 4px; font-size: 14px; color: var(--accent); text-decoration: none; }
+    .cb-jobs { font-size: 15px; color: var(--muted); margin-top: 2px; }
+    .cb-note { font-size: 14px; color: var(--warn); margin: 0 0 10px; }
+    .cb-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-gap: 12px; align-items: start; }
+    .cb-grid.n1 { grid-template-columns: minmax(0, 1fr); }
+    .cb-grid.n2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .cb-grid.n3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .cb-col { background: var(--card); border-radius: var(--radius); border-top: 6px solid var(--border); padding: 10px 10px 4px; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+    .cb-name { font-size: 22px; font-weight: 800; }
+    .cb-name .cb-jobname { font-size: 14px; font-weight: 500; color: var(--muted); margin-left: 6px; }
+    .cb-count { font-size: 13px; color: var(--muted); margin-bottom: 8px; }
+    .cb-tile { display: block; width: 100%; text-align: left; font: inherit; color: var(--text); cursor: pointer;
+      background: var(--accent-light); border: 2px solid var(--accent); border-radius: 12px; padding: 12px 12px 10px 48px;
+      margin-bottom: 8px; min-height: 64px; position: relative; }
+    .cb-tile .cb-box { position: absolute; left: 12px; top: 14px; width: 26px; height: 26px; border-radius: 7px;
+      border: 2px solid var(--accent); background: var(--card); text-align: center; line-height: 22px; font-weight: 800; color: #fff; }
+    .cb-tile .cb-title { font-size: 17px; font-weight: 700; line-height: 1.25; display: block; }
+    .cb-tile .cb-when { font-size: 13px; color: var(--muted); display: block; margin-top: 2px; }
+    .cb-tile.is-late { border-color: var(--urgent); background: var(--urgent-light); }
+    .cb-tile.is-late .cb-box { border-color: var(--urgent); }
+    .cb-tile.is-late .cb-when { color: var(--urgent); font-weight: 700; }
+    .cb-tile.is-done { border-color: var(--border); background: var(--card); }
+    .cb-tile.is-done .cb-box { background: #16a34a; border-color: #16a34a; }
+    .cb-tile.is-done .cb-title { color: var(--muted); text-decoration: line-through; }
+    .cb-tile.is-done .cb-when { color: #15803d; }
+    .cb-tile.is-missed, .cb-tile.is-tomorrow { border-color: var(--border); background: transparent; cursor: default; }
+    .cb-tile.is-missed .cb-when { color: var(--urgent); }
+    .cb-tile.as-needed { border-style: dashed; background: var(--card); }
+    .cb-tile.as-needed .cb-box { border-style: dashed; color: var(--accent); }
+    .cb-empty { font-size: 14px; color: var(--muted); padding: 8px 0 12px; }
+    @media (orientation: portrait), (max-width: 700px) {
+      .cb-grid, .cb-grid.n3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .cb-grid.n1 { grid-template-columns: minmax(0, 1fr); }
+    }
+    @media (max-width: 480px) { .cb-grid, .cb-grid.n2, .cb-grid.n3 { grid-template-columns: minmax(0, 1fr); } }
+
     /* ── Pet portraits: each pet full screen over its photo ─────────── */
     /* No CSS inset or flex gap: the wall tablet's WebView is old. */
     .portrait {
@@ -1393,6 +1433,8 @@ const MODULES = [
   { id: "week",         component: "week",         label: "Week",         build: withViewToggle(buildThreeDayCalendar, "calendar", "14 days ›"), onActivate: resetDayView },
   { id: "calendar",     component: "week",         label: "14 days",      build: withViewToggle(buildCalendar, "week", "‹ 3 days"), tab: false },
   { id: "plan",         component: "plan",         label: "Weekly Plan",  build: buildPlan },
+  // Each kid's chores, ticked off right here (the wall tablet).
+  { id: "chores",       component: "chores",       label: "Chores",       build: buildChoreBoard,  onActivate: loadChoreBoard },
   { id: "photos",       component: "photos",       label: "Photos",       build: buildPhotos,      onCard: showPhotoCard, onActivate: nextPhoto },
   // Named by its cards ("The dogs"), since that depends on the family's pets.
   { id: "pet-portraits", component: "pet-portraits", label: "Pets", labelFromCard: true, build: buildPortraits, onCard: showPortrait, onActivate: () => showPortrait(null) },
@@ -1422,6 +1464,8 @@ const tripsState = { cards: [], loaded: false, trips: null, past: null, focus: {
 const TRIP_SLIDE_MS = 5000;
 const OLD_GROCERY_KEY = 'hub-grocery-list';   // v0.7 and earlier kept a list on each device
 const grocery = { items: [], listEl: null, statusEl: null };
+// The chore board (declared here: the views are built before the code below runs).
+const board = { el: null, data: null, busy: false };
 
 // ── Module-level constants (must precede bootstrap's buildModules() call) ──
 // Photos module: a new photo every PHOTO_MS while its tab is showing.
@@ -1717,6 +1761,97 @@ function showPortrait(card) {
   document.getElementById("portrait-age").textContent = [pet.species, pet.age].filter(Boolean).join(" · ");
   document.getElementById("portrait-next").innerHTML = (d.next || []).map(n =>
     `<div class="portrait-item${n.overdue ? " overdue" : ""}">${esc(n.emoji)} ${esc(n.title)} <span class="when">· ${esc(n.when)}</span></div>`).join("");
+}
+
+// ── Chores ─────────────────────────────────────────────────────────
+// A column per kid with today's chores as big tiles. Tap one to tick it done; tap a
+// done one to take it back. Anyone in the family can tick, as on the fridge
+// whiteboard (docs/architecture.md#household-records). Set up at /household/#chores.
+
+function buildChoreBoard(container) {
+  container.innerHTML = `<div class="cb-head"><div class="cb-day" id="cb-day">Chores</div>
+    <div class="cb-jobs" id="cb-jobs"></div><a class="cb-link" href="/household/#chores">Set up ›</a></div>
+    <div class="cb-note" id="cb-note"></div><div id="cb-grid" class="cb-grid"></div>`;
+  board.el = container;
+}
+
+function choreRequest(path, body) {
+  const opts = { credentials: "same-origin" };
+  if (body) { opts.method = "POST"; opts.headers = { "Content-Type": "application/json" }; opts.body = JSON.stringify(body); }
+  return fetch("/api/household" + path, opts).then(r => r.json().catch(() => ({})).then(d => {
+    if (!r.ok || d.error) throw new Error(d.error || `The hub answered ${r.status}`);
+    return d;
+  }));
+}
+
+function loadChoreBoard() {
+  return choreRequest("/chores").then(d => { board.data = d; renderChoreBoard(""); })
+    .catch(e => renderChoreBoard(`Couldn't load the chores: ${e.message}`));
+}
+
+function choreTileWhen(c) {
+  const when = c.when ? c.when.charAt(0).toUpperCase() + c.when.slice(1) : "";
+  if (c.cadence === "as-needed") return c.count ? `Done ${c.count === 1 ? "once" : c.count + " times"} today · tap again` : "When it's needed";
+  if (c.status === "done") return `Done ${c.doneAt ? new Date(c.doneAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : ""}`;
+  if (c.status === "missed") return "Missed";
+  if (c.status === "tomorrow") return "Tomorrow" + (when ? " " + when : "");
+  if (c.status === "late") return (when ? when + " · " : "") + "Late";
+  const withText = c.with && c.with.length ? ` · with ${c.with.map(id => MEMBER_NAMES[id] || id).join(" & ")}` : "";
+  return (when || (c.anyDay ? "This week" : "Today")) + withText;
+}
+
+function renderChoreBoard(problem) {
+  if (!board.el) return;
+  const d = board.data;
+  const c = d && d.chores;
+  const note = document.getElementById("cb-note");
+  const grid = document.getElementById("cb-grid");
+  if (!c || !c.setUp) {
+    note.textContent = problem || "No chores yet. Set them up at /household/.";
+    grid.innerHTML = "";
+    return;
+  }
+  const day = new Date(c.today + "T12:00:00Z").toLocaleDateString([], { weekday: "long", month: "long", day: "numeric", timeZone: "UTC" });
+  document.getElementById("cb-day").textContent = `Chores · ${day}`;
+  document.getElementById("cb-jobs").textContent = c.view.jobs.filter(j => j.member)
+    .map(j => `${j.emoji ? j.emoji + " " : ""}${j.name}: ${MEMBER_NAMES[j.member] || j.member}`).join("  ·  ");
+  note.textContent = problem || (d.can && d.can.tick ? "" : `Ticking is off on this screen: ${d.problem || "its sign-in isn't a family member"}`);
+  const people = c.view.people.filter(p => p.chores.length || p.jobs.length);
+  grid.className = "cb-grid" + (people.length < 4 ? " n" + people.length : "");
+  grid.innerHTML = people.map(p => {
+    const counted = p.chores.filter(x => x.cadence !== "as-needed" && x.status !== "tomorrow");
+    const done = counted.filter(x => x.status === "done").length;
+    return `<div class="cb-col" style="border-top-color:${esc(p.color || "#a1a1aa")}">
+      <div class="cb-name">${esc(p.name)}${p.jobs.length ? `<span class="cb-jobname">${esc(p.jobs.join(", "))}</span>` : ""}</div>
+      <div class="cb-count">${counted.length ? (done === counted.length ? "All done today 🎉" : `${done} of ${counted.length} done`) : ""}</div>
+      ${p.chores.length ? p.chores.map(x => `<button type="button" class="cb-tile is-${x.status}${x.cadence === "as-needed" ? " as-needed" : ""}"
+          data-chore="${esc(x.id)}" data-person="${esc(p.id)}">
+          <span class="cb-box">${x.status === "done" ? "✓" : x.cadence === "as-needed" ? "+" : ""}</span>
+          <span class="cb-title">${esc(x.title)}</span><span class="cb-when">${esc(choreTileWhen(x))}</span></button>`).join("")
+        : `<div class="cb-empty">Nothing today.</div>`}
+    </div>`;
+  }).join("");
+  Array.prototype.forEach.call(grid.querySelectorAll(".cb-tile"), el =>
+    el.addEventListener("click", () => tapChore(el.getAttribute("data-person"), el.getAttribute("data-chore"))));
+}
+
+function tapChore(personId, choreId) {
+  const c = board.data && board.data.chores;
+  if (!c || board.busy) return;
+  const person = c.view.people.find(p => p.id === personId);
+  const chore = person && person.chores.find(x => x.id === choreId);
+  if (!chore || chore.status === "missed" || chore.status === "tomorrow") return;
+  let req;
+  if (chore.status === "done" && chore.cadence !== "as-needed") {
+    if (!chore.actionId || !confirm(`Take back "${chore.title}"? It isn't done after all.`)) return;
+    req = choreRequest("/undo", { actionId: chore.actionId });
+  } else {
+    req = choreRequest(`/chores/${encodeURIComponent(choreId)}/done`, {});
+  }
+  board.busy = true;
+  req.then(d => { board.data = d; renderChoreBoard(""); })
+    .catch(e => renderChoreBoard(e.message))
+    .then(() => { board.busy = false; });
 }
 
 // ── Glance view ────────────────────────────────────────────────────
