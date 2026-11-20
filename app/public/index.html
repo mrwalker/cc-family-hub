@@ -2754,8 +2754,9 @@ function renderMovies() {
     if (!items.length) return;
     html += `<div class="section-title">${title}</div><div class="mv-grid">`;
     items.forEach(m => {
+      // No date yet: just where it'll be.
       const when = m.releaseDate ? (m.releaseDate > today ? day(m.releaseDate) : theaters(m) ? 'Now' : 'Now on ' + m.where)
-        : theaters(m) ? 'Now' : 'On ' + m.where;
+        : theaters(m) ? 'Coming soon' : 'On ' + m.where;
       const where = !theaters(m) && m.releaseDate && m.releaseDate > today ? ' · ' + esc(m.where) : '';
       const dots = members.map(mem => {
         const mark = (m.marks || {})[mem.id] || '';

@@ -120,13 +120,14 @@ const MOVIES = [
   { id: "mv-starfall-2027", title: "Starfall", kind: "movie", releaseDate: "2027-07-16", where: "theaters", format: "IMAX", imageUrl: "https://x/p.jpg", marks: { sam: "want" } },
   { id: "mv-quiet-2027", title: "The Long Quiet", kind: "show", releaseDate: "2027-06-25", where: "Netflix", imageUrl: null, marks: { alex: "seen" } },
   { id: "mv-now-2027", title: "Out Already", kind: "movie", releaseDate: "2027-06-01", where: "theaters", marks: {} },
+  { id: "mv-tba-2027", title: "Date TBA", kind: "show", releaseDate: null, where: "Hulu", marks: {} },
   { id: "mv-old-2027", title: "Long Gone", kind: "movie", releaseDate: "2027-03-01", where: "theaters", marks: {} },
 ];
 
 test("movies: coming soon first with posters, then what's out; long-gone ones drop off", async () => {
   const cards = await byId.movies.cards(ctxWith({ movies: MOVIES }));
-  assert.deepEqual(cards.map(c => c.glance.headline), ["The Long Quiet", "Starfall", "Out Already"]);
-  assert.deepEqual(cards.map(c => c.glance.detail), ["On Netflix Jun 25", "In theaters Jul 16 · IMAX", "In theaters now"]);
+  assert.deepEqual(cards.map(c => c.glance.headline), ["The Long Quiet", "Starfall", "Out Already", "Date TBA"]);
+  assert.deepEqual(cards.map(c => c.glance.detail), ["On Netflix Jun 25", "In theaters Jul 16 · IMAX", "In theaters now", "On Hulu"]);
   assert.equal(cards[1].glance.image, "https://hub.example.com/api/stream/image/movies%3Amv-starfall-2027");
   assert.deepEqual(cards[1].glance.colors, ["#db2777"], "who wants to see it");
   assert.equal(cards[0].glance.emoji, "📺");
