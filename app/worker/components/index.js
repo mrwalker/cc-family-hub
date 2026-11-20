@@ -5,6 +5,7 @@ import * as week from "./week.js";
 import * as plan from "./plan.js";
 import * as pets from "./pets.js";
 import * as house from "./house.js";
+import * as chores from "./chores.js";
 import * as petPortraits from "./pet-portraits.js";
 import * as photos from "./photos.js";
 import * as trips from "./trips.js";
@@ -14,6 +15,6 @@ import * as escapeRooms from "./escape-rooms.js";
 import * as movies from "./movies.js";
 import * as workouts from "./workouts.js";
 
-export const COMPONENTS = [today, week, plan, pets, house, petPortraits, photos, trips, pastTrips, grocery, escapeRooms, movies, workouts];
+export const COMPONENTS = [today, week, plan, pets, house, chores, petPortraits, photos, trips, pastTrips, grocery, escapeRooms, movies, workouts];
 export const COMPONENT_IDS = COMPONENTS.map(c => c.id);
 export const byId = Object.fromEntries(COMPONENTS.map(c => [c.id, c]));
