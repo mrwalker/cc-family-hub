@@ -173,6 +173,7 @@ are no household cards, the page says it isn't set up, and nothing else changes.
 | `places` | Each house a family keeps: name, address, notes |
 | `tasks` | Anything due on a date: its area (`pets`, `house`, `kids`), kind, title, which pet or place it's for and whose job it is, when it's next due, how it repeats, how early its card appears, its booking (date, time, and for a stay its last day), its group, and a provider, phone number and link |
 | `task_log` | One row each time a task is done: when, by whom, what the task was before, and the action it was part of |
+| `pet_photos` | Photos of the pets, already shrunk by the page (at most 1 MB each, ten a pet) |
 | `calendar_events` | For each event the hub made on the household calendar: its id and what the hub last wrote |
 
 A task repeats in one of two ways. A filter is due three months after you change it, so

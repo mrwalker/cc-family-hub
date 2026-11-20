@@ -20,7 +20,7 @@ import { COMPONENT_IDS, byId } from "./components/index.js";
 import { tripSummaries, heroResponse } from "./trips.js";
 import { albumPhotos, albumPhotosFor, photoById, photoFromAlbum } from "./photos.js";
 import { listGrocery } from "./grocery.js";
-import { loadDueTasks } from "./household.js";
+import { loadDueTasks, loadPets, photoResponse } from "./household.js";
 import { ymd, addDays, json } from "./util.js";
 
 export const DEFAULT_MAX = 3;
@@ -44,7 +44,9 @@ export const OUTPUT_DEFAULTS = {
 export function resolveConfig(hub, outputId) {
   const base = hub.stream ?? {};
   const layers = [base, OUTPUT_DEFAULTS[outputId] ?? {}, hub.outputs?.[outputId]?.stream ?? {}];
-  const cfg = { components: COMPONENT_IDS, dwell: DEFAULT_DWELL, photosBetween: 0, max: {} };
+  // A component may say how many of its cards a pass shows (pet-portraits: every pet).
+  const defaultMax = Object.fromEntries(Object.values(byId).filter(c => c.max).map(c => [c.id, c.max]));
+  const cfg = { components: COMPONENT_IDS, dwell: DEFAULT_DWELL, photosBetween: 0, max: defaultMax };
   for (const l of layers) {
     if (Array.isArray(l.components)) cfg.components = l.components.filter(c => byId[c]);
     if (l.dwell != null) cfg.dwell = mergeDwell(cfg.dwell, l.dwell);
@@ -131,6 +133,8 @@ export function makeContext({ request, env, hub, loadEvents, now = new Date(), v
     grocery: once(() => listGrocery(env)),
     // Household tasks that could have a card today; null without a HUB_DB database.
     household: once(() => loadDueTasks(env, today, { hub, origin: url.origin })),
+    // Pets and their photos, for pet-portraits; null without a HUB_DB database.
+    pets: once(() => loadPets(env)),
     // A trip's own shared album (trips.yaml → album), by link.
     album: link => (albums[link] ??= albumPhotosFor(link)),
     image: cardId => `${url.origin}${base}/image/${encodeURIComponent(cardId)}`,
@@ -143,7 +147,7 @@ export async function handleStream(request, env, hub, loadEvents, path, base = "
   const url = new URL(request.url);
 
   const image = path.match(/^\/image\/(.+)$/);
-  if (image) return streamImage(env, hub, decodeURIComponent(image[1]), url.origin);
+  if (image) return streamImage(env, hub, decodeURIComponent(image[1]), url.origin, url.searchParams.get("v"));
   if (path !== "") return json({ error: "Not found" }, 404);
 
   const viewId = (url.searchParams.get("view") || "family").toLowerCase();
@@ -191,9 +195,15 @@ export async function handleStream(request, env, hub, loadEvents, path, base = "
   });
 }
 
-async function streamImage(env, hub, cardId, origin) {
+async function streamImage(env, hub, cardId, origin, version = null) {
   const [component, ...rest] = cardId.split(":");
   const id = rest.join(":");
+  // pet-portraits:<pet id>?v=<photo id> — that photo, or the pet's newest.
+  if (component === "pet-portraits" && id) {
+    const pet = (await loadPets(env))?.find(p => p.id === id);
+    const photo = pet?.photos.find(p => p.id === version) ?? pet?.photos[0];
+    return photo ? photoResponse(env, photo.id) : json({ error: `No photo of "${id}"` }, 404);
+  }
   if (component === "photos" && id) return photoById(hub, id);
   // trip-photo:<trip id>:<photo id> — a photo from that trip's shared album.
   if (component === "trip-photo" && id) {

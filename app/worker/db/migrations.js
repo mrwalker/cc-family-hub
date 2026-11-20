@@ -116,6 +116,25 @@ export const MIGRATIONS = [
       `CREATE TABLE IF NOT EXISTS household_meta (k TEXT PRIMARY KEY, v TEXT)`,
     ],
   },
+  {
+    // v2.5: photos of the pets, for the pet-portraits cards. Each is a JPEG, PNG or
+    // WebP the page has already shrunk, kept as base64 (at most 1 MB of image).
+    version: 4,
+    statements: [
+      `CREATE TABLE IF NOT EXISTS pet_photos (
+         id TEXT PRIMARY KEY,
+         pet_id TEXT NOT NULL REFERENCES pets(id),
+         mime TEXT NOT NULL,
+         data TEXT NOT NULL,
+         width INTEGER,
+         height INTEGER,
+         bytes INTEGER NOT NULL,
+         created_at INTEGER NOT NULL,
+         created_by TEXT
+       )`,
+      `CREATE INDEX IF NOT EXISTS pet_photos_pet ON pet_photos (pet_id, created_at)`,
+    ],
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

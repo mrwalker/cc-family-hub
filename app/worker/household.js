@@ -14,6 +14,9 @@
  *   POST /api/household/tasks/:id/undo       takes back the last time it was done
  *   POST /api/household/undo                 { actionId }  takes back one action (a group's done)
  *   POST /api/household/tasks/:id/archive    { archived }
+ *   POST /api/household/pets/:id/photo       { data: "data:image/jpeg;base64,…", width?, height? }
+ *   POST /api/household/photos/:id/remove
+ *   GET  /api/household/photo/:id            the photo itself
  *   GET  /api/household/export?days=14       → { enabled, today, days, pets, places, tasks, recent }   for the planner
  *   GET  /api/household/diag?…               a page reporting that a save didn't arrive (logged; 204)
  *
@@ -88,6 +91,9 @@ const MAX_PLACES = 20;
 const MAX_TASKS = 500;
 const MAX_BATCH = 50;
 const LOG_ROWS = 100;
+const MAX_PHOTO_BYTES = 1_000_000;
+const MAX_PHOTOS_PER_PET = 10;
+const PHOTO_TYPES = { "image/jpeg": [0xff, 0xd8, 0xff], "image/png": [0x89, 0x50, 0x4e, 0x47], "image/webp": [0x52, 0x49, 0x46, 0x46] };
 
 const isDate = s => typeof s === "string" && DATE_RE.test(s) && !Number.isNaN(Date.parse(`${s}T12:00:00Z`));
 const text = (v, max) => (typeof v === "string" ? v.replace(/\s+/g, " ").trim().slice(0, max) : "");
@@ -283,8 +289,9 @@ async function getTask(db, id) {
 
 async function snapshot(env, hub, who, now, calendarProblem = null) {
   const db = env.HUB_DB;
-  const [pets, places, tasks, log] = await Promise.all([
+  const [pets, photos, places, tasks, log] = await Promise.all([
     db.prepare("SELECT * FROM pets ORDER BY archived, name").all(),
+    db.prepare("SELECT id, pet_id, width, height FROM pet_photos ORDER BY created_at DESC").all(),
     db.prepare("SELECT * FROM places ORDER BY archived, name").all(),
     db.prepare(`SELECT ${TASK_COLUMNS} FROM ${TASK_FROM}
                 ORDER BY t.archived, t.due_date IS NULL, t.due_date, t.title LIMIT ${MAX_TASKS}`).all(),
@@ -301,7 +308,7 @@ async function snapshot(env, hub, who, now, calendarProblem = null) {
     today: ymd(new Date(now), hub.timezone),
     areas: AREAS,
     members: hub.members.map(({ id, name, color, role }) => ({ id, name, color, role: role === "child" ? "child" : "adult" })),
-    pets: pets.results.map(petFromRow),
+    pets: pets.results.map(r => ({ ...petFromRow(r), photos: photos.results.filter(p => p.pet_id === r.id).map(p => ({ id: p.id, width: p.width, height: p.height })) })),
     places: places.results.map(placeFromRow),
     calendar: { on: !!hub.householdCalendar, problem: calendarProblem },
     tasks: tasks.results.map(taskFromRow),
@@ -388,6 +395,51 @@ function handleDiag(request) {
     ua: (request.headers.get("User-Agent") || "").slice(0, 200),
   }));
   return new Response(null, { status: 204 });
+}
+
+// ─── Photos ───────────────────────────────────────────────────────────────────
+
+/**
+ * The pets for the pet-portraits cards: each one that isn't archived, with its photos
+ * (newest first, without the image data). Null without a household database.
+ */
+export async function loadPets(env) {
+  if (!env.HUB_DB) return null;
+  await ensureSchema(env.HUB_DB);
+  const [pets, photos] = await Promise.all([
+    env.HUB_DB.prepare("SELECT * FROM pets WHERE archived = 0 ORDER BY name").all(),
+    env.HUB_DB.prepare("SELECT id, pet_id, width, height FROM pet_photos ORDER BY created_at DESC").all(),
+  ]);
+  return pets.results.map(r => ({ ...petFromRow(r), photos: photos.results.filter(p => p.pet_id === r.id).map(p => ({ id: p.id, width: p.width, height: p.height })) }));
+}
+
+/** A pet's photo. Its id never changes what it points to, so it can be kept a long time. */
+export async function photoResponse(env, photoId) {
+  if (!env.HUB_DB || !ID_RE.test(photoId || "")) return json({ error: "No such photo" }, 404);
+  const cache = typeof caches !== "undefined" ? caches.default : null;
+  const key = new Request(`https://family-hub.internal/pet-photo/${photoId}`);
+  const hit = cache && (await cache.match(key));
+  if (hit) return hit;
+  await ensureSchema(env.HUB_DB);
+  const row = await env.HUB_DB.prepare("SELECT mime, data FROM pet_photos WHERE id = ?").bind(photoId).first();
+  if (!row) return json({ error: "No such photo" }, 404);
+  const bytes = Uint8Array.from(atob(row.data), c => c.charCodeAt(0));
+  const res = new Response(bytes, { headers: { "Content-Type": row.mime, "Cache-Control": "private, max-age=31536000, immutable" } });
+  if (cache) await cache.put(key, new Response(bytes, { headers: { "Content-Type": row.mime, "Cache-Control": "max-age=86400" } }));
+  return res;
+}
+
+/** Checks an uploaded photo. Returns { photo } or { error }. */
+export function cleanPhoto(c) {
+  const m = typeof c?.data === "string" ? c.data.match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/) : null;
+  if (!m) return { error: "data: expected a JPEG, PNG or WebP image as a data: URL" };
+  const bytes = Math.floor(m[2].length * 3 / 4) - (m[2].endsWith("==") ? 2 : m[2].endsWith("=") ? 1 : 0);
+  if (bytes > MAX_PHOTO_BYTES) return { error: `data: the photo is ${Math.round(bytes / 1000)} KB; at most ${MAX_PHOTO_BYTES / 1000} KB` };
+  let head;
+  try { head = Uint8Array.from(atob(m[2].slice(0, 16)), ch => ch.charCodeAt(0)); } catch { return { error: "data: not valid base64" }; }
+  if (!PHOTO_TYPES[m[1]].every((b, i) => head[i] === b)) return { error: `data: that isn't a ${m[1].split("/")[1].toUpperCase()} image` };
+  const size = v => (Number.isInteger(v) && v > 0 && v <= 10000 ? v : null);
+  return { photo: { mime: m[1], data: m[2], bytes, width: size(c.width), height: size(c.height) } };
 }
 
 // ─── The calendar ─────────────────────────────────────────────────────────────
@@ -503,6 +555,8 @@ export async function handleHousehold(request, env, hub, path, opts = {}) {
 
   const origin = new URL(request.url).origin;
   if (request.method === "GET") {
+    const photo = path.match(/^\/photo\/([A-Za-z0-9_-]{6,40})$/);
+    if (photo) return photoResponse(env, photo[1]);
     if (path !== "") return json({ error: "Not found" }, 404);
     await syncCalendar(env, hub, { origin, google: opts.google, pullEvery: 60_000, pushAfterPull: true });
     return json(await snapshot(env, hub, who, now, hub.householdCalendar ? (await meta(db, "calendar_problem")) || null : null));
@@ -546,6 +600,27 @@ export async function handleHousehold(request, env, hub, path, opts = {}) {
                         birthday = excluded.birthday, notes = excluded.notes, archived = excluded.archived,
                         updated_at = excluded.updated_at, updated_by = excluded.updated_by`)
       .bind(pet.id, pet.name, pet.species, pet.birthday, pet.notes, pet.archived ? 1 : 0, now, now, viewer.id).run();
+    return answer();
+  }
+
+  const upload = path.match(/^\/pets\/([A-Za-z0-9_-]{6,40})\/photo$/);
+  if (upload) {
+    if (!canManage(viewer)) return forbidden("add photos");
+    const pet = await db.prepare("SELECT id FROM pets WHERE id = ?").bind(upload[1]).first();
+    if (!pet) return json({ error: "No such pet" }, 404);
+    const { photo, error } = cleanPhoto(body);
+    if (error) return json({ error }, 400);
+    const { n } = await db.prepare("SELECT COUNT(*) AS n FROM pet_photos WHERE pet_id = ?").bind(pet.id).first();
+    if (n >= MAX_PHOTOS_PER_PET) return json({ error: `No more than ${MAX_PHOTOS_PER_PET} photos of one pet. Remove one first` }, 400);
+    await db.prepare("INSERT INTO pet_photos (id, pet_id, mime, data, width, height, bytes, created_at, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
+      .bind(`photo-${crypto.randomUUID().replace(/-/g, "").slice(0, 24)}`, pet.id, photo.mime, photo.data, photo.width, photo.height, photo.bytes, now, viewer.id).run();
+    return answer();
+  }
+
+  const removal = path.match(/^\/photos\/([A-Za-z0-9_-]{6,40})\/remove$/);
+  if (removal) {
+    if (!canManage(viewer)) return forbidden("remove photos");
+    await db.prepare("DELETE FROM pet_photos WHERE id = ?").bind(removal[1]).run();
     return answer();
   }
 
