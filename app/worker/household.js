@@ -40,6 +40,8 @@ import { ensureSchema } from "./db/migrations.js";
 import { identify } from "./access.js";
 import { ymd, addDays, daysBetween, json } from "./util.js";
 import { timingSafeEqual } from "./data-api.js";
+import { calendarClient } from "./google.js";
+import { pushToCalendar, pullFromCalendar, PULL_EVERY_MS } from "./household-calendar.js";
 
 /**
  * Each area's kinds of task.
@@ -231,13 +233,13 @@ export function canComplete(viewer, task) {
 const TASK_COLUMNS = `t.id, t.area, t.kind, t.title, t.pet_id, t.place_id, t.group_id, t.assignee, t.due_date, t.due_time,
   t.repeat_every, t.repeat_unit, t.repeat_from, t.lead_days, t.booked, t.appt_date, t.appt_time, t.end_date,
   t.provider, t.phone, t.url, t.notes, t.archived, t.updated_at, t.updated_by,
-  p.name AS pet_name, p.species AS pet_species, pl.name AS place_name`;
+  p.name AS pet_name, p.species AS pet_species, pl.name AS place_name, pl.address AS place_address`;
 const TASK_FROM = `tasks t LEFT JOIN pets p ON p.id = t.pet_id LEFT JOIN places pl ON pl.id = t.place_id`;
 
 const taskFromRow = r => ({
   id: r.id, area: r.area, kind: r.kind, title: r.title,
   petId: r.pet_id ?? null, petName: r.pet_name ?? null, petSpecies: r.pet_species ?? null,
-  placeId: r.place_id ?? null, placeName: r.place_name ?? null, groupId: r.group_id ?? null,
+  placeId: r.place_id ?? null, placeName: r.place_name ?? null, placeAddress: r.place_address ?? null, groupId: r.group_id ?? null,
   assignee: r.assignee ?? null,
   dueDate: r.due_date ?? null, dueTime: r.due_time ?? null,
   repeatEvery: r.repeat_every ?? null, repeatUnit: r.repeat_unit ?? null, repeatFrom: r.repeat_from,
@@ -259,9 +261,11 @@ const placeFromRow = r => ({ id: r.id, name: r.name, address: r.address ?? null,
  * within the longest lead time. One query; the stream calls this on every
  * request. Returns null when the hub has no household database.
  */
-export async function loadDueTasks(env, today) {
+export async function loadDueTasks(env, today, { hub = null, origin = null, google = null } = {}) {
   if (!env.HUB_DB) return null;
   await ensureSchema(env.HUB_DB);
+  // Edits made in Google Calendar come back every few minutes; this is where screens ask.
+  if (hub?.householdCalendar) await syncCalendar(env, hub, { origin, google, pullEvery: PULL_EVERY_MS, pushAfterPull: true });
   const until = addDays(today, MAX_LEAD_DAYS);
   const { results } = await env.HUB_DB
     .prepare(`SELECT ${TASK_COLUMNS} FROM ${TASK_FROM}
@@ -277,7 +281,7 @@ async function getTask(db, id) {
   return row ? taskFromRow(row) : null;
 }
 
-async function snapshot(env, hub, who, now) {
+async function snapshot(env, hub, who, now, calendarProblem = null) {
   const db = env.HUB_DB;
   const [pets, places, tasks, log] = await Promise.all([
     db.prepare("SELECT * FROM pets ORDER BY archived, name").all(),
@@ -299,6 +303,7 @@ async function snapshot(env, hub, who, now) {
     members: hub.members.map(({ id, name, color, role }) => ({ id, name, color, role: role === "child" ? "child" : "adult" })),
     pets: pets.results.map(petFromRow),
     places: places.results.map(placeFromRow),
+    calendar: { on: !!hub.householdCalendar, problem: calendarProblem },
     tasks: tasks.results.map(taskFromRow),
     log: log.results.map(r => ({
       id: r.id, taskId: r.task_id, actionId: r.action_id ?? null, groupId: r.group_id ?? null,
@@ -385,6 +390,48 @@ function handleDiag(request) {
   return new Response(null, { status: 204 });
 }
 
+// ─── The calendar ─────────────────────────────────────────────────────────────
+
+const meta = async (db, k) => (await db.prepare("SELECT v FROM household_meta WHERE k = ?").bind(k).first())?.v ?? null;
+const setMeta = (db, k, v) => db.prepare("INSERT INTO household_meta (k, v) VALUES (?, ?) ON CONFLICT (k) DO UPDATE SET v = excluded.v").bind(k, v).run();
+
+/**
+ * Brings the household calendar up to date (household-calendar.js). With
+ * `pullEvery`, first reads edits made in Google Calendar, if it hasn't for that long.
+ * Never throws: returns the problem, if there was one, and remembers it for the page.
+ */
+async function syncCalendar(env, hub, { origin, google, pullEvery = null, pushAfterPull = false, push = false } = {}) {
+  if (!hub.householdCalendar) return null;
+  const db = env.HUB_DB;
+  const calendarId = hub.householdCalendar;
+  try {
+    google ??= calendarClient(env);
+    if (pullEvery != null) {
+      const last = Number(await meta(db, "calendar_pulled_at")) || 0;
+      const now = Date.now();
+      if (now - last >= pullEvery) {
+        await setMeta(db, "calendar_pulled_at", String(now));
+        // A minute's overlap, so nothing changed at the boundary is missed.
+        const since = last ? new Date(last - 60_000).toISOString() : null;
+        const pulled = await pullFromCalendar(db, google, calendarId, { since, now });
+        if (pushAfterPull && (pulled.moved || pulled.unbooked)) push = true;
+      }
+    }
+    if (push) {
+      const { results } = await db.prepare(`SELECT ${TASK_COLUMNS} FROM ${TASK_FROM} WHERE t.archived = 0`).all();
+      const hubUrl = (origin ?? (await meta(db, "origin")) ?? "") + "/";
+      if (origin) await setMeta(db, "origin", origin);
+      await pushToCalendar(db, google, calendarId, results.map(taskFromRow), { timezone: hub.timezone, hubUrl });
+    }
+    if (await meta(db, "calendar_problem")) await setMeta(db, "calendar_problem", "");
+    return null;
+  } catch (err) {
+    console.error(`Household calendar: ${err.message}`);
+    await setMeta(db, "calendar_problem", err.message.slice(0, 300)).catch(() => {});
+    return err.message;
+  }
+}
+
 // ─── Writing ──────────────────────────────────────────────────────────────────
 
 function upsertTask(db, task, viewer, now) {
@@ -454,9 +501,11 @@ export async function handleHousehold(request, env, hub, path, opts = {}) {
   const who = await identify(request, env, hub, opts);
   const now = opts.now ?? Date.now();
 
+  const origin = new URL(request.url).origin;
   if (request.method === "GET") {
     if (path !== "") return json({ error: "Not found" }, 404);
-    return json(await snapshot(env, hub, who, now));
+    await syncCalendar(env, hub, { origin, google: opts.google, pullEvery: 60_000, pushAfterPull: true });
+    return json(await snapshot(env, hub, who, now, hub.householdCalendar ? (await meta(db, "calendar_problem")) || null : null));
   }
   if (request.method !== "POST") return json({ error: "Method not allowed" }, 405);
   // Only JSON requests may write. A form on another site can't send one, so it
@@ -475,7 +524,11 @@ export async function handleHousehold(request, env, hub, path, opts = {}) {
 
   const viewer = who.viewer;
   const forbidden = what => json({ error: `Only adults can ${what}` }, 403);
-  const answer = async () => json(await snapshot(env, hub, who, now));
+  // After a change: make the calendar match, then answer with the fresh records.
+  const answer = async () => {
+    const problem = await syncCalendar(env, hub, { origin, google: opts.google, push: true });
+    return json(await snapshot(env, hub, who, now, problem));
+  };
   const today = ymd(new Date(now), hub.timezone);
 
   if (path === "/pets") {

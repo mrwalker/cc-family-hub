@@ -3,7 +3,7 @@
  * Builds a family's hub from its repo (run from that repo's root):
  *
  *   workspace/family.yaml        members (+ color, shortName), inputs, stream, outputs,
- *                                hub.title, hub.guests, hub.tripApps, hub.access
+ *                                hub.title, hub.guests, hub.tripApps, hub.access, hub.householdCalendar
  *                                (and the older hub.photos and hub.groceryEmailUrl)
  *   workspace/members/<id>.yaml  calendarIds, email
  *     → .generated/hub-config.json   imported by the family's worker.js (never served)
@@ -181,6 +181,12 @@ if (hub.access != null) {
   }
 }
 
+// hub.householdCalendar: the Google Calendar booked household appointments go on.
+const householdCalendar = hub.householdCalendar == null ? null : String(hub.householdCalendar).trim();
+if (householdCalendar != null && !/^[^\s@]+@[^\s@]+$/.test(householdCalendar)) {
+  fail("family.yaml", "hub.householdCalendar", "expected a Google Calendar ID (Calendar settings → Integrate calendar), like \"abc123@group.calendar.google.com\"");
+}
+
 const guests = Object.entries(hub.guests ?? {}).map(([id, g]) => {
   if (!ID_RE.test(id)) fail("family.yaml", `hub.guests.${id}`, "expected a lowercase id");
   if (memberIds.has(id)) fail("family.yaml", `hub.guests.${id}`, "is also a family member");
@@ -275,6 +281,7 @@ const config = {
   members,
   guests,
   access,
+  householdCalendar,
   tripApps,
   groceryEmailUrl: groceryEmailUrl || null,
   photos: album ? { icloudAlbum: String(album) } : null,

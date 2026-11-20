@@ -68,6 +68,10 @@ hub:
     teamDomain: "rivera.cloudflareaccess.com"
     aud: "4714c1358e65fe4b408ad6d432a5f878f08194bdb4752441fd56faefa9b2b6f2"
 
+  # Optional: the Google Calendar booked household appointments go on, shared with
+  # the service account ("Make changes to events"). See getting-started.md.
+  householdCalendar: "abc123@group.calendar.google.com"
+
   # People who join trips but aren't members. An email lets their sign-in pick their
   # player in a trip app. Their calendars are never read.
   guests:
