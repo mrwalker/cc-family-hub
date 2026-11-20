@@ -51,12 +51,13 @@ Built so far:
   clear schedule, ticked off on `/household/` by anyone in the family and shown on every screen.
 - **v2.6.1:** the **chore board** on the hub page: a column per kid, each chore a tile to tap,
   for the wall tablet.
+- **v2.7.0:** **escape rooms** kept by the hub: added on `/household/` after a game, each with
+  its room's picture, found on its link.
 
 The rest ships in steps:
 
 | Release | What it adds |
 |---------|--------------|
-| v2.7.0 | **Escape rooms** kept by the hub: added from a phone, each with its room's picture |
 | v2.8.0 | **Movies** picked monthly by the family's assistant: in theaters and streaming, with posters, and who wants to see each |
 | v2.9.0 | **Activities:** completing what the calendar leaves out |
 

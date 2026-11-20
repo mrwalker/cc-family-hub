@@ -792,6 +792,14 @@
     [data-theme="dark"] .er-time-badge.failed   { background: #2d1515; color: #fca5a5; }
     [data-theme="dark"] .er-time-badge.er-clutch { background: #2d1f0a; color: #fbbf24; }
     .er-notes { font-size: 12px; color: var(--muted); font-style: italic; margin-top: 7px; line-height: 1.45; }
+    .er-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); grid-gap: 14px; }
+    .er-tile { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+    .er-pic { position: relative; height: 150px; background: linear-gradient(135deg, #4f46e5, #0f172a); overflow: hidden; }
+    .er-pic img { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; }
+    .er-pic-shade { position: absolute; top: 0; right: 0; bottom: 0; left: 0; background: linear-gradient(180deg, rgba(0,0,0,0) 40%, rgba(0,0,0,.75) 100%); }
+    .er-pic-name { position: absolute; left: 12px; right: 12px; bottom: 10px; color: #fff; font-size: 18px; font-weight: 800; line-height: 1.2; text-shadow: 0 1px 6px rgba(0,0,0,.5); }
+    .er-pic-badge { position: absolute; top: 10px; right: 10px; }
+    .er-tile-body { padding: 10px 12px 12px; }
     .er-dots  { display: flex; gap: 3px; margin-top: 8px; flex-wrap: wrap; }
 
     /* ── Movies ─────────────────────────────────────────────────────── */
@@ -1441,7 +1449,7 @@ const MODULES = [
   { id: "trips",        component: "trips",        label: "Trips",        build: buildTrips,       onCard: c => renderTrips(c.id, c), onActivate: () => renderTrips(null) },
   { id: "past-trips",   component: "past-trips",   label: "Past Trips",   build: buildPastTrips,   onCard: c => renderPastTrips(c.id, c), onActivate: () => renderPastTrips(null) },
   { id: "grocery",      component: "grocery",      label: "Grocery",      build: buildGroceryList, onActivate: loadGrocery },
-  { id: "escape-rooms", component: "escape-rooms", label: "Escape Rooms", build: buildEscapeRooms },
+  { id: "escape-rooms", component: "escape-rooms", label: "Escape Rooms", build: buildEscapeRooms, onActivate: loadEscapeRooms },
   { id: "movies",       component: "movies",       label: "Movies",       build: buildMovies },
   { id: "workouts",     component: "workouts",     label: "Workouts",     build: buildStrava },
   // Any component without a view above is drawn from its cards' glance, so a
@@ -2541,91 +2549,69 @@ function tripDetails(trip) {
 
 // ── Escape Rooms module ────────────────────────────────────────────
 function buildEscapeRooms(container) {
-  const rooms = family.escapeRooms || [];
+  container.innerHTML = '<div id="er-wrap"></div>';
+  renderEscapeRooms(family.escapeRooms || [], false);
+}
+
+/** The hub's rooms (v2.7), or the published list before they're brought in. */
+function loadEscapeRooms() {
+  return fetch('/api/household/rooms', { credentials: 'same-origin' })
+    .then(r => (r.ok ? r.json() : null))
+    .then(d => {
+      const kept = d && d.enabled && (d.rooms || []).filter(r => !r.archived);
+      renderEscapeRooms(kept && kept.length ? kept : family.escapeRooms || [], !!(kept && kept.length));
+    })
+    .catch(() => renderEscapeRooms(family.escapeRooms || [], false));
+}
+
+function renderEscapeRooms(rooms, kept) {
+  const wrap = document.getElementById('er-wrap');
+  if (!wrap) return;
   if (!rooms.length) {
-    container.innerHTML = '<p style="color:var(--muted);font-size:14px;padding:20px 0">No escape room history yet — add entries to workspace/escape-rooms.yaml</p>';
+    wrap.innerHTML = '<p style="color:var(--muted);font-size:14px;padding:20px 0">No escape rooms yet. Add one at <a href="/household/#rooms">Household › Escape rooms</a>.</p>';
     return;
   }
-  const sorted      = [...rooms].sort((a, b) => (b.date||'').localeCompare(a.date||''));
+  const sorted = [...rooms].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
   const solvedCount = rooms.filter(r => r.solved).length;
-  const pct         = Math.round(solvedCount / rooms.length * 100);
+  const pct = Math.round(solvedCount / rooms.length * 100);
+  const timed = rooms.filter(r => r.solved && r.escapeTime && r.escapeTime !== '-10 seconds' && !isNaN(parseInt(r.escapeTime)));
+  const fastest = timed.reduce((best, r) => (!best || parseInt(r.escapeTime) < parseInt(best.escapeTime) ? r : best), null);
 
-  // Best times for flavor
-  const solvedWithTime = rooms.filter(r => r.solved && r.escapeTime && r.escapeTime !== '-10 seconds');
-  const parseMin = t => parseInt(t);
-  const fastest  = solvedWithTime.reduce((best, r) => {
-    const m = parseMin(r.escapeTime);
-    return (!best || m < parseMin(best.escapeTime)) ? r : best;
-  }, null);
-
-  const statsEl = document.createElement('div');
-  statsEl.className = 'er-stats';
-  statsEl.innerHTML = `
+  let html = `<div class="er-stats">
     <div class="er-stat"><div class="er-stat-val">${rooms.length}</div><div class="er-stat-label">Rooms</div></div>
     <div class="er-stat"><div class="er-stat-val">${solvedCount}</div><div class="er-stat-label">Escaped</div></div>
     <div class="er-stat"><div class="er-stat-val">${rooms.length - solvedCount}</div><div class="er-stat-label">Failed</div></div>
-    <div class="er-stat"><div class="er-stat-val">${pct}%</div><div class="er-stat-label">Win Rate</div></div>`;
-  container.appendChild(statsEl);
-
+    <div class="er-stat"><div class="er-stat-val">${pct}%</div><div class="er-stat-label">Win Rate</div></div></div>
+    <div class="er-grid">`;
   sorted.forEach(room => {
-    // Date display — show "~YYYY" for approximate dates, "Mon YYYY" for real ones
     let dateStr = '';
     if (room.date) {
       const d = new Date(room.date + 'T12:00:00');
-      dateStr = room.approxDate
-        ? '~' + d.getFullYear()
-        : d.toLocaleDateString('en-US', {month:'short', year:'numeric'});
+      dateStr = room.approxDate ? '~' + d.getFullYear() : d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
     }
-
-    const dotsHtml = (room.who||[]).filter(Boolean).map(id => mdot(id, 20)).join('');
-    const isFastest = fastest && room.id === fastest.id;
-
-    // Result badge
-    let resultBadge = '';
+    const isFastest = fastest && room === fastest;
+    let badge;
     if (room.solved) {
-      if (room.escapeTime === '-10 seconds') {
-        resultBadge = `<span class="er-time-badge er-clutch">Buzzer beater</span>`;
-      } else if (room.escapeTime) {
-        resultBadge = `<span class="er-time-badge solved">${room.escapeTime}${isFastest ? ' · Fastest' : ''}</span>`;
-      } else {
-        resultBadge = `<span class="er-time-badge solved">✓ Escaped</span>`;
-      }
+      badge = room.escapeTime === '-10 seconds' ? '<span class="er-time-badge er-clutch">Buzzer beater</span>'
+        : `<span class="er-time-badge solved">${room.escapeTime ? esc(room.escapeTime) : '✓ Escaped'}${isFastest ? ' · Fastest' : ''}</span>`;
     } else {
-      resultBadge = `<span class="er-time-badge failed">✗ ${room.failNote || 'Not solved'}</span>`;
+      badge = `<span class="er-time-badge failed">✗ ${esc(room.failNote || 'Not solved')}</span>`;
     }
-
-    const urlLink = room.url
-      ? `<a class="er-url" href="${room.url}" target="_blank" rel="noopener">↗ venue</a>`
-      : '';
-
-    const card = document.createElement('div');
-    card.className = 'er-card' + (isFastest ? ' er-card-fastest' : '');
-    card.innerHTML = `
-      <div class="er-card-head">
-        <span class="er-outcome">${room.solved ? '✅' : '❌'}</span>
-        <div style="flex:1;min-width:0">
-          <div class="er-room-name">${room.room}</div>
-          <div class="er-venue-line">
-            <span class="er-venue">${room.venue}</span>
-            ${room.city ? `<span class="er-city">· ${room.city}</span>` : ''}
-            ${urlLink}
-          </div>
-        </div>
-        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0">
-          ${resultBadge}
-          ${dateStr ? `<span class="er-date">${dateStr}</span>` : ''}
-        </div>
-      </div>
-      ${room.notes ? `<div class="er-notes">"${room.notes}"</div>` : ''}
-      ${dotsHtml ? `<div class="er-dots">${dotsHtml}</div>` : ''}`;
-    container.appendChild(card);
+    const pic = kept && room.imageUrl ? `<img src="/api/household/image/rooms/${encodeURIComponent(room.id)}" alt="" loading="lazy" onerror="this.remove()">` : '';
+    const dots = (room.who || []).filter(Boolean).map(id => mdot(id, 20)).join('');
+    html += `<div class="er-tile${isFastest ? ' er-card-fastest' : ''}">
+      <div class="er-pic">${pic}<div class="er-pic-shade"></div>
+        <div class="er-pic-name">${esc(room.room)}</div>
+        <div class="er-pic-badge">${badge}</div></div>
+      <div class="er-tile-body">
+        <div class="er-venue-line"><span class="er-venue">${esc(room.venue || '')}</span>${room.city ? `<span class="er-city">· ${esc(room.city)}</span>` : ''}${dateStr ? `<span class="er-city">· ${dateStr}</span>` : ''}
+          ${room.url ? `<a class="er-url" href="${esc(room.url)}" target="_blank" rel="noopener">↗</a>` : ''}</div>
+        ${room.notes ? `<div class="er-notes">${esc(room.notes)}</div>` : ''}
+        ${dots ? `<div class="er-dots">${dots}</div>` : ''}
+      </div></div>`;
   });
+  wrap.innerHTML = html + '</div>';
 }
-
-// ── Movies module ──────────────────────────────────────────────────
-// ── Photos module ──────────────────────────────────────────────────
-// The family's iCloud shared album (hub.photos.icloudAlbum), shuffled; see PHOTO_MS.
-
 function buildPhotos(container) {
   container.innerHTML = '<div class="photo-frame"><img alt=""><img alt=""></div>' +
     '<p class="photo-empty" style="display:none"></p>';

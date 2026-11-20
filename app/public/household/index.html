@@ -146,6 +146,19 @@
     .setup-row:first-of-type { border-top: 0; }
     .setup-row .actions { position: absolute; right: 0; top: 8px; }
     .setup-row .actions button { margin-left: 6px; }
+    /* Escape rooms */
+    .rooms-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); text-align: center; }
+    .rooms-stats .v { font-size: 24px; font-weight: 800; }
+    .rooms-stats .l { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+    .room { border-top: 1px solid var(--border); padding: 12px 0; position: relative; padding-left: 112px; min-height: 100px; }
+    .room:first-of-type { border-top: 0; }
+    .room .pic { position: absolute; left: 0; top: 12px; width: 100px; height: 76px; border-radius: 8px; object-fit: cover;
+      background: linear-gradient(135deg, #6366f1, #0f172a); }
+    .room .pic.none { display: block; color: #fff; font-size: 30px; text-align: center; line-height: 76px; }
+    .room .result { font-size: 13px; font-weight: 700; color: #15803d; }
+    .room .result.failed { color: var(--urgent); }
+    .room .room-actions { margin-top: 6px; }
+    .room .room-actions button { margin: 0 6px 4px 0; }
     .job-edit { display: grid; grid-template-columns: 1fr 70px 44px; grid-gap: 8px; margin-bottom: 8px; }
   </style>
 </head>
@@ -338,7 +351,7 @@ function render() {
   $("who").textContent = v ? `Signed in as ${v.name}` : "";
   const banner = $("banner");
   const cal = state.calendar || {};
-  const choresTab = area === "chores" || (!area && v && v.role === "child");
+  const choresTab = area === "chores" || area === "rooms" || (!area && v && v.role === "child");
   if (!state.can.manage && !(choresTab && state.can.tick)) {
     banner.textContent = v ? (state.can.tick ? "You can tick chores done. Only adults can change the rest." : "You can look, but only adults can make changes here.")
       : `You can look, but changes are off: ${state.problem}`;
@@ -349,15 +362,15 @@ function render() {
     banner.classList.remove("hidden");
   } else banner.classList.add("hidden");
 
-  const areas = Object.keys(state.areas).concat("chores");
-  const label = a => (state.areas[a] ? state.areas[a].label : "Chores");
+  const areas = Object.keys(state.areas).concat("chores", "rooms");
+  const label = a => (state.areas[a] ? state.areas[a].label : a === "rooms" ? "Escape rooms" : "Chores");
   // Kids start on their chores.
   if (!area || areas.indexOf(area) < 0) area = areas.indexOf(location.hash.slice(1)) >= 0 ? location.hash.slice(1) : v && v.role === "child" ? "chores" : areas[0];
   const tabs = $("tabs");
   tabs.classList.toggle("hidden", areas.length < 2);
   tabs.innerHTML = areas.map(a => `<button data-do="area" data-id="${a}" class="${a === area ? "active" : ""}">${esc(label(a))}</button>`).join("");
 
-  main.innerHTML = area === "pets" ? petsView() : area === "house" ? houseView() : area === "chores" ? choresView() : listView(area);
+  main.innerHTML = area === "pets" ? petsView() : area === "house" ? houseView() : area === "chores" ? choresView() : area === "rooms" ? roomsView() : listView(area);
   wirePhotoInputs();
   const first = main.querySelector(".form input:not([type=checkbox]), .form select");
   if (first && form && form.fresh) { first.focus(); form.fresh = false; }
@@ -856,6 +869,101 @@ function goChoreDay(step) {
   load();
 }
 
+// ── Escape rooms ───────────────────────────────────────────────────
+// The rooms the family has played. Anyone in the family adds one after a game; its
+// picture comes from its link (the hub looks on the room's page).
+const liveRooms = () => (state.rooms || []).filter(r => !r.archived);
+
+function roomDate(r) {
+  if (!r.date) return "";
+  return r.approxDate ? "~" + r.date.slice(0, 4) : dateText(r.date, { month: "short", year: "numeric" });
+}
+
+function roomsView() {
+  const tick = state.can.tick, manage = state.can.manage;
+  const rooms = liveRooms();
+  let html = "";
+  if (state.canImportRooms && manage) {
+    html += `<div class="card"><h2>Bring in your list</h2><p class="sub" style="margin-top:6px">This hub has the escape rooms
+      from escape-rooms.yaml. Bring them in once, and the hub looks for each room's picture on its link.</p>
+      <div class="task-actions" style="margin-top:10px"><button class="primary" data-do="import-rooms">Bring them in</button></div></div>`;
+  }
+  if (rooms.length) {
+    const escaped = rooms.filter(r => r.solved).length;
+    html += `<div class="card rooms-stats">
+      <div><div class="v">${rooms.length}</div><div class="l">Rooms</div></div>
+      <div><div class="v">${escaped}</div><div class="l">Escaped</div></div>
+      <div><div class="v">${rooms.length - escaped}</div><div class="l">Not quite</div></div>
+      <div><div class="v">${Math.round(escaped / rooms.length * 100)}%</div><div class="l">Win rate</div></div></div>`;
+  }
+  html += `<div class="card">`;
+  if (form && form.type === "room" && !form.id) html += roomForm(null);
+  else if (tick) html += `<div class="task-actions" style="margin-bottom:6px"><button class="primary" data-do="add-room">+ Add a room</button>
+    ${rooms.some(r => r.url && !r.imageUrl) ? `<button data-do="room-pictures">Find missing pictures</button>` : ""}</div>`;
+  if (!rooms.length && !(form && form.type === "room")) html += `<div class="empty">No escape rooms yet.</div>`;
+  rooms.forEach(r => {
+    if (form && form.type === "room" && form.id === r.id) { html += roomForm(r); return; }
+    const who = (r.who || []).map(memberName).join(", ");
+    html += `<div class="room">
+      ${r.imageUrl ? `<img class="pic" src="${API}/image/rooms/${esc(r.id)}" alt="" loading="lazy">` : `<span class="pic none">🔐</span>`}
+      <div class="chore-title">${esc(r.room)}</div>
+      <div class="sub">${esc([r.venue, r.city].filter(Boolean).join(" · "))}${r.date ? " · " + esc(roomDate(r)) : ""}</div>
+      <div class="result${r.solved ? "" : " failed"}">${r.solved ? "Escaped" + (r.escapeTime ? " · " + esc(r.escapeTime) : "") : "Didn't escape" + (r.failNote ? " · " + esc(r.failNote) : "")}</div>
+      ${who ? `<div class="sub">${esc(who)}</div>` : ""}
+      ${r.notes ? `<div class="task-more">${esc(r.notes)}</div>` : ""}
+      ${tick ? `<div class="room-actions"><button class="small" data-do="edit-room" data-id="${esc(r.id)}">Edit</button>
+        ${r.url ? `<a class="small" href="${esc(r.url)}" target="_blank" rel="noopener">Room's page</a>` : ""}</div>` : ""}
+    </div>`;
+  });
+  html += `</div>`;
+  return html;
+}
+
+function roomForm(r) {
+  const d = r || { who: [], solved: true, date: state.today };
+  return `<div class="form" data-form="room">
+    <h3>${r ? `Edit ${esc(r.room)}` : "Add a room"}</h3>
+    <div class="row">
+      <div class="field"><label for="r-room">Room</label><input id="r-room" maxlength="80" placeholder="Lost City" value="${esc(d.room)}"></div>
+      <div class="field"><label for="r-venue">Venue</label><input id="r-venue" maxlength="80" placeholder="Puzzle Co" value="${esc(d.venue)}"></div>
+    </div>
+    <div class="row">
+      <div class="field"><label for="r-city">City</label><input id="r-city" maxlength="60" value="${esc(d.city)}"></div>
+      <div class="field"><label for="r-date">When</label><input id="r-date" type="date" value="${esc(d.date)}">
+        <label class="check" style="margin-top:4px"><input type="checkbox" id="r-approx"${d.approxDate ? " checked" : ""}>Only the year is right</label></div>
+    </div>
+    <div class="field"><span class="field-label">Who played</span>${state.members.map(m => `<label class="check"><input type="checkbox" class="r-who" value="${m.id}"${(d.who || []).indexOf(m.id) >= 0 ? " checked" : ""}>${esc(m.name)}</label>`).join("")}</div>
+    <div class="row">
+      <div class="field"><label class="check" style="margin-top:28px"><input type="checkbox" id="r-solved"${d.solved ? " checked" : ""}>We escaped</label></div>
+      <div class="field"><label for="r-time">Time</label><input id="r-time" maxlength="20" placeholder="52 min" value="${esc(d.escapeTime)}"></div>
+    </div>
+    <div class="field"><label for="r-fail">If not, what happened</label><input id="r-fail" maxlength="200" value="${esc(d.failNote)}"></div>
+    <div class="field"><label for="r-url">The room's page</label><input id="r-url" type="url" maxlength="500" placeholder="https://" value="${esc(d.url)}">
+      <div class="hint">The hub takes the room's picture from this page.</div></div>
+    ${r ? `<div class="field"><label for="r-pic">Picture (optional)</label><input id="r-pic" type="url" maxlength="500" placeholder="A link to a picture, if the hub picked a wrong one" value="">
+      <div class="hint">${r.imageUrl ? "It has a picture. Leave this empty to keep it." : "It has no picture yet."}</div></div>` : ""}
+    <div class="field"><label for="r-notes">Notes</label><textarea id="r-notes" maxlength="500">${esc(d.notes)}</textarea></div>
+    <div class="form-actions"><button class="primary" data-do="save-room">Save</button><button data-do="cancel">Cancel</button>
+      ${r && state.can.manage ? `<button class="danger" data-do="archive-room" data-id="${esc(r.id)}">Archive</button>` : ""}</div>
+  </div>`;
+}
+
+function saveRoom() {
+  const old = form.id ? (state.rooms || []).find(r => r.id === form.id) : null;
+  const room = Object.assign({}, old || {}, {
+    id: old ? old.id : form.newId, room: val("r-room"), venue: val("r-venue"), city: val("r-city"),
+    date: val("r-date") || null, approxDate: $("r-approx").checked, solved: $("r-solved").checked,
+    escapeTime: val("r-time"), failNote: val("r-fail"), url: val("r-url") || null, notes: val("r-notes"),
+    who: Array.prototype.filter.call(document.querySelectorAll(".r-who"), c => c.checked).map(c => c.value),
+  });
+  if (!room.room) { setStatus("Give the room's name", true); return; }
+  const pic = $("r-pic") ? val("r-pic") : "";
+  setStatus(room.url && (!old || old.url !== room.url) ? "Saving, and looking for the room's picture…" : "Saving…");
+  send("/rooms", room, "Saved")
+    .then(ok => ok && pic ? send(`/rooms/${room.id}/image`, { imageUrl: pic }, "Saved, with that picture") : ok)
+    .then(ok => { if (ok) form = null; render(); });
+}
+
 // ── Forms ──────────────────────────────────────────────────────────
 const opt = (value, label, current) => `<option value="${esc(value)}"${value === current ? " selected" : ""}>${esc(label)}</option>`;
 const val = id => ($(id) ? $(id).value.trim() : "");
@@ -1084,6 +1192,12 @@ document.addEventListener("click", e => {
   switch (btn.getAttribute("data-do")) {
     case "area": area = id; form = null; choreDay = null; history.replaceState(null, "", "#" + id); if (id === "chores") load(); else render(); break;
     case "chore-day": goChoreDay(Number(id)); break;
+    case "add-room": form = { type: "room", id: null, newId: newId("room"), fresh: true }; render(); break;
+    case "edit-room": form = { type: "room", id, fresh: true }; render(); break;
+    case "save-room": saveRoom(); break;
+    case "archive-room": if (confirm("Archive this room? It's kept, just not shown.")) send(`/rooms/${id}/archive`, { archived: true }, "Archived").then(closeThen); break;
+    case "import-rooms": setStatus("Bringing them in and looking for pictures. This takes a few seconds…"); send("/rooms/import", {}, "Brought in").then(redraw); break;
+    case "room-pictures": setStatus("Looking for pictures…"); send("/rooms/images", {}, "Done looking").then(redraw); break;
     case "chore-done": send(`/chores/${id}/done`, {}, "Done! It's under Lately if you need to undo it.").then(redraw); break;
     case "chore-undo": send("/undo", { actionId: id }, "Put back").then(redraw); break;
     case "chores-setup": showSetup = !showSetup; form = null; render(); break;

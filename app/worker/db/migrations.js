@@ -191,6 +191,37 @@ export const MIGRATIONS = [
        )`,
     ],
   },
+  {
+    // v2.7: escape rooms, kept by the hub instead of escape-rooms.yaml. image_url is a
+    // picture found on the room's page (link-image.js), served through the hub.
+    version: 6,
+    statements: [
+      `CREATE TABLE IF NOT EXISTS escape_rooms (
+         id TEXT PRIMARY KEY,
+         venue TEXT,
+         room TEXT NOT NULL,
+         city TEXT,
+         date TEXT,
+         approx_date INTEGER NOT NULL DEFAULT 0,
+         url TEXT,
+         image_url TEXT,
+         image_checked_at INTEGER,
+         who TEXT,
+         solved INTEGER NOT NULL DEFAULT 0,
+         escape_time TEXT,
+         fail_note TEXT,
+         difficulty INTEGER,
+         rating INTEGER,
+         notes TEXT,
+         archived INTEGER NOT NULL DEFAULT 0,
+         created_at INTEGER NOT NULL,
+         created_by TEXT,
+         updated_at INTEGER NOT NULL,
+         updated_by TEXT
+       )`,
+      `CREATE INDEX IF NOT EXISTS escape_rooms_date ON escape_rooms (archived, date)`,
+    ],
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;
