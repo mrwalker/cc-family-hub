@@ -154,7 +154,7 @@ Nothing else is stateful. You can rebuild the Worker and re-run the pipeline at 
 
 ## Household records
 
-*Pets and the planner's feed are built. The house and chores are planned;
+*Pets, the house and the planner's feed are built. Chores are planned;
 [roadmap.md](roadmap.md#managing-the-household) has the order.*
 
 Household records are the hub's own data: the pets' care, the kids' chores, the upkeep of
@@ -229,7 +229,7 @@ hub page links each one to `/household/`.
 
 ### Cards and the planner
 
-Each area is a component: `pets` today, then `house` and `chores`. A task becomes a card when it's
+Each area is a component: `pets` and `house` today, then `chores`. A task becomes a card when it's
 overdue or close enough to its due date, with overdue tasks first. A member's view shows
 what's assigned to them. With nothing due, a component adds no cards.
 

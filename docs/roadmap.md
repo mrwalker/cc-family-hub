@@ -31,12 +31,11 @@ The design is in [architecture.md](architecture.md#household-records). In short:
 - **Nothing to turn off.** A hub without a D1 database gets no cards and no changes.
 
 v2.0.0 shipped the base and the first area: D1, the write API, sign-in checks, the
-`/household/` page, and **pets**. v2.1.0 has the planner read them. The rest ships in
-steps, one area or layer at a time:
+`/household/` page, and **pets**. v2.1.0 has the planner read them, and v2.2.0 adds **the
+house**: services, maintenance and fixes. The rest ships in steps:
 
 | Release | What it adds |
 |---------|--------------|
-| v2.2.0 | **The house:** services, maintenance, fixes |
 | v2.3.0 | **Chores:** assigned to kids, daily and weekly, taking turns |
 | v2.4.0 | **Activities:** completing what the calendar leaves out |
 

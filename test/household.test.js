@@ -220,6 +220,48 @@ test("done finishes a one-off; undo and archive bring it back or put it away", D
   assert.equal((await post(env, "/tasks/task-dental/done", { doneOn: "2999-01-01" })).status, 400, "not in the future");
 });
 
+// ─── The house ────────────────────────────────────────────────────────────────
+
+const houseTask = (extra = {}) => ({ id: "task-filter1", area: "house", kind: "maintenance", title: "HVAC filter", dueDate: "2027-06-18", repeatEvery: 3, repeatUnit: "month", ...extra });
+
+test("house tasks: a fix can wait without a date; a pet can't be attached", D1, async () => {
+  const { env } = await withPet();
+  let res = await post(env, "/tasks", houseTask({ petId: PET.id }));
+  assert.equal(res.status, 200);
+  let body = await res.json();
+  assert.equal(body.tasks[0].petId, null, "a house task belongs to no pet");
+  assert.match((await (await post(env, "/tasks", houseTask({ id: "task-kind01", kind: "vaccination" }))).json()).error, /^kind:/);
+  body = await (await post(env, "/tasks", { id: "task-squeak", area: "house", kind: "fix", title: "Squeaky door", dueDate: null, assignee: "alex" })).json();
+  assert.deepEqual(body.tasks.filter(t => t.area === "house").map(t => [t.title, t.dueDate, t.assignee]), [["HVAC filter", "2027-06-18", null], ["Squeaky door", null, "alex"]]);
+  body = await (await post(env, "/tasks/task-squeak/done")).json();
+  assert.equal(body.tasks.find(t => t.id === "task-squeak").archived, true, "a fix is done once");
+  body = await (await post(env, "/tasks/task-filter1/done", { doneOn: "2027-06-20" })).json();
+  assert.equal(body.tasks.find(t => t.id === "task-filter1").dueDate, "2027-09-20");
+  assert.deepEqual(body.log.map(l => [l.title, l.area]), [["HVAC filter", "house"], ["Squeaky door", "house"]]);
+});
+
+test("house cards: overdue maintenance, an upcoming service, and no card for a fix without a date", async () => {
+  const t = (id, kind, title, dueDate, extra = {}) => ({ id, area: "house", kind, title, petName: null, dueDate, dueTime: null, assignee: null, leadDays: null, provider: null, ...extra });
+  const household = [
+    t("a", "maintenance", "HVAC filter", "2027-06-02", { repeatEvery: 3, repeatUnit: "month" }),
+    t("b", "service", "Lawn", "2027-06-23", { dueTime: "08:00", provider: "Green Co" }),
+    t("c", "service", "Cleaning", "2027-06-28", { provider: "Sparkle" }),     // past a service's 2 days
+    t("d", "fix", "Squeaky door", null),
+    t("e", "maintenance", "Smoke detector batteries", "2027-06-21", { assignee: "sam" }),
+    { ...t("f", "vaccination", "Rabies shot", "2027-06-21"), area: "pets", petName: "Biscuit" },
+  ];
+  const cards = await byId.house.cards(ctxWith({ household }));
+  assert.deepEqual(cards.map(c => [c.id, c.title, c.glance.headline, c.glance.detail]), [
+    ["house:a", "House", "HVAC filter overdue", "Due Jun 2 · 19 days ago"],
+    ["house:e", "House", "Smoke detector batteries due today", "Sam"],
+    ["house:b", "House", "Lawn in 2 days", "Green Co · Wed, Jun 23 · 8:00 AM"],
+  ]);
+  assert.equal(cards[0].url, "https://hub.example.com/household/#house");
+  const [alex, sam] = HUB.members;
+  assert.deepEqual((await byId.house.cards(ctxWith({ household, view: alex }))).map(c => c.id), ["house:a", "house:b"]);
+  assert.deepEqual((await byId.house.cards(ctxWith({ household, view: sam }))).map(c => c.id), ["house:e"]);
+});
+
 // ─── The planner's export ─────────────────────────────────────────────────────
 
 const exportReq = (token, query = "") => new Request(`${BASE}/export${query}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });

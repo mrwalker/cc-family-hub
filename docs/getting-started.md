@@ -91,7 +91,7 @@ npx family-hub sync     # should report events for each member
 
 ### Household records
 
-Optional. To keep the pets' care on the hub (see [inputs.md](inputs.md#household)):
+Optional. To keep the pets' care and the house's upkeep on the hub (see [inputs.md](inputs.md#household)):
 
 1. **Create the database** and add it to `wrangler.jsonc`:
    ```bash

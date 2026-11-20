@@ -10,7 +10,7 @@ workspace file they read. Each input feeds one or more [stream components](strea
 | [`trips`](#trips) | `workspace/trips.yaml` | Workspace | `trips`, `past-trips` |
 | [`trip-apps`](#trip-apps) | Trip folders in your hub repo, and check-ins | Deploy and interactive | `trips`, `past-trips` |
 | [`grocery`](#grocery) | The hub's shared list | Interactive | `grocery` |
-| [`household`](#household) | The hub's household records | Interactive | `pets`, `plan` |
+| [`household`](#household) | The hub's household records | Interactive | `pets`, `house`, `plan` |
 | [`escape-rooms`](#escape-rooms-and-movies) | `workspace/escape-rooms.yaml` | Workspace | `escape-rooms` |
 | [`movies`](#escape-rooms-and-movies) | `workspace/movies.yaml` | Workspace | `movies` |
 | [`notes`](#notes) | `workspace/context/` | Workspace | `plan` |
@@ -109,13 +109,18 @@ and your phone agree.
 
 ## household
 
-What it takes to run the house, kept by the hub itself. Today that's the pets: their
-vaccinations, medications, grooming and vet visits. Each is a task with a due date. It can
-repeat, and it keeps a record of every time it was done.
+What it takes to run the house, kept by the hub itself:
+
+- **Pets:** vaccinations, medications, grooming and vet visits.
+- **The house:** services that come to the house (lawn, cleaning, pest control),
+  maintenance on a schedule (filters, gutters, smoke detectors), and fixes.
+
+Each is a task with a due date. It can repeat, and it keeps a record of every time it was
+done. A fix can go without a date: it waits on the page, with no card, until it's done.
 
 You add and change them at `/household/` on your hub, on a phone or the hub page. Adults
-can change anything. Everyone else can look. A task shows on every screen as a `pets` card
-when it's close to due, and stays there, marked overdue, until someone marks it done.
+can change anything. Everyone else can look. A task shows on every screen as a `pets` or
+`house` card when it's close to due, and stays there, marked overdue, until someone marks it done.
 The planner reads them too, so the week's plan can work around a vet visit.
 
 **Set up:** it needs a D1 database and your Access details. See

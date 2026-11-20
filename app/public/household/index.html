@@ -70,6 +70,8 @@
     }
 
     .task { border-top: 1px solid var(--border); padding: 12px 0 10px 42px; position: relative; }
+    .card > .task:first-child { border-top: 0; padding-top: 0; }
+    .card > .task:first-child .task-emoji { top: -1px; }
     .task-emoji { position: absolute; left: 0; top: 11px; font-size: 26px; line-height: 1.2; }
     .task-title { font-size: 17px; font-weight: 600; }
     .task-when { font-size: 14px; color: var(--muted); }
@@ -124,7 +126,7 @@ const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&a
 
 let state = null;        // the last answer from the API
 let area = null;         // the tab that's showing
-let form = null;         // the open form: { type: "pet" | "task", id, petId }
+let form = null;         // the open form: { type: "pet" | "task", id, petId, area }
 let showArchived = false;
 let busy = false;
 
@@ -177,7 +179,7 @@ function timeText(time) {
 }
 
 function whenText(task) {
-  if (!task.dueDate) return "No date";
+  if (!task.dueDate) return "Whenever";
   const n = daysUntil(task.dueDate);
   const date = dateText(task.dueDate, { weekday: "short", month: "short", day: "numeric", year: Math.abs(n) > 300 ? "numeric" : undefined });
   const time = task.dueTime ? ` · ${timeText(task.dueTime)}` : "";
@@ -224,14 +226,14 @@ function render() {
   tabs.classList.toggle("hidden", areas.length < 2);
   tabs.innerHTML = areas.map(a => `<button data-do="area" data-id="${a}" class="${a === area ? "active" : ""}">${esc(state.areas[a].label)}</button>`).join("");
 
-  main.innerHTML = area === "pets" ? petsView() : "";
+  main.innerHTML = area === "pets" ? petsView() : listView(area);
   const first = main.querySelector(".form input:not([type=checkbox]), .form select");
   if (first && form && form.fresh) { first.focus(); form.fresh = false; }
 }
 
 function taskRow(task) {
   const kind = state.areas[task.area].kinds[task.kind] || { emoji: "•", label: task.kind };
-  if (form && form.type === "task" && form.id === task.id) return taskForm(task, task.petId);
+  if (form && form.type === "task" && form.id === task.id) return taskForm(task, task.petId, task.area);
   const n = task.dueDate ? daysUntil(task.dueDate) : null;
   const cls = task.archived ? "" : n !== null && n < 0 ? " is-overdue" : n !== null && n <= 1 ? " is-soon" : "";
   const more = [];
@@ -240,6 +242,7 @@ function taskRow(task) {
   if (task.phone) more.push(`<a href="tel:${esc(task.phone.replace(/[^0-9+]/g, ""))}">${esc(task.phone)}</a>`);
   if (task.url) more.push(`<a href="${esc(task.url)}" target="_blank" rel="noopener">Link</a>`);
   if (task.assignee) more.push(esc(memberName(task.assignee)));
+  if (task.dueTime && task.dueDate && daysUntil(task.dueDate) > 1) more.push(esc(timeText(task.dueTime)));
   const manage = state.can.manage;
   const actions = !manage ? "" : task.archived
     ? `<button data-do="restore" data-id="${task.id}">Restore</button>`
@@ -272,8 +275,8 @@ function petsView() {
         ${manage ? `<button class="quiet" data-do="edit-pet" data-id="${pet.id}">Edit</button>` : ""}
       </div>
       ${mine.length ? mine.map(taskRow).join("") : `<div class="empty">Nothing scheduled.</div>`}
-      ${form && form.type === "task" && !form.id && form.petId === pet.id ? taskForm(null, pet.id)
-        : manage ? `<div class="task-actions" style="margin-top:12px"><button data-do="add-task" data-id="${pet.id}">+ Add for ${esc(pet.name)}</button></div>` : ""}
+      ${form && form.type === "task" && !form.id && form.petId === pet.id ? taskForm(null, pet.id, "pets")
+        : manage ? `<div class="task-actions" style="margin-top:12px"><button data-do="add-task" data-area="pets" data-id="${pet.id}">+ Add for ${esc(pet.name)}</button></div>` : ""}
     </div>`;
   });
   if (!pets.length && !(form && form.type === "pet")) {
@@ -282,26 +285,44 @@ function petsView() {
   if (form && form.type === "pet" && !form.id) html += petForm(null);
   else if (manage) html += `<button data-do="add-pet">+ Add a pet</button>`;
 
-  const log = state.log.filter(l => l.area === "pets");
-  if (log.length) {
-    // Only the last time a task was done can be taken back.
-    const seen = {};
-    html += `<div class="section-label">Recently done</div><div class="card">` + log.slice(0, 15).map((l, i) => {
-      const latest = !seen[l.taskId]; seen[l.taskId] = true;
-      return `<div class="log-row" ${i === 0 ? 'style="border-top:0"' : ""}>
-        <strong>${esc(l.title)}</strong> · ${esc(dateText(l.doneOn, { month: "short", day: "numeric" }))}${l.doneBy ? ` · ${esc(memberName(l.doneBy))}` : ""}
-        ${l.note ? `<div class="sub">${esc(l.note)}</div>` : ""}
-        ${manage && latest ? `<button data-do="undo" data-id="${l.taskId}">Undo</button>` : ""}
-      </div>`;
-    }).join("") + `</div>`;
-  }
+  return html + recentView("pets") + archivedView(tasks);
+}
 
+/** One area's tasks as a list: what's dated, soonest first, then what can wait. */
+function listView(areaId) {
+  const manage = state.can.manage;
+  const tasks = state.tasks.filter(t => t.area === areaId);
+  const live = tasks.filter(t => !t.archived);
+  const dated = live.filter(t => t.dueDate), undated = live.filter(t => !t.dueDate);
+  const adding = form && form.type === "task" && !form.id && form.area === areaId;
+  let html = `<div class="card">${dated.length ? dated.map(taskRow).join("") : `<div class="empty">Nothing scheduled.${manage ? " Add a service visit, a filter to change, or a fix." : ""}</div>`}
+    ${adding ? taskForm(null, null, areaId) : manage ? `<div class="task-actions" style="margin-top:12px"><button data-do="add-task" data-area="${areaId}">+ Add</button></div>` : ""}
+  </div>`;
+  if (undated.length) html += `<div class="section-label">Whenever</div><div class="card">${undated.map(taskRow).join("")}</div>`;
+  return html + recentView(areaId) + archivedView(tasks);
+}
+
+function recentView(areaId) {
+  const manage = state.can.manage;
+  const log = state.log.filter(l => l.area === areaId);
+  if (!log.length) return "";
+  // Only the last time a task was done can be taken back.
+  const seen = {};
+  return `<div class="section-label">Recently done</div><div class="card">` + log.slice(0, 15).map((l, i) => {
+    const latest = !seen[l.taskId]; seen[l.taskId] = true;
+    return `<div class="log-row" ${i === 0 ? 'style="border-top:0"' : ""}>
+      <strong>${esc(l.title)}</strong> · ${esc(dateText(l.doneOn, { month: "short", day: "numeric" }))}${l.doneBy ? ` · ${esc(memberName(l.doneBy))}` : ""}
+      ${l.note ? `<div class="sub">${esc(l.note)}</div>` : ""}
+      ${manage && latest ? `<button data-do="undo" data-id="${l.taskId}">Undo</button>` : ""}
+    </div>`;
+  }).join("") + `</div>`;
+}
+
+function archivedView(tasks) {
   const archived = tasks.filter(t => t.archived);
-  if (archived.length) {
-    html += `<div class="section-label"><button class="quiet" data-do="toggle-archived">${showArchived ? "Hide" : "Show"} archived (${archived.length})</button></div>`;
-    if (showArchived) html += `<div class="card">${archived.map(taskRow).join("")}</div>`;
-  }
-  return html;
+  if (!archived.length) return "";
+  return `<div class="section-label"><button class="quiet" data-do="toggle-archived">${showArchived ? "Hide" : "Show"} archived (${archived.length})</button></div>` +
+    (showArchived ? `<div class="card">${archived.map(taskRow).join("")}</div>` : "");
 }
 
 // ── Forms ──────────────────────────────────────────────────────────
@@ -323,20 +344,31 @@ function petForm(pet) {
   </div>`;
 }
 
-function taskForm(task, petId) {
-  const t = task || { kind: "vaccination", repeatUnit: "year", repeatFrom: "done" };
-  const kinds = state.areas.pets.kinds;
+/** Defaults for a new task in each area. */
+const NEW_TASK = {
+  pets: { kind: "vaccination", repeatUnit: "year", repeatFrom: "done" },
+  house: { kind: "maintenance", repeatUnit: "month", repeatEvery: null, repeatFrom: "done" },
+};
+const EXAMPLES = {
+  pets: { title: "Rabies shot", provider: "Vet or groomer", repeat: "A shot is due a year after it was given. A monthly pill stays on the 1st even if it's given late." },
+  house: { title: "Change the HVAC filter", provider: "Company or person", repeat: "A filter is due three months after it was changed. A lawn service keeps to its day even if it comes late." },
+};
+
+function taskForm(task, petId, areaId) {
+  const t = task || NEW_TASK[areaId] || { kind: Object.keys(state.areas[areaId].kinds)[0], repeatUnit: "week", repeatFrom: "done" };
+  const kinds = state.areas[areaId].kinds;
+  const ex = EXAMPLES[areaId] || EXAMPLES.pets;
   const opt = (value, label, current) => `<option value="${value}"${value === current ? " selected" : ""}>${esc(label)}</option>`;
   const pet = state.pets.find(p => p.id === petId);
   const repeats = !!t.repeatEvery;
   return `<div class="form" data-form="task">
-    <h3>${task ? "Edit" : `Add for ${esc(pet ? pet.name : "")}`}</h3>
+    <h3>${task ? "Edit" : pet ? `Add for ${esc(pet.name)}` : `Add to ${esc(state.areas[areaId].label)}`}</h3>
     <div class="row">
       <div class="field"><label for="f-kind">What kind</label><select id="f-kind">${Object.keys(kinds).map(k => opt(k, kinds[k].label, t.kind)).join("")}</select></div>
-      <div class="field"><label for="f-title">What it is</label><input id="f-title" maxlength="80" placeholder="Rabies shot" value="${esc(t.title)}"></div>
+      <div class="field"><label for="f-title">What it is</label><input id="f-title" maxlength="80" placeholder="${esc(ex.title)}" value="${esc(t.title)}"></div>
     </div>
     <div class="row">
-      <div class="field"><label for="f-due">Due</label><input id="f-due" type="date" value="${esc(t.dueDate)}"></div>
+      <div class="field"><label for="f-due">Due${areaId === "house" ? " (a fix can wait)" : ""}</label><input id="f-due" type="date" value="${esc(t.dueDate)}"></div>
       <div class="field"><label for="f-time">Time (appointments)</label><input id="f-time" type="time" value="${esc(t.dueTime)}"></div>
     </div>
     <div class="field"><label class="check"><input type="checkbox" id="f-repeats"${repeats ? " checked" : ""}>Repeats</label></div>
@@ -347,13 +379,15 @@ function taskForm(task, petId) {
       </div>
       <div class="field"><label for="f-from">Next one counts from</label>
         <select id="f-from">${opt("done", "The day it was done", t.repeatFrom)}${opt("due", "The day it was due (keeps to a schedule)", t.repeatFrom)}</select>
-        <div class="hint">A shot is due a year after it was given. A monthly pill stays on the 1st even if it's given late.</div>
+        <div class="hint">${esc(ex.repeat)}</div>
       </div>
     </div>
     <div class="row">
-      <div class="field"><label for="f-provider">Who does it</label><input id="f-provider" maxlength="80" placeholder="Vet or groomer" value="${esc(t.provider)}"></div>
+      <div class="field"><label for="f-provider">Who does it</label><input id="f-provider" maxlength="80" placeholder="${esc(ex.provider)}" value="${esc(t.provider)}"></div>
       <div class="field"><label for="f-phone">Phone</label><input id="f-phone" type="tel" maxlength="30" value="${esc(t.phone)}"></div>
     </div>
+    ${areaId === "pets" ? "" : `<div class="field"><label for="f-assignee">Whose job</label>
+      <select id="f-assignee">${opt("", "Nobody in particular", t.assignee || "")}${state.members.map(m => opt(m.id, m.name, t.assignee || "")).join("")}</select></div>`}
     <div class="field"><label for="f-url">Link</label><input id="f-url" type="url" maxlength="300" placeholder="https://" value="${esc(t.url)}"></div>
     <div class="field"><label for="f-notes">Notes</label><textarea id="f-notes" maxlength="500">${esc(t.notes)}</textarea></div>
     <div class="field"><label for="f-lead">Show on screens this many days before</label>
@@ -380,16 +414,19 @@ function saveTask() {
   const old = form.id ? state.tasks.find(t => t.id === form.id) : null;
   const repeats = $("f-repeats").checked;
   const kind = val("f-kind");
+  const areaId = old ? old.area : form.area;
+  const kinds = state.areas[areaId].kinds;
   const task = {
-    id: old ? old.id : newId("task"), area: "pets", kind,
-    title: val("f-title") || state.areas.pets.kinds[kind].label,
-    petId: old ? old.petId : form.petId, assignee: old ? old.assignee : null,
+    id: old ? old.id : newId("task"), area: areaId, kind,
+    title: val("f-title") || kinds[kind].label,
+    petId: old ? old.petId : form.petId || null,
+    assignee: $("f-assignee") ? val("f-assignee") || null : old ? old.assignee : null,
     dueDate: val("f-due") || null, dueTime: val("f-time") || null,
     repeatEvery: repeats ? Number(val("f-every")) : null, repeatUnit: repeats ? val("f-unit") : null, repeatFrom: val("f-from"),
     leadDays: val("f-lead") === "" ? null : Number(val("f-lead")),
     provider: val("f-provider"), phone: val("f-phone"), url: val("f-url"), notes: val("f-notes"),
   };
-  if (!task.dueDate) { setStatus("Pick the date it's due", true); return; }
+  if (!task.dueDate && !kinds[kind].undated) { setStatus("Pick the date it's due", true); return; }
   send("/tasks", task).then(ok => { if (ok) form = null; render(); });
 }
 
@@ -403,8 +440,8 @@ document.addEventListener("click", e => {
     case "area": area = id; form = null; history.replaceState(null, "", "#" + id); render(); break;
     case "add-pet": form = { type: "pet", id: null, fresh: true }; render(); break;
     case "edit-pet": form = { type: "pet", id, fresh: true }; render(); break;
-    case "add-task": form = { type: "task", id: null, petId: id, fresh: true }; render(); break;
-    case "edit-task": form = { type: "task", id, fresh: true }; render(); break;
+    case "add-task": form = { type: "task", id: null, petId: id || null, area: btn.getAttribute("data-area"), fresh: true }; render(); break;
+    case "edit-task": { const t = state.tasks.find(x => x.id === id); form = { type: "task", id, area: t ? t.area : area, fresh: true }; render(); break; }
     case "cancel": form = null; setStatus(""); render(); break;
     case "save-pet": savePet(); break;
     case "save-task": saveTask(); break;
@@ -427,7 +464,7 @@ document.addEventListener("change", e => {
   if (e.target.id === "f-repeats") $("f-repeat-box").classList.toggle("hidden", !e.target.checked);
   // A new task takes its kind's name until you type one.
   if (e.target.id === "f-kind" && form && !form.id) {
-    const kinds = state.areas.pets.kinds, title = $("f-title");
+    const kinds = state.areas[form.area].kinds, title = $("f-title");
     if (!title.value.trim() || Object.keys(kinds).some(k => kinds[k].label === title.value.trim())) title.value = kinds[e.target.value].label;
     $("f-lead").placeholder = kinds[e.target.value].lead;
   }
