@@ -152,11 +152,16 @@ test("the escape-rooms card uses the hub's rooms and shows a room's picture", as
   const ctx = ctxWith({ rooms, data: { family: { escapeRooms: [{ room: "Old list" }] } } });
   ctx.turn = 0;
   const [card] = await byId["escape-rooms"].cards(ctx);
-  assert.equal(card.glance.headline, "1 of 2 escaped");
+  assert.equal(card.title, "Escape rooms · 1 of 2");
+  assert.equal(card.glance.headline, "Sunken Temple");
+  assert.equal(card.glance.detail, "Escaped · Puzzle Co · May 2027");
+  assert.equal(card.glance.emoji, undefined, "no emoji over a picture");
   assert.equal(card.glance.image, "https://hub.example.com/api/stream/image/escape-rooms%3Aroom-a00001");
   assert.equal(card.data.room.image, card.glance.image);
   // Before the import: the published list.
   const [old] = await byId["escape-rooms"].cards(ctxWith({ data: { family: { escapeRooms: [{ room: "Old list", solved: true }] } } }));
-  assert.equal(old.glance.headline, "1 of 1 escaped");
+  assert.equal(old.title, "Escape rooms · 1 of 1");
+  assert.equal(old.glance.headline, "Old list");
+  assert.equal(old.glance.emoji, "🔐");
   assert.equal(old.glance.image, undefined);
 });
