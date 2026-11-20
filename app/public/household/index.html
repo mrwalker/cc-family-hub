@@ -146,6 +146,8 @@ let form = null;         // the open form: { type, key, ... }
 let showArchived = false;
 let showEach = {};       // bundle key → showing each pet's own buttons
 let busy = false;
+let uploading = false;   // photos are going up
+let picking = 0;         // when a photo picker was opened (0: none open)
 
 // What "+ Add" offers first. Picking one fills in the kind, the name and how it repeats.
 const PRESETS = {
@@ -320,6 +322,7 @@ function render() {
   tabs.innerHTML = areas.map(a => `<button data-do="area" data-id="${a}" class="${a === area ? "active" : ""}">${esc(state.areas[a].label)}</button>`).join("");
 
   main.innerHTML = area === "pets" ? petsView() : area === "house" ? houseView() : listView(area);
+  wirePhotoInputs();
   const first = main.querySelector(".form input:not([type=checkbox]), .form select");
   if (first && form && form.fresh) { first.focus(); form.fresh = false; }
 }
@@ -412,7 +415,7 @@ function petsView() {
       <div class="next-list">${next.length ? "Next: " + next.join("; ") : "Nothing scheduled."}</div>
       ${(pet.photos || []).length ? `<div class="thumbs">${pet.photos.map(ph => `<div class="thumb"><img src="${API}/photo/${ph.id}" alt="" loading="lazy">
         ${manage ? `<button class="small quiet" data-do="remove-photo" data-id="${ph.id}">Remove</button>` : ""}</div>`).join("")}</div>` : ""}
-      ${manage ? `<div class="task-actions"><label class="btn small">${(pet.photos || []).length ? "+ Another photo" : "+ Add a photo"}<input type="file" accept="image/*" class="f-photo hidden" data-id="${pet.id}"></label></div>` : ""}
+      ${manage ? `<div class="task-actions"><label class="btn small">${(pet.photos || []).length ? "+ Another photo" : "+ Add a photo"}<input type="file" accept="image/*" multiple class="f-photo hidden" data-id="${pet.id}"></label></div>` : ""}
     </div>`;
   });
   if (!pets.length && !(form && form.type === "pet")) {
@@ -786,18 +789,41 @@ function shrink(file) {
   });
 }
 
-function uploadPhoto(petId, file) {
-  if (!file) return;
-  setStatus("Getting the photo ready…");
-  shrink(file)
-    .then(photo => send(`/pets/${petId}/photo`, photo, "Photo added"))
-    .then(() => render())
-    .catch(e => setStatus(e.message, true));
+/** Uploads the chosen photos one after another. */
+function uploadPhotos(petId, files) {
+  picking = 0;
+  const list = Array.prototype.slice.call(files || []);
+  if (!list.length) return;
+  uploading = true;
+  let added = 0;
+  const next = i => {
+    if (i >= list.length) return Promise.resolve();
+    setStatus(list.length > 1 ? `Adding photo ${i + 1} of ${list.length}…` : "Getting the photo ready…");
+    return shrink(list[i])
+      .then(photo => { busy = false; return send(`/pets/${petId}/photo`, photo, ""); })
+      .then(ok => { if (!ok) throw new Error($("status").textContent || "That photo didn't save"); added++; return next(i + 1); });
+  };
+  next(0)
+    .then(() => setStatus(added === 1 ? "Photo added" : `${added} photos added`))
+    .catch(e => setStatus(added ? `${added} added, then: ${e.message}` : e.message, true))
+    .then(() => { uploading = false; render(); });
+}
+
+/**
+ * The photo inputs get their own handler. A refresh that redraws the page while the
+ * phone's photo picker is open would otherwise leave the chosen photo on an input
+ * that's no longer in the page, where nothing hears it.
+ */
+function wirePhotoInputs() {
+  Array.prototype.forEach.call(document.querySelectorAll(".f-photo"), input => {
+    input.onclick = () => { picking = Date.now(); };
+    input.onchange = () => uploadPhotos(input.getAttribute("data-id"), input.files);
+  });
 }
 
 document.addEventListener("change", e => {
   const id = e.target.id;
-  if (e.target.classList && e.target.classList.contains("f-photo")) { uploadPhoto(e.target.getAttribute("data-id"), e.target.files && e.target.files[0]); return; }
+  if (e.target.classList && e.target.classList.contains("f-photo")) return;   // wirePhotoInputs()
   if (id === "f-repeats") $("f-repeat-box").classList.toggle("hidden", !e.target.checked);
   if (id === "f-booked") $("f-booked-box").classList.toggle("hidden", !e.target.checked);
   if (id === "f-preset" && form && !form.key) applyPreset(Number(e.target.value));
@@ -816,8 +842,11 @@ document.addEventListener("change", e => {
 });
 
 // Someone else may have changed something: refresh when nobody's typing.
-setInterval(() => { if (!form && !busy && !document.hidden) load(); }, 60000);
-document.addEventListener("visibilitychange", () => { if (!document.hidden && !form && !busy) load(); });
+// Not while a form is open, a save or upload is under way, or a photo picker is open
+// (choosing a photo can take a while, so a picker counts as open for two minutes).
+const quiet = () => !form && !busy && !uploading && !(picking && Date.now() - picking < 120000);
+setInterval(() => { if (quiet() && !document.hidden) load(); }, 60000);
+document.addEventListener("visibilitychange", () => { if (!document.hidden && quiet()) load(); });
 
 load();
 </script>

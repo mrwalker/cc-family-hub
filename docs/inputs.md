@@ -121,7 +121,7 @@ Each is a task with a due date. It can repeat, and it keeps a record of every ti
 done. An appointment can be booked, with its own date and time, and a stay has an end
 date. A fix can go without a date: it waits on the page, with no card, until it's done.
 Booked appointments can also go on a Google Calendar, and edits made there come back.
-Each pet can have up to ten photos, added from a phone on `/household/`; the
+Each pet can have up to ten photos, added from a phone on `/household/` (several at once); the
 `pet-portraits` cards show each pet over one of them.
 
 You add and change them at `/household/` on your hub, on a phone or the hub page. Adults
