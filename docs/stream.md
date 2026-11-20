@@ -195,8 +195,8 @@ to draw it more richly over time.
 | `chores` | `type` (`day` or `week`), `day`, `week`, `jobs[]` each with `id`, `name`, `emoji`, `member`; `people[]`, each with `id`, `name`, `color`, `jobs[]`, and `chores[]`, each with `id`, `title`, `job`, `cadence`, `time`, `timeKind`, `status` (`todo`, `late`, `done`, `missed`), `doneAt`, `count` |
 | `pet-portraits` | `pet`: `id`, `name`, `species`, `age`. `photo`: `url`, `width`, `height`, or `null`. `next[]`, each with `title`, `kind`, `emoji`, `when`, `date`, `overdue` |
 | `grocery` | `items[]`, each with `id`, `name`, `quantity`, `store`, `addedBy`, `done` |
-| `escape-rooms` | `record`: `escaped`, `total`. `room`: `venue`, `room`, `city`, `date`, `solved`, `escapeTime`, `who[]` |
-| `movies` | `movie`: `title`, `releaseDate`, `format`, `streaming`, `who[]`, `status` |
+| `escape-rooms` | `record`: `escaped`, `total`. `room`: `id`, `venue`, `room`, `city`, `date`, `solved`, `escapeTime`, `who[]`, `url`, `image` (the room's picture, or `null`) |
+| `movies` | `movie`: `id`, `title`, `kind` (`movie` or `show`), `releaseDate`, `where` (`theaters` or a streaming service), `format`, `blurb`, `url`, `image` (its poster, or `null`), `want[]`, `seen[]`, `who[]` (the same as `want[]`) |
 | `workouts` | `members[]`, each with `id` and `activities[]` |
 
 A trip with its own shared album has `album: { count, photos: [image URL…] }` (up to 12,

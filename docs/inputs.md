@@ -11,8 +11,8 @@ workspace file they read. Each input feeds one or more [stream components](strea
 | [`trip-apps`](#trip-apps) | Trip folders in your hub repo, and check-ins | Deploy and interactive | `trips`, `past-trips` |
 | [`grocery`](#grocery) | The hub's shared list | Interactive | `grocery` |
 | [`household`](#household) | The hub's household records | Interactive | `pets`, `house`, `chores`, `pet-portraits`, `plan` |
-| [`escape-rooms`](#escape-rooms-and-movies) | `workspace/escape-rooms.yaml` | Workspace | `escape-rooms` |
-| [`movies`](#escape-rooms-and-movies) | `workspace/movies.yaml` | Workspace | `movies` |
+| [`escape-rooms`](#escape-rooms-and-movies) | The hub's records (`workspace/escape-rooms.yaml` before v2.7) | Interactive | `escape-rooms` |
+| [`movies`](#escape-rooms-and-movies) | The hub's records, picked monthly by your assistant (`workspace/movies.yaml` before v2.8) | Interactive | `movies` |
 | [`notes`](#notes) | `workspace/context/` | Workspace | `plan` |
 | [`apple-reminders`](#apple-reminders) | Apple Reminders (macOS) | Synced | `plan` |
 | [`strava`](#strava) | Strava | Synced | `workouts` |
@@ -141,11 +141,21 @@ off, and nothing else changes.
 
 ## escape-rooms and movies
 
-Plain lists you keep in the workspace: `escape-rooms.yaml` is the rooms you've played and
-whether you got out, and `movies.yaml` is what you want to watch. The shapes are shown in
-[`workspace.example/`](../workspace.example/).
+**Escape rooms** are the rooms you've played: where, when, who, whether you got out and how
+fast. Anyone in the family adds one on `/household/` after a game, with the room's link. The
+hub finds the room's picture from that link (the page's preview image, or a picture whose
+description names the room) and shows it on the hub page and the TVs. A hub that kept
+`escape-rooms.yaml` imports it once, from the Escape rooms tab.
 
-These are the pattern for a family's own lists. If your family tracks hikes, restaurants,
+**Movies** are what's coming out that's worth seeing: in theaters, with IMAX and 70mm noted,
+and the big new movies and shows on streaming services. Once a month your assistant picks
+them and hands them to the hub with `npx family-hub movies <file>`; each gets a poster from
+its link. Everyone can mark which ones they want to see, and which they've seen, by tapping
+their dot on the hub page. `movies.yaml` is no longer read.
+
+Both need the household database (`HUB_DB`).
+
+Before v2.7 these were plain YAML lists in the workspace. They're still the pattern for a family's own lists. If your family tracks hikes, restaurants,
 or board games, [add a component](contributing.md#adding-a-component) that reads another YAML file.
 
 ## notes

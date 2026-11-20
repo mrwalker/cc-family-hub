@@ -179,6 +179,8 @@ are no household cards, the page says it isn't set up, and nothing else changes.
 | `chores` | What each job (or a named person) does, and when: its schedule, time, season, and for a chore done on request, when it was asked for |
 | `chore_log` | One row each time a chore is ticked: the day or week it was for, whose chore it was, who ticked it, and the action it was part of |
 | `chore_swaps` | One-week changes to the rotation ("Riley takes the trash this week") |
+| `escape_rooms` | The rooms the family has played: where, when, who, the result, the room's link and its picture's address |
+| `movies`, `movie_marks` | Movies and shows worth seeing, most picked monthly by the assistant, and who wants to see or has seen each |
 
 A task repeats in one of two ways. A filter is due three months after you change it, so
 its next date counts from the day it was done. A monthly medication is due on the 1st
@@ -230,7 +232,14 @@ or to named people:
   A chore can also have a season (watering, June to September) and shows only in it.
 - **No pile-up.** Whether a chore is done is worked out from its schedule and the log:
   done, still to do, or missed. Nothing is written when a chore is missed, so the log stays
-  a plain record of what was done, and a later allowance can count both.
+  a plain record of what was done and what was missed.
+
+**Pictures from links.** A room or a movie has a link to its page. When the link is saved,
+the Worker reads that page for a picture: one whose description or file name names the
+room, then the page's preview image (`og:image`, `twitter:image`), then a large one. It
+keeps the picture's address and serves the picture through the hub, cached for a week, so
+the TVs can show it with their own token. Only public pictures from those pages pass
+through; a picture can also be set by hand.
 
 The Worker applies its own migrations. The first time it uses the database after a
 release, it runs any that are new, in one transaction. You create the database once and
@@ -256,6 +265,16 @@ never run a migration by hand.
 | POST | `/api/household/chores/:id/ask` | Adults | Ask for a chore done on request, by a day |
 | POST | `/api/household/chores/:id/done` | Family | Tick a chore for a day, for whoever's chore it is |
 | POST | `/api/household/chores/:id/archive` | Adults | Archive or restore a chore |
+| GET | `/api/household/rooms` | Family | The escape rooms |
+| POST | `/api/household/rooms` | Family | Add or change a room; finds its picture when the link changes |
+| POST | `/api/household/rooms/:id/image` | Family | Find the room's picture again, or use a given one |
+| POST | `/api/household/rooms/import` | Adults | Once: copy the published `escape-rooms.yaml` list into the database |
+| GET | `/api/household/movies` | Family | The movies and everyone's marks |
+| POST | `/api/household/movies/:id/mark` | Family | Mark that someone wants to see it, or has seen it (or neither) |
+| POST | `/api/household/movies` | Adults | Add or change a movie by hand |
+| POST | `/api/household/movies/picks` | The pipeline (`PUBLISH_TOKEN`) | The month's picks from the assistant |
+| GET | `/api/household/movies/history` | The pipeline (`PUBLISH_TOKEN`) | Past picks and marks, so the next picks suit the family |
+| GET | `/api/household/image/:kind/:id` | Family | A room's or movie's picture, fetched from its site once and cached |
 | GET | `/api/household/export` | The pipeline (`PUBLISH_TOKEN`) | What's due, overdue and lately done, by name |
 
 Every write is validated in the Worker and answers with the fresh list. A write has to be
