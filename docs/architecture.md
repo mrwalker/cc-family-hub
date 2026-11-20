@@ -154,7 +154,7 @@ Nothing else is stateful. You can rebuild the Worker and re-run the pipeline at 
 
 ## Household records
 
-*Pets, the house and the planner's feed are built. Chores are planned;
+*Pets, the house, the planner's feed and the calendar are built. Chores are planned;
 [roadmap.md](roadmap.md#managing-the-household) has the order.*
 
 Household records are the hub's own data: the pets' care, the kids' chores, the upkeep of
@@ -173,6 +173,7 @@ are no household cards, the page says it isn't set up, and nothing else changes.
 | `places` | Each house a family keeps: name, address, notes |
 | `tasks` | Anything due on a date: its area (`pets`, `house`, `kids`), kind, title, which pet or place it's for and whose job it is, when it's next due, how it repeats, how early its card appears, its booking (date, time, and for a stay its last day), its group, and a provider, phone number and link |
 | `task_log` | One row each time a task is done: when, by whom, what the task was before, and the action it was part of |
+| `calendar_events` | For each event the hub made on the household calendar: its id and what the hub last wrote |
 
 A task repeats in one of two ways. A filter is due three months after you change it, so
 its next date counts from the day it was done. A monthly medication is due on the 1st
@@ -193,6 +194,16 @@ the appointment's date and time are what the card shows. A stay, such as boardin
 from its first day to its last, and its card shows until the pets are home.
 
 **Places.** A family with more than one house lists them, and each house task says which.
+
+**On a calendar.** With `hub.householdCalendar` set, the Worker keeps a Google Calendar
+in step with the records, through the same service account that reads the family's
+calendars. After every change it writes an event for each booked appointment, each stay
+and each service visit (one event for several pets on the same day), and deletes the ones
+it no longer wants. Every few minutes it reads back the events it made: one moved in
+Google Calendar moves the booking, and one deleted there leaves the appointment not
+booked. Its events are marked as the hub's, and `calendar_events` remembers what it last
+wrote, so it can tell an edit made in Google Calendar from its own. A calendar that can't
+be reached never stops a save; the page says what went wrong.
 
 The Worker applies its own migrations. The first time it uses the database after a
 release, it runs any that are new, in one transaction. You create the database once and

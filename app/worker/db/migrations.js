@@ -99,6 +99,23 @@ export const MIGRATIONS = [
       `CREATE INDEX IF NOT EXISTS task_log_action ON task_log (action_id)`,
     ],
   },
+  {
+    // v2.4: appointments on a Google Calendar (household-calendar.js). For each event
+    // the hub made: what it last wrote, so it can tell an edit made in Google Calendar.
+    version: 3,
+    statements: [
+      `CREATE TABLE IF NOT EXISTS calendar_events (
+         key TEXT PRIMARY KEY,
+         calendar_id TEXT NOT NULL,
+         event_id TEXT,
+         fingerprint TEXT,
+         start TEXT,
+         "end" TEXT,
+         updated_at INTEGER NOT NULL
+       )`,
+      `CREATE TABLE IF NOT EXISTS household_meta (k TEXT PRIMARY KEY, v TEXT)`,
+    ],
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

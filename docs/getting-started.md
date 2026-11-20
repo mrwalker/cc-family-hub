@@ -115,6 +115,16 @@ Optional. To keep the pets' care and the house's upkeep on the hub (see [inputs.
    Everyone else in the family can.
 4. Deploy, then open `/household/` on your hub.
 
+5. **Optional: put appointments on a Google Calendar.** Create a calendar for it in Google
+   Calendar, share it with your service account's email ("Make changes to events"), and
+   set its ID (Calendar settings → Integrate calendar) in `family.yaml`:
+   ```yaml
+   hub:
+     householdCalendar: "abc123@group.calendar.google.com"
+   ```
+   Booked appointments, stays and service visits then appear there. Move or delete one in
+   Google Calendar and the hub follows within a few minutes.
+
 To try it with `npm run dev`, where there's no Access, add `DEV_MEMBER=<a member's id>` to
 `.dev.vars`. A deployed hub ignores it.
 

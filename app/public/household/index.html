@@ -297,8 +297,13 @@ function render() {
   const v = state.viewer;
   $("who").textContent = v ? `Signed in as ${v.name}` : "";
   const banner = $("banner");
+  const cal = state.calendar || {};
   if (!state.can.manage) {
     banner.textContent = v ? "You can look, but only adults can make changes here." : `You can look, but changes are off: ${state.problem}`;
+    banner.classList.remove("hidden");
+  } else if (cal.problem) {
+    // Saved here, but the calendar didn't get it.
+    banner.textContent = `Saved, but the calendar couldn't be updated: ${cal.problem}`;
     banner.classList.remove("hidden");
   } else banner.classList.add("hidden");
 
@@ -592,6 +597,7 @@ function bookForm(b) {
       <div class="field"><label for="b-time">Time</label><input id="b-time" type="time" value="${esc(t.apptTime)}"></div>
     </div>
     ${kind.stay ? `<div class="field"><label for="b-end">Pick up</label><input id="b-end" type="date" value="${esc(t.endDate)}"></div>` : ""}
+    ${state.calendar && state.calendar.on ? `<div class="field"><div class="hint">It goes on the family's Google Calendar. Move or delete it there and the hub follows.</div></div>` : ""}
     <div class="row">
       <div class="field"><label for="b-provider">With</label><input id="b-provider" maxlength="80" value="${esc(t.provider)}"></div>
       <div class="field"><label for="b-phone">Phone</label><input id="b-phone" type="tel" maxlength="30" value="${esc(t.phone)}"></div>

@@ -50,6 +50,8 @@ cc-family-hub/
 | [`app/worker/data-api.js`](../app/worker/data-api.js) | Validates and stores what the pipeline publishes |
 | [`app/worker/photos.js`](../app/worker/photos.js) | Reads the iCloud shared album |
 | [`app/worker/household.js`](../app/worker/household.js) | Household records: the API, validation, and who may change what |
+| [`app/worker/household-calendar.js`](../app/worker/household-calendar.js) | Keeps the household calendar in step with the records, both ways |
+| [`app/worker/google.js`](../app/worker/google.js) | Google access through the service account |
 | [`app/worker/access.js`](../app/worker/access.js) | Checks a Cloudflare Access sign-in and finds the member behind it |
 | [`app/worker/db/migrations.js`](../app/worker/db/migrations.js) | The household database's schema, which the Worker applies itself |
 | [`app/public/index.html`](../app/public/index.html) | The hub page |

@@ -120,6 +120,7 @@ What it takes to run the house, kept by the hub itself:
 Each is a task with a due date. It can repeat, and it keeps a record of every time it was
 done. An appointment can be booked, with its own date and time, and a stay has an end
 date. A fix can go without a date: it waits on the page, with no card, until it's done.
+Booked appointments can also go on a Google Calendar, and edits made there come back.
 
 You add and change them at `/household/` on your hub, on a phone or the hub page. Adults
 can change anything. Everyone else can look. A task shows on every screen as a `pets` or

@@ -37,12 +37,12 @@ Built so far:
 - **v2.2.0:** **the house:** services, maintenance and fixes.
 - **v2.3.0:** a family's **places** (more than one house), the same task for **several pets**
   at once, **booking** an appointment, and **stays** such as boarding.
+- **v2.4.0:** booked appointments on a family **Google Calendar**, both ways.
 
 The rest ships in steps:
 
 | Release | What it adds |
 |---------|--------------|
-| v2.4.0 | Booked appointments written to a family Google Calendar, so they reach everyone's phone |
 | v2.5.0 | A photo for each pet, uploaded on `/household/`, and a **pet panel**: each pet full screen over its photo, with what's next for it. Then the same panel on the TV apps. |
 | v2.6.0 | **Chores:** assigned to kids, daily and weekly, taking turns |
 | v2.7.0 | **Activities:** completing what the calendar leaves out |

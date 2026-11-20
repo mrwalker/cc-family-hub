@@ -38,6 +38,7 @@ import { handleDataApi } from "./data-api.js";
 import { handleStream } from "./stream.js";
 import { handleGrocery } from "./grocery.js";
 import { handleHousehold } from "./household.js";
+import { serviceAccountToken, SCOPES } from "./google.js";
 
 // Widgets refresh often and every phone asks separately; one Google fetch per
 // window serves them all.
@@ -50,8 +51,6 @@ const STREAM_CORS = {
   "Access-Control-Max-Age": "86400",
 };
 
-const CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar.readonly";
-const TOKEN_URI      = "https://oauth2.googleapis.com/token";
 
 /** Builds the Worker for one family's config (the JSON written by app/build.mjs). */
 export function createHub(config) {
@@ -63,6 +62,8 @@ export function createHub(config) {
     tripApps: config.tripApps,
     // How the Worker checks a sign-in before a household write (access.js).
     access: config.access ?? null,
+    // The Google Calendar that booked household appointments go on (household-calendar.js).
+    householdCalendar: config.householdCalendar ?? null,
     photosAlbum: config.photos?.icloudAlbum ?? null,
     // The stream's settings: the family's default, and each output's overrides.
     stream: config.stream ?? {},
@@ -163,7 +164,7 @@ async function handleEvents(request, env, hub) {
   const timeMax = new Date(Date.now() + days * 86_400_000).toISOString();
 
   try {
-    const token  = await getServiceAccountToken(env.SA_CLIENT_EMAIL, env.SA_PRIVATE_KEY);
+    const token  = await serviceAccountToken(env, SCOPES.calendarRead);
     const events = await fetchAllEvents(token, hub.members, timeMin, timeMax);
     return jsonResponse({ generatedAt: new Date().toISOString(), events });
   } catch (err) {
@@ -184,7 +185,7 @@ async function cachedEvents(env, hub, days) {
 
   const timeMin = new Date().toISOString();
   const timeMax = new Date(Date.now() + days * 86_400_000).toISOString();
-  const token = await getServiceAccountToken(env.SA_CLIENT_EMAIL, env.SA_PRIVATE_KEY);
+  const token = await serviceAccountToken(env, SCOPES.calendarRead);
   const events = await fetchAllEvents(token, hub.members, timeMin, timeMax);
   if (cache) {
     await cache.put(key, new Response(JSON.stringify(events), {
@@ -192,77 +193,6 @@ async function cachedEvents(env, hub, days) {
     }));
   }
   return events;
-}
-
-// ─── Google Service Account auth ─────────────────────────────────────────────
-
-async function getServiceAccountToken(clientEmail, privateKeyPem) {
-  const key = await importPrivateKey(privateKeyPem);
-  const jwt = await buildJWT(clientEmail, key);
-
-  const resp = await fetch(TOKEN_URI, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
-      assertion: jwt,
-    }),
-  });
-
-  if (!resp.ok) {
-    const body = await resp.text();
-    throw new Error(`Token exchange failed (${resp.status}): ${body}`);
-  }
-
-  const data = await resp.json();
-  return data.access_token;
-}
-
-async function importPrivateKey(pem) {
-  // Strip PEM armor and decode to DER bytes
-  const b64 = pem
-    .replace(/-----BEGIN PRIVATE KEY-----/, "")
-    .replace(/-----END PRIVATE KEY-----/, "")
-    .replace(/\s+/g, "");
-  const der = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
-
-  return crypto.subtle.importKey(
-    "pkcs8",
-    der.buffer,
-    { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
-    false,
-    ["sign"]
-  );
-}
-
-async function buildJWT(clientEmail, cryptoKey) {
-  const now = Math.floor(Date.now() / 1000);
-
-  const header  = b64url(JSON.stringify({ alg: "RS256", typ: "JWT" }));
-  const payload = b64url(JSON.stringify({
-    iss:   clientEmail,
-    scope: CALENDAR_SCOPE,
-    aud:   TOKEN_URI,
-    iat:   now,
-    exp:   now + 3600,
-  }));
-
-  const input = new TextEncoder().encode(`${header}.${payload}`);
-  const sigBuf = await crypto.subtle.sign("RSASSA-PKCS1-v1_5", cryptoKey, input);
-  const sig = b64url(sigBuf);
-
-  return `${header}.${payload}.${sig}`;
-}
-
-function b64url(data) {
-  // Accepts string or ArrayBuffer
-  let str;
-  if (typeof data === "string") {
-    str = btoa(unescape(encodeURIComponent(data)));
-  } else {
-    str = btoa(String.fromCharCode(...new Uint8Array(data)));
-  }
-  return str.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
 // ─── Calendar fetching ────────────────────────────────────────────────────────

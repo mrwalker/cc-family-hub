@@ -130,7 +130,7 @@ export function makeContext({ request, env, hub, loadEvents, now = new Date(), v
     photos: once(() => albumPhotos(hub)),
     grocery: once(() => listGrocery(env)),
     // Household tasks that could have a card today; null without a HUB_DB database.
-    household: once(() => loadDueTasks(env, today)),
+    household: once(() => loadDueTasks(env, today, { hub, origin: url.origin })),
     // A trip's own shared album (trips.yaml → album), by link.
     album: link => (albums[link] ??= albumPhotosFor(link)),
     image: cardId => `${url.origin}${base}/image/${encodeURIComponent(cardId)}`,
