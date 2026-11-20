@@ -13,7 +13,7 @@ import yaml from "js-yaml";
 import { SECRETS_PATH } from "../paths.js";
 import type { HouseholdContext } from "../../integrations/_base/types.js";
 
-interface HubApiSecrets {
+export interface HubApiSecrets {
   url?: string;
   publishToken?: string;
   accessClientId?: string;
@@ -22,7 +22,7 @@ interface HubApiSecrets {
 
 const TIMEOUT_MS = 15_000;
 
-function hubApiSecrets(): HubApiSecrets | null {
+export function hubApiSecrets(): HubApiSecrets | null {
   if (!existsSync(SECRETS_PATH)) return null;
   const all = (yaml.load(readFileSync(SECRETS_PATH, "utf8")) ?? {}) as Record<string, unknown>;
   const s = all["hub-api"] as HubApiSecrets | undefined;

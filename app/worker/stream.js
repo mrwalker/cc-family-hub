@@ -20,8 +20,9 @@ import { COMPONENT_IDS, byId } from "./components/index.js";
 import { tripSummaries, heroResponse } from "./trips.js";
 import { albumPhotos, albumPhotosFor, photoById, photoFromAlbum } from "./photos.js";
 import { listGrocery } from "./grocery.js";
-import { loadDueTasks, loadPets, photoResponse, roomImage } from "./household.js";
+import { loadDueTasks, loadPets, photoResponse, roomImage, movieImage } from "./household.js";
 import { loadRooms } from "./rooms.js";
+import { loadMovies } from "./movies.js";
 import { ensureSchema } from "./db/migrations.js";
 import { loadChoresToday } from "./chores.js";
 import { ymd, addDays, json } from "./util.js";
@@ -142,6 +143,8 @@ export function makeContext({ request, env, hub, loadEvents, now = new Date(), v
     chores: once(() => loadChoresToday(env, hub, now)),
     // The escape rooms the hub keeps; null without a database or before the old list is imported.
     rooms: once(async () => { if (!env.HUB_DB) return null; await ensureSchema(env.HUB_DB); return loadRooms(env); }),
+    // Movies the hub keeps (v2.8); null without a database or before the first picks.
+    movies: once(async () => { if (!env.HUB_DB) return null; await ensureSchema(env.HUB_DB); return loadMovies(env); }),
     // A trip's own shared album (trips.yaml → album), by link.
     album: link => (albums[link] ??= albumPhotosFor(link)),
     image: cardId => `${url.origin}${base}/image/${encodeURIComponent(cardId)}`,
@@ -214,6 +217,8 @@ async function streamImage(env, hub, cardId, origin, version = null) {
   if (component === "photos" && id) return photoById(hub, id);
   // escape-rooms:<room id> — the room's picture, from its site.
   if (component === "escape-rooms" && id) return roomImage(env, id);
+  // movies:<movie id> — its poster, from its site.
+  if (component === "movies" && id) return movieImage(env, id);
   // trip-photo:<trip id>:<photo id> — a photo from that trip's shared album.
   if (component === "trip-photo" && id) {
     const [tripId, ...photo] = id.split(":");

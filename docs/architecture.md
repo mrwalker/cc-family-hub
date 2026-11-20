@@ -347,5 +347,14 @@ scheduled assistant session. It runs one of:
 - `family-hub run`, which syncs, plans through the Claude API, and publishes.
 - An assistant running `/daily-plan`, which does the same with the assistant as the planner.
 
+Once a month, an assistant with web search can also pick the movies:
+
+1. `family-hub movies history` prints what was picked before, and who wanted or saw each.
+2. The assistant writes the month's picks: in theaters and on streaming, about two months
+   ahead, each with a page link, and a poster link when it has one. The file's shape is at
+   the top of `hub/movies.ts`.
+3. `family-hub movies publish <file>` checks the file and hands it to the hub. Its last line
+   is `MOVIES OK` or `MOVIES FAILED`.
+
 Screens refresh themselves. The hub page reloads the stream as it rotates, widgets refresh
 when iOS lets them, and the Mac app and Roku refresh every five minutes.

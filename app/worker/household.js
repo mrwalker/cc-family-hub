@@ -9,6 +9,11 @@
  *   GET  /api/household/rooms                the same (the page's escape rooms are in it)
  *   POST /api/household/rooms…              see rooms.js
  *   GET  /api/household/image/rooms/:id      a room's picture, from its site, cached
+ *   GET  /api/household/movies               the same (the movies are in it)
+ *   POST /api/household/movies…             see movies.js
+ *   POST /api/household/movies/picks         the pipeline (PUBLISH_TOKEN): the assistant's monthly picks
+ *   GET  /api/household/movies/history       the pipeline: past picks and marks
+ *   GET  /api/household/image/movies/:id     a movie's poster
  *   POST /api/household/pets                 { id, name, species?, birthday?, notes?, archived? }
  *   POST /api/household/places               { id, name, address?, notes?, archived? }
  *   POST /api/household/tasks                a task, or { tasks: [task…], archive: [id…] } in one go
@@ -53,6 +58,7 @@ import { calendarClient } from "./google.js";
 import { pushToCalendar, pullFromCalendar, PULL_EVERY_MS } from "./household-calendar.js";
 import { choresSnapshot, choresExport, handleChoreWrite, canUndoTick, undoTickStatements } from "./chores.js";
 import { roomsSnapshot, handleRoomWrite } from "./rooms.js";
+import { listMovies, applyPicks, moviesHistory, handleMovieWrite } from "./movies.js";
 import { imageResponse } from "./link-image.js";
 
 /**
@@ -299,7 +305,7 @@ async function getTask(db, id) {
 async function snapshot(env, hub, who, now, calendarProblem = null, choresDay = null) {
   const db = env.HUB_DB;
   const today = ymd(new Date(now), hub.timezone);
-  const [pets, photos, places, tasks, log, chores, rooms] = await Promise.all([
+  const [pets, photos, places, tasks, log, chores, rooms, movies] = await Promise.all([
     db.prepare("SELECT * FROM pets ORDER BY archived, name").all(),
     db.prepare("SELECT id, pet_id, width, height FROM pet_photos ORDER BY created_at DESC").all(),
     db.prepare("SELECT * FROM places ORDER BY archived, name").all(),
@@ -310,6 +316,7 @@ async function snapshot(env, hub, who, now, calendarProblem = null, choresDay = 
                 ORDER BY l.created_at DESC, l.rowid DESC LIMIT ${LOG_ROWS}`).all(),
     choresSnapshot(db, hub, { day: choresDay ?? today, today, now }),
     roomsSnapshot(env),
+    listMovies(db),
   ]);
   const family = who.viewer?.role === "adult" || who.viewer?.role === "child";
   return {
@@ -322,6 +329,7 @@ async function snapshot(env, hub, who, now, calendarProblem = null, choresDay = 
     chores,
     rooms: rooms.rooms,
     canImportRooms: rooms.canImport,
+    movies,
     areas: AREAS,
     members: hub.members.map(({ id, name, color, role }) => ({ id, name, color, role: role === "child" ? "child" : "adult" })),
     pets: pets.results.map(r => ({ ...petFromRow(r), photos: photos.results.filter(p => p.pet_id === r.id).map(p => ({ id: p.id, width: p.width, height: p.height })) })),
@@ -385,12 +393,37 @@ export async function householdExport(env, hub, { now = Date.now(), days = EXPOR
   };
 }
 
-async function handleExport(request, env, hub, opts) {
-  if (request.method !== "GET") return json({ error: "Method not allowed" }, 405);
+/** The pipeline proves itself with the publish token. A reply when it doesn't; null when it does. */
+function pipelineRefusal(request, env) {
   if (!env.PUBLISH_TOKEN) return json({ error: "PUBLISH_TOKEN secret not configured on the Worker" }, 503);
   if (!timingSafeEqual(request.headers.get("Authorization") || "", `Bearer ${env.PUBLISH_TOKEN}`)) {
     return json({ error: "Missing or wrong publish token (Authorization: Bearer …)" }, 401);
   }
+  return null;
+}
+
+/** The assistant's monthly movie picks, and what it reads first (movies.js). */
+async function handleMoviePipeline(request, env, hub, path, opts) {
+  const refused = pipelineRefusal(request, env);
+  if (refused) return refused;
+  if (!env.HUB_DB) return json({ error: "Household records aren't set up on this hub (no HUB_DB database)" }, 503);
+  await ensureSchema(env.HUB_DB);
+  if (path === "/movies/history") {
+    if (request.method !== "GET") return json({ error: "Method not allowed" }, 405);
+    return json(await moviesHistory(env.HUB_DB, hub));
+  }
+  if (request.method !== "POST") return json({ error: "Method not allowed" }, 405);
+  let body;
+  try { body = await request.json(); } catch { return json({ error: "Body is not valid JSON" }, 400); }
+  const now = opts.now ?? Date.now();
+  const result = await applyPicks(env.HUB_DB, body, { today: ymd(new Date(now), hub.timezone), now, fetcher: opts.fetcher ?? fetch });
+  return result.error ? json(result, 400) : json({ ok: true, ...result });
+}
+
+async function handleExport(request, env, hub, opts) {
+  if (request.method !== "GET") return json({ error: "Method not allowed" }, 405);
+  const refused = pipelineRefusal(request, env);
+  if (refused) return refused;
   if (!env.HUB_DB) return json({ enabled: false });
   await ensureSchema(env.HUB_DB);
   const asked = parseInt(new URL(request.url).searchParams.get("days") ?? "", 10);
@@ -466,6 +499,15 @@ export async function roomImage(env, id, opts = {}) {
   await ensureSchema(env.HUB_DB);
   const row = await env.HUB_DB.prepare("SELECT image_url FROM escape_rooms WHERE id = ?").bind(id).first();
   if (!row?.image_url) return json({ error: "That room has no picture" }, 404);
+  return imageResponse(row.image_url, { fetcher: opts.fetcher ?? fetch });
+}
+
+/** A movie's poster, fetched from its site and cached. */
+export async function movieImage(env, id, opts = {}) {
+  if (!env.HUB_DB) return json({ error: "No household database" }, 404);
+  await ensureSchema(env.HUB_DB);
+  const row = await env.HUB_DB.prepare("SELECT image_url FROM movies WHERE id = ?").bind(id).first();
+  if (!row?.image_url) return json({ error: "That movie has no poster" }, 404);
   return imageResponse(row.image_url, { fetcher: opts.fetcher ?? fetch });
 }
 
@@ -570,6 +612,7 @@ function undoStatements(db, row, viewer, now) {
 
 export async function handleHousehold(request, env, hub, path, opts = {}) {
   if (path === "/export") return handleExport(request, env, hub, opts);
+  if (path === "/movies/picks" || path === "/movies/history") return handleMoviePipeline(request, env, hub, path, opts);
   if (path === "/diag" && request.method === "GET") return handleDiag(request);
   if (!env.HUB_DB) {
     if (request.method === "GET" && path === "") return json({ enabled: false });
@@ -586,7 +629,9 @@ export async function handleHousehold(request, env, hub, path, opts = {}) {
     if (photo) return photoResponse(env, photo[1]);
     const picture = path.match(/^\/image\/rooms\/([A-Za-z0-9_-]{6,40})$/);
     if (picture) return roomImage(env, picture[1], opts);
-    if (path === "/rooms") return json(await snapshot(env, hub, who, now));
+    const poster = path.match(/^\/image\/movies\/([A-Za-z0-9_-]{6,40})$/);
+    if (poster) return movieImage(env, poster[1], opts);
+    if (path === "/rooms" || path === "/movies") return json(await snapshot(env, hub, who, now));
     if (path === "/chores") {
       // The page looking at another day's chores; no calendar sync for that.
       const day = new URL(request.url).searchParams.get("day");
@@ -628,6 +673,14 @@ export async function handleHousehold(request, env, hub, path, opts = {}) {
     const reply = await handleChoreWrite({
       db, hub, path, body, viewer, now, today, json,
       answer: async (extra = {}) => json({ ...(await snapshot(env, hub, who, now, null, choresDay)), ...extra }),
+    });
+    return reply ?? json({ error: "Not found" }, 404);
+  }
+
+  if (path === "/movies" || path.startsWith("/movies/")) {
+    const reply = await handleMovieWrite({
+      db, hub, path, body, viewer, now, json, fetcher: opts.fetcher ?? fetch,
+      answer: async (extra = {}) => json({ ...(await snapshot(env, hub, who, now)), ...extra }),
     });
     return reply ?? json({ error: "Not found" }, 404);
   }

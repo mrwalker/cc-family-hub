@@ -53,12 +53,13 @@ Built so far:
   for the wall tablet.
 - **v2.7.0:** **escape rooms** kept by the hub: added on `/household/` after a game, each with
   its room's picture, found on its link.
+- **v2.8.0:** **movies** picked monthly by the family's assistant, in theaters and streaming,
+  with posters; everyone marks what they want to see and what they've seen.
 
 The rest ships in steps:
 
 | Release | What it adds |
 |---------|--------------|
-| v2.8.0 | **Movies** picked monthly by the family's assistant: in theaters and streaming, with posters, and who wants to see each |
 | v2.9.0 | **Activities:** completing what the calendar leaves out |
 
 Activities stay in the calendar, where families already put them. But a practice typed in
