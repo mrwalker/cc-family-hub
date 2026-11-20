@@ -8,8 +8,8 @@ workspace/
 ├── family.yaml            the family, its members, and how the hub is set up
 ├── members/<id>.yaml      one profile per member
 ├── trips.yaml             trips, upcoming and past
-├── escape-rooms.yaml      optional
-├── movies.yaml            optional
+├── escape-rooms.yaml      optional, before v2.7 (then imported into the hub)
+├── movies.yaml            no longer read (v2.8)
 ├── context/
 │   ├── notes/             things the planner should know
 │   └── shopping/          things to add to the grocery list
@@ -128,7 +128,7 @@ the planner: the more it knows about a person's week, the better its notes. The
 
 ## Content files
 
-`trips.yaml`, `escape-rooms.yaml`, and `movies.yaml` are lists you edit by hand, or ask
+`trips.yaml` (and, before v2.7, `escape-rooms.yaml`) are lists you edit by hand, or ask
 Claude Code to edit ("add the cabin trip, Dec 26 to Jan 2, all of us"). Their shapes are in
 [inputs.md](inputs.md) and `workspace.example/`. A change reaches the screens on the next
 pipeline run.
