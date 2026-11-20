@@ -154,7 +154,7 @@ Nothing else is stateful. You can rebuild the Worker and re-run the pipeline at 
 
 ## Household records
 
-*Pets, the house, the planner's feed and the calendar are built. Chores are planned;
+*Pets, the house, the planner's feed and the calendar are built. Chores are being built;
 [roadmap.md](roadmap.md#managing-the-household) has the order.*
 
 Household records are the hub's own data: the pets' care, the kids' chores, the upkeep of
@@ -175,6 +175,10 @@ are no household cards, the page says it isn't set up, and nothing else changes.
 | `task_log` | One row each time a task is done: when, by whom, what the task was before, and the action it was part of |
 | `pet_photos` | Photos of the pets, already shrunk by the page (at most 1 MB each, ten a pet) |
 | `calendar_events` | For each event the hub made on the household calendar: its id and what the hub last wrote |
+| `chore_jobs` | The jobs that rotate among the kids (Trash, Dogs, Dishes, Yard), in order |
+| `chores` | What each job (or a named person) does, and when: its schedule, time, season, and for a chore done on request, when it was asked for |
+| `chore_log` | One row each time a chore is ticked: the day or week it was for, whose chore it was, who ticked it, and the action it was part of |
+| `chore_swaps` | One-week changes to the rotation ("Riley takes the trash this week") |
 
 A task repeats in one of two ways. A filter is due three months after you change it, so
 its next date counts from the day it was done. A monthly medication is due on the 1st
@@ -206,6 +210,28 @@ booked. Its events are marked as the hub's, and `calendar_events` remembers what
 wrote, so it can tell an edit made in Google Calendar from its own. A calendar that can't
 be reached never stops a save; the page says what went wrong.
 
+**Chores.** A chore isn't a task. A task waits until it's done; a chore comes round on a
+schedule, and a time it wasn't done is missed rather than owed. Each chore belongs to a job,
+or to named people:
+
+- **Jobs rotate.** The rotation (kept in `household_meta`) lists the kids in order and a
+  starting week, when the first kid holds the first job, the second the second, and so on.
+  Each week, on the day the family's week starts, everyone moves one job along. A swap
+  changes one job's holder for one week. A chore shared by two jobs (picking up the yard
+  together) belongs to both holders.
+- **Schedules.** A chore is one of:
+  - **daily**, on every day or some days, at or by a time if it has one;
+  - **weekly**, on a set day (bins to the curb on Tuesday) or any day that week;
+  - **every few weeks**, counted from a starting week (the recycling goes out every other
+    Tuesday);
+  - **as needed**, always listed and never missed, and each tick counted;
+  - **when asked**, shown from the day an adult asks for it until it's done.
+  
+  A chore can also have a season (watering, June to September) and shows only in it.
+- **No pile-up.** Whether a chore is done is worked out from its schedule and the log:
+  done, still to do, or missed. Nothing is written when a chore is missed, so the log stays
+  a plain record of what was done, and a later allowance can count both.
+
 The Worker applies its own migrations. The first time it uses the database after a
 release, it runs any that are new, in one transaction. You create the database once and
 never run a migration by hand.
@@ -217,11 +243,19 @@ never run a migration by hand.
 | GET | `/api/household` | Family | Everything the page needs, and who's asking |
 | POST | `/api/household/pets` | Adults | Add or change a pet |
 | POST | `/api/household/tasks` | Adults | Add or change a task, or several at once |
-| POST | `/api/household/tasks/:id/done` | Adults, and a kid for their own chore | Mark it done |
-| POST | `/api/household/tasks/:id/undo` | The same | Take back the last time it was done |
+| POST | `/api/household/tasks/:id/done` | Adults | Mark it done |
+| POST | `/api/household/tasks/:id/undo` | Adults | Take back the last time it was done |
 | POST | `/api/household/places` | Adults | Add or change a place |
-| POST | `/api/household/undo` | Adults, and a kid for their own chore | Take back one action, such as a group's done |
+| POST | `/api/household/undo` | Adults; anyone in the family for a chore they ticked | Take back one action, such as a group's done or a chore's tick |
 | POST | `/api/household/tasks/:id/archive` | Adults | Archive or restore it |
+| GET | `/api/household/chores?day=` | Family | The jobs, chores, rotation and swaps, who holds each job that week, and each kid's chores for the day |
+| POST | `/api/household/chores` | Adults | Add or change a chore, or several at once |
+| POST | `/api/household/chores/jobs` | Adults | Add, change or reorder the jobs |
+| POST | `/api/household/chores/rotation` | Adults | Set who's in the rotation, its starting week and direction |
+| POST | `/api/household/chores/swap` | Adults | Change one job's holder for one week, or put it back |
+| POST | `/api/household/chores/:id/ask` | Adults | Ask for a chore done on request, by a day |
+| POST | `/api/household/chores/:id/done` | Family | Tick a chore for a day, for whoever's chore it is |
+| POST | `/api/household/chores/:id/archive` | Adults | Archive or restore a chore |
 | GET | `/api/household/export` | The pipeline (`PUBLISH_TOKEN`) | What's due, overdue and lately done, by name |
 
 Every write is validated in the Worker and answers with the fresh list. A write has to be
@@ -236,7 +270,7 @@ audience and expiry), finds the member with that email, and reads their role.
 | Caller | May |
 |--------|-----|
 | Adults | Add, change, complete and archive anything |
-| Kids | Mark their own chores done, and undo that |
+| Kids | Tick any chore done, for anyone, and undo their own ticks that day |
 | Trip guests | Read |
 | Screens | Read the stream. Their tokens carry no identity. |
 | The pipeline | Read the export, with its publish token |
@@ -246,27 +280,42 @@ audience tag, set as `hub.access` in `family.yaml`. Neither is a secret. Until t
 the Worker refuses household writes and says why. Who made each change is taken from the
 sign-in, never from the request.
 
+Chores are the exception that lets anyone tick. A wall tablet is signed in once, as one
+person, and the whole family uses it, so the hub can't know which kid is tapping. It works
+like the whiteboard it replaces: anyone in the family may tick any chore. The log keeps
+whose chore it was and which sign-in ticked it, and adults can undo any tick.
+
 ### Where you write
 
 `/household/` is one small page with a tab for each area. It's made for a phone and works
 on the wall tablet. Each task can be marked done, edited, and shows its history. Adults
-can add and archive. Kids see their own chores.
+can add and archive. The Chores tab shows each kid's chores for today with a Done button,
+the week's rotation, and for adults, the setup. A kid signed in on their own phone sees
+their own chores first.
+
+The hub page gets a chore board too, so chores can be ticked on the wall tablet.
 
 The other screens don't write. A widget, the Mac app and the TVs show the cards, and the
 hub page links each one to `/household/`.
 
 ### Cards and the planner
 
-Each area is a component: `pets` and `house` today, then `chores`. A task becomes a card when it's
+Each area is a component: `pets`, `house` and `chores`. A task becomes a card when it's
 overdue or close enough to its due date, with overdue tasks first. A member's view shows
 what's assigned to them. With nothing due, a component adds no cards.
+
+`chores` adds one card for the family ("Chores today: 5 of 9 done", with who's next), and
+one for each kid in their own view, listing their chores for the day. A chore with a time
+moves to the top of its card a couple of hours before it, and reads "late" after it. On
+the first day of the week, a card shows the new rotation.
 
 The stream reads the database once per request, with one indexed query.
 
 The pipeline fetches `/api/household/export` when it builds the planner's context, with
 the same hub address, publish token and service token it publishes with. It gets every
 pet, each task that's overdue or due within the planner's `brain.daysAhead` (at most 60
-days), and what was done in the last 30 days. The plan can then fit a vet visit around the
+days), what was done in the last 30 days, and the chores: who holds which job this week,
+each kid's chores today, and what was missed this week. The plan can then fit a vet visit around the
 calendar or say who could take it. If the fetch fails, the pipeline prints why and makes
 the plan without it.
 

@@ -10,7 +10,7 @@ workspace file they read. Each input feeds one or more [stream components](strea
 | [`trips`](#trips) | `workspace/trips.yaml` | Workspace | `trips`, `past-trips` |
 | [`trip-apps`](#trip-apps) | Trip folders in your hub repo, and check-ins | Deploy and interactive | `trips`, `past-trips` |
 | [`grocery`](#grocery) | The hub's shared list | Interactive | `grocery` |
-| [`household`](#household) | The hub's household records | Interactive | `pets`, `house`, `pet-portraits`, `plan` |
+| [`household`](#household) | The hub's household records | Interactive | `pets`, `house`, `chores`, `pet-portraits`, `plan` |
 | [`escape-rooms`](#escape-rooms-and-movies) | `workspace/escape-rooms.yaml` | Workspace | `escape-rooms` |
 | [`movies`](#escape-rooms-and-movies) | `workspace/movies.yaml` | Workspace | `movies` |
 | [`notes`](#notes) | `workspace/context/` | Workspace | `plan` |
@@ -116,8 +116,11 @@ What it takes to run the house, kept by the hub itself:
 - **The house:** services that come to the house (lawn, cleaning, pest control),
   maintenance on a schedule (filters, gutters, smoke detectors), and fixes. A family with
   more than one house lists its places, and each task says which.
+- **Chores:** the kids' jobs (trash, dishes, the dogs), which rotate among them each week,
+  and what each job involves and when: every evening at 4:30, Tuesdays, every other week,
+  as needed, or when an adult asks.
 
-Each is a task with a due date. It can repeat, and it keeps a record of every time it was
+Pets and the house are tasks, each with a due date. It can repeat, and it keeps a record of every time it was
 done. An appointment can be booked, with its own date and time, and a stay has an end
 date. A fix can go without a date: it waits on the page, with no card, until it's done.
 Booked appointments can also go on a Google Calendar, and edits made there come back.
@@ -127,6 +130,9 @@ Each pet can have up to ten photos, added from a phone on `/household/` (several
 You add and change them at `/household/` on your hub, on a phone or the hub page. Adults
 can change anything. Everyone else can look. A task shows on every screen as a `pets` or
 `house` card when it's close to due, and stays there, marked overdue, until someone marks it done.
+A chore isn't a task: it comes round on its schedule, is done or missed, and never piles
+up. Anyone in the family can tick a chore done, on a phone or the wall tablet, and the hub
+keeps who ticked it. The `chores` cards show each kid what's theirs today.
 The planner reads them too, so the week's plan can work around a vet visit.
 
 **Set up:** it needs a D1 database and your Access details. See
