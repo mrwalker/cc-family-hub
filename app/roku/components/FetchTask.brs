@@ -4,7 +4,7 @@
 '                → result { stream } or { error, offline }
 '                  offline = true when the hub couldn't be reached (keep the last stream)
 '   "download" GET config.imageUrl (a card's glance.image) to config.path
-'                → result { id, path } or { id, error }
+'                → result { id, path, url } or { id, error }
 
 sub init()
     m.top.functionName = "doRequest"
@@ -39,7 +39,7 @@ sub doRequest()
 
     if download then
         if code = 200 then
-            m.top.result = { id: cfg.id, path: cfg.path, offline: false }
+            m.top.result = { id: cfg.id, path: cfg.path, url: cfg.imageUrl, offline: false }
         else
             DeleteFile(cfg.path)
             m.top.result = { id: cfg.id, error: "Image download failed (" + code.ToStr() + ").", offline: false }

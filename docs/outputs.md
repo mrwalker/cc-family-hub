@@ -35,14 +35,14 @@ Every screen can show every component, because every card has a
 **full** means its own layout for that component, and **glance** means the headline, detail
 line, and photo.
 
-| Component | Hub page | Roku | Mac panel | Widget (medium, large) | Widget (small, lock screen) |
+| Component | Hub page | Roku, Samsung TV | Mac panel | Widget (medium, large) | Widget (small, lock screen) |
 |-----------|----------|------|-----------|------------------------|-----------------------------|
 | `today` | full | full | full | full | full |
 | `week` | full, interactive | glance | glance | glance | – |
 | `plan` | full | glance | glance | glance | – |
 | `pets` | glance, links to `/household/` | glance | glance | glance | – |
 | `house` | glance, links to `/household/` | glance | glance | glance | – |
-| `pet-portraits` | full: the pet full screen over its photo | glance | glance | glance | – |
+| `pet-portraits` | full: the pet full screen over its photo | full | glance | glance | – |
 | `photos` | full | full | full | full | – |
 | `trips` | full | full | full | full | glance |
 | `past-trips` | full | full | glance | glance | – |

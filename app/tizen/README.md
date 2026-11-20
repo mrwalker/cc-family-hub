@@ -7,6 +7,7 @@ channel:
 - **trips and past trips:** the hero or album photo, the countdown or highlights, and the
   leaderboard.
 - **grocery:** the list.
+- **pet portraits:** each pet over its whole photo, with its name, age and what's next for it.
 - **everything else:** its glance.
 
 By default it shows three album photos between every other card (`outputs.tizen-tv.stream`

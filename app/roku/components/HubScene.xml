@@ -6,6 +6,7 @@
     photoLayer    photos: an album photo with a strip (clock, next event, trip countdown)
     tripLayer     trips and past-trips: hero photo, countdown or highlights, leaderboard
     groceryLayer  grocery: the shopping list
+    petLayer      pet-portraits: a pet over its photo, with its name and what's next
     glanceLayer   every other component: its glance (headline, detail, colors, image)
 -->
 <component name="HubScene" extends="Scene">
@@ -123,6 +124,28 @@
           <Font role="font" uri="font:BoldSystemFontFile" size="40"/>
         </Label>
         <Group id="groceryItems" translation="[104,310]"/>
+      </Group>
+    </Group>
+
+    <!-- pet-portraits cards: the pet's whole photo over a soft, dimmed copy that fills the
+         screen (decoded small, then enlarged: the Roku has no blur), with its name, age
+         and what's next for it along the bottom. Both posters are sized in code once the
+         photo loads: a scaleToFit decode would bake black bars over the soft copy. -->
+    <Group id="petLayer" visible="false" opacity="0">
+      <Rectangle id="petBg" width="1920" height="1080" color="0x292524FF"/>
+      <Poster id="petBack" width="1920" height="1080" loadWidth="192" loadHeight="108"
+              loadDisplayMode="scaleToZoom"/>
+      <Rectangle id="petDim" width="1920" height="1080" color="0x0000008C"/>
+      <Poster id="petPhoto" width="1920" height="1080" opacity="0"/>
+      <Poster id="petShade" translation="[0,620]" width="1920" height="460" uri="pkg:/images/shade.png"/>
+      <Group id="petContent">
+        <Label id="petName" translation="[100,0]" width="1720" color="0xf3f5f7FF">
+          <Font role="font" uri="font:BoldSystemFontFile" size="120"/>
+        </Label>
+        <Label id="petAge" translation="[106,0]" width="1700" color="0xf3f5f7D9">
+          <Font role="font" uri="font:SystemFontFile" size="38"/>
+        </Label>
+        <Group id="petNext"/>
       </Group>
     </Group>
 
