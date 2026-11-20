@@ -221,7 +221,7 @@ function validateStrava(d, path, errors) {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function timingSafeEqual(a, b) {
+export function timingSafeEqual(a, b) {
   const enc = new TextEncoder();
   const x = enc.encode(a), y = enc.encode(b);
   let diff = x.length ^ y.length;

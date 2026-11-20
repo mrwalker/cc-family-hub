@@ -18,11 +18,16 @@ Given the family context below, produce a weekly plan covering the next 7 days. 
    - Double-bookings or impossible schedules
    - Events missing critical information (location, who's driving, etc.)
    - Upcoming deadlines from member project lists
+   - Household tasks that are overdue, or due this week (a pet's shot, a medication, a vet visit)
 
 4. **Generate action items** from:
    - Unresolved scheduling conflicts
    - Context items that require a response or decision
    - Recurring logistics that need confirmation (who's picking up whom, etc.)
+   - Household tasks due this week that need booking or someone's time. Fit an appointment
+     around the calendar, and say who could take it. Don't repeat a task that's simply due:
+     the hub already shows it on every screen. Add what the hub can't: when it fits, who,
+     what to bring, and what to book ahead.
 
 5. **Update the shopping list** by consolidating any submitted shopping items with existing list
 

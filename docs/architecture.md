@@ -58,7 +58,7 @@ A Node process that runs on a schedule, does its work, and exits. `family-hub ru
 
 1. **Sync.** Each synced input writes a snapshot to `workspace/calendars/` or `workspace/state/`.
 2. **Plan.** The context builder assembles the family config, member profiles, the next 14
-   days of events, notes, and the previous plan. Claude turns that into a `WeeklyPlan`: a
+   days of events, notes, household records from the hub, and the previous plan. Claude turns that into a `WeeklyPlan`: a
    summary, notes for each day, action items, flags for conflicts, and shopping items.
 3. **Publish.** The plan and the workspace content (trips, escape rooms, movies) go to the
    hub Worker as validated `PUT /api/data/:kind` writes. Push outputs run here too.
@@ -154,7 +154,7 @@ Nothing else is stateful. You can rebuild the Worker and re-run the pipeline at 
 
 ## Household records
 
-*Pets are built. The house, chores, and the planner's feed are planned;
+*Pets and the planner's feed are built. The house and chores are planned;
 [roadmap.md](roadmap.md#managing-the-household) has the order.*
 
 Household records are the hub's own data: the pets' care, the kids' chores, the upkeep of
@@ -194,7 +194,7 @@ never run a migration by hand.
 | POST | `/api/household/tasks/:id/done` | Adults, and a kid for their own chore | Mark it done |
 | POST | `/api/household/tasks/:id/undo` | The same | Take back the last time it was done |
 | POST | `/api/household/tasks/:id/archive` | Adults | Archive or restore it |
-| GET | `/api/household/export` | The pipeline | What's due, overdue and lately done *(planned)* |
+| GET | `/api/household/export` | The pipeline (`PUBLISH_TOKEN`) | What's due, overdue and lately done, by name |
 
 Every write is validated in the Worker and answers with the fresh list. A write has to be
 a JSON request, which a form on another website can't send.
@@ -211,7 +211,7 @@ audience and expiry), finds the member with that email, and reads their role.
 | Kids | Mark their own chores done, and undo that |
 | Trip guests | Read |
 | Screens | Read the stream. Their tokens carry no identity. |
-| The pipeline | Read the export |
+| The pipeline | Read the export, with its publish token |
 
 To verify a token the Worker needs your Access team domain and the hub application's
 audience tag, set as `hub.access` in `family.yaml`. Neither is a secret. Until they're set,
@@ -235,9 +235,12 @@ what's assigned to them. With nothing due, a component adds no cards.
 
 The stream reads the database once per request, with one indexed query.
 
-Planned: the pipeline fetches `/api/household/export` when it builds the planner's
-context, so the plan can work around a vet visit or remind someone of a chore. If the
-fetch fails, the plan is made without it.
+The pipeline fetches `/api/household/export` when it builds the planner's context, with
+the same hub address, publish token and service token it publishes with. It gets every
+pet, each task that's overdue or due within the planner's `brain.daysAhead` (at most 60
+days), and what was done in the last 30 days. The plan can then fit a vet visit around the
+calendar or say who could take it. If the fetch fails, the pipeline prints why and makes
+the plan without it.
 
 ## Scheduling
 

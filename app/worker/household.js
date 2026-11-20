@@ -10,11 +10,15 @@
  *   POST /api/household/tasks/:id/done       { doneOn?, note? }
  *   POST /api/household/tasks/:id/undo
  *   POST /api/household/tasks/:id/archive    { archived }
+ *   GET  /api/household/export?days=14       → { enabled, today, pets, tasks, recent }   for the planner
  *
  * Every POST answers with the same body as GET, so the page redraws from it.
  *
  * Who may write (access.js works out who's asking): adults manage everything; a
  * child may mark their own chore done and undo it; guests and screens only read.
+ * The export is for the pipeline, which proves itself with the PUBLISH_TOKEN
+ * bearer (and, behind Access, a service token) rather than a sign-in.
+ *
  * Who made a change is taken from the sign-in, never from the request. Writes
  * must be JSON requests, which another site's form can't send.
  *
@@ -24,7 +28,8 @@
 
 import { ensureSchema } from "./db/migrations.js";
 import { identify } from "./access.js";
-import { ymd, addDays, json } from "./util.js";
+import { ymd, addDays, daysBetween, json } from "./util.js";
+import { timingSafeEqual } from "./data-api.js";
 
 /** Each area's kinds of task, and how many days before it's due a card appears. */
 export const AREAS = {
@@ -224,9 +229,64 @@ async function snapshot(env, hub, who, now) {
   };
 }
 
+// ─── The planner's export ─────────────────────────────────────────────────────
+
+const EXPORT_DAYS = 14;
+const EXPORT_RECENT_DAYS = 30;
+
+/**
+ * What the planner needs to know: every pet, each task that's overdue or due in
+ * the next `days` days, and what was done in the last 30 days. Names, not ids.
+ */
+export async function householdExport(env, hub, { now = Date.now(), days = EXPORT_DAYS } = {}) {
+  const db = env.HUB_DB;
+  const today = ymd(new Date(now), hub.timezone);
+  const until = addDays(today, days);
+  const name = id => (id ? hub.members.find(m => m.id === id)?.name ?? id : null);
+  const [pets, tasks, recent] = await Promise.all([
+    db.prepare("SELECT name, species, birthday, notes FROM pets WHERE archived = 0 ORDER BY name").all(),
+    db.prepare(`SELECT ${TASK_COLUMNS} FROM tasks t LEFT JOIN pets p ON p.id = t.pet_id
+                WHERE t.archived = 0 AND t.due_date IS NOT NULL AND t.due_date <= ?
+                ORDER BY t.due_date, t.due_time, t.title`).bind(until).all(),
+    db.prepare(`SELECT t.title, t.area, p.name AS pet_name, l.done_on, l.done_by, l.note
+                FROM task_log l JOIN tasks t ON t.id = l.task_id LEFT JOIN pets p ON p.id = t.pet_id
+                WHERE l.done_on >= ? ORDER BY l.done_on DESC LIMIT ${LOG_ROWS}`).bind(addDays(today, -EXPORT_RECENT_DAYS)).all(),
+  ]);
+  const every = t => (!t.repeatEvery ? null : t.repeatEvery === 1 ? `every ${t.repeatUnit}` : `every ${t.repeatEvery} ${t.repeatUnit}s`);
+  return {
+    enabled: true,
+    today,
+    days,
+    pets: pets.results.map(p => ({ name: p.name, species: p.species ?? null, birthday: p.birthday ?? null, notes: p.notes ?? null })),
+    tasks: tasks.results.map(taskFromRow).map(t => {
+      const daysUntil = daysBetween(today, t.dueDate);
+      return {
+        area: t.area, kind: t.kind, title: t.title, pet: t.petName, assignee: name(t.assignee),
+        dueDate: t.dueDate, dueTime: t.dueTime, daysUntil, overdue: daysUntil < 0, repeats: every(t),
+        provider: t.provider, phone: t.phone, notes: t.notes,
+      };
+    }),
+    recent: recent.results.map(r => ({ title: r.title, area: r.area, pet: r.pet_name ?? null, doneOn: r.done_on, doneBy: name(r.done_by), note: r.note ?? null })),
+  };
+}
+
+async function handleExport(request, env, hub, opts) {
+  if (request.method !== "GET") return json({ error: "Method not allowed" }, 405);
+  if (!env.PUBLISH_TOKEN) return json({ error: "PUBLISH_TOKEN secret not configured on the Worker" }, 503);
+  if (!timingSafeEqual(request.headers.get("Authorization") || "", `Bearer ${env.PUBLISH_TOKEN}`)) {
+    return json({ error: "Missing or wrong publish token (Authorization: Bearer …)" }, 401);
+  }
+  if (!env.HUB_DB) return json({ enabled: false });
+  await ensureSchema(env.HUB_DB);
+  const asked = parseInt(new URL(request.url).searchParams.get("days") ?? "", 10);
+  const days = Number.isFinite(asked) ? Math.min(MAX_LEAD_DAYS, Math.max(1, asked)) : EXPORT_DAYS;
+  return json(await householdExport(env, hub, { now: opts.now ?? Date.now(), days }));
+}
+
 // ─── The API ──────────────────────────────────────────────────────────────────
 
 export async function handleHousehold(request, env, hub, path, opts = {}) {
+  if (path === "/export") return handleExport(request, env, hub, opts);
   if (!env.HUB_DB) {
     if (request.method === "GET" && path === "") return json({ enabled: false });
     return json({ error: "Household records aren't set up on this hub (no HUB_DB database). See docs/getting-started.md" }, 503);
