@@ -32,7 +32,8 @@ function inView(ctx, task) {
 }
 
 function glanceFor(ctx, task, kind, days) {
-  const who = task.petName || ctx.hub.members.find(m => m.id === task.assignee)?.name || null;
+  // Whose it is: the pet, or the member it's assigned to; else who does it.
+  const who = task.petName || ctx.hub.members.find(m => m.id === task.assignee)?.name || task.provider || null;
   const shortDate = dateLabel(task.dueDate, ctx.locale, { month: "short", day: "numeric" });
   const time = task.dueTime ? clock(task.dueTime, ctx.locale) : null;
   let headline, when;
@@ -55,9 +56,11 @@ export async function taskCards(ctx, area) {
   if (!tasks) return [];
   const kinds = AREAS[area].kinds;
   return tasks
-    .filter(t => t.area === area && kinds[t.kind] && inView(ctx, t))
+    .filter(t => t.area === area && kinds[t.kind] && t.dueDate && inView(ctx, t))
     .map(t => ({ task: t, days: daysBetween(ctx.today, t.dueDate) }))
     .filter(({ task, days }) => days <= leadDays(task))
+    // Overdue first, then soonest; appointments on the same day by time.
+    .sort((a, b) => a.days - b.days || String(a.task.dueTime ?? "").localeCompare(String(b.task.dueTime ?? "")))
     .map(({ task, days }) => ({
       id: `${area}:${task.id}`,
       title: AREAS[area].label,

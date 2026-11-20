@@ -22,7 +22,10 @@ test("every card has a complete envelope and glance", async () => {
     },
     photos: [{ id: "p1", width: 1536, height: 1024, takenAt: "2027-06-01T18:00:00Z" }],
     grocery: [{ id: "g1abcd", name: "Milk", quantity: 1, done: false, addedAt: 1 }],
-    household: [{ id: "t1abcd", area: "pets", kind: "vaccination", title: "Rabies shot", petName: "Biscuit", dueDate: "2027-06-30", assignee: null }],
+    household: [
+      { id: "t1abcd", area: "pets", kind: "vaccination", title: "Rabies shot", petName: "Biscuit", dueDate: "2027-06-30", assignee: null },
+      { id: "t2abcd", area: "house", kind: "maintenance", title: "HVAC filter", petName: null, dueDate: "2027-06-18", assignee: null },
+    ],
   });
   for (const [id, c] of Object.entries(byId)) {
     const cards = await c.cards(ctx);
@@ -41,7 +44,7 @@ test("every card has a complete envelope and glance", async () => {
 
 test("components with nothing to show make no cards", async () => {
   const ctx = ctxWith();
-  for (const id of ["week", "plan", "pets", "photos", "trips", "past-trips", "grocery", "escape-rooms", "movies", "workouts"]) {
+  for (const id of ["week", "plan", "pets", "house", "photos", "trips", "past-trips", "grocery", "escape-rooms", "movies", "workouts"]) {
     assert.deepEqual(await byId[id].cards(ctx), [], id);
   }
   assert.equal((await byId.today.cards(ctx)).length, 1, "today always has a card");

@@ -1,6 +1,6 @@
 /**
- * Household records: the pets' care (and, in later releases, the kids' chores
- * and the upkeep of the house). Stored in D1 (HUB_DB), edited at /household/.
+ * Household records: the pets' care and the upkeep of the house (and, in a
+ * later release, the kids' chores). Stored in D1 (HUB_DB), edited at /household/.
  *
  *   GET  /api/household                    → { enabled, viewer, can, problem, today, areas, pets, tasks, log, serverTime }
  *   POST /api/household/pets                 { id, name, species?, birthday?, notes?, archived? }
@@ -41,6 +41,17 @@ export const AREAS = {
       grooming: { label: "Grooming", lead: 7, emoji: "✂️" },
       "vet-visit": { label: "Vet visit", lead: 7, emoji: "🩺", appointment: true },
       other: { label: "Other", lead: 7, emoji: "🐾" },
+    },
+  },
+  house: {
+    label: "House",
+    kinds: {
+      // Someone comes to the house: lawn, cleaning, pest control.
+      service: { label: "Service", lead: 2, emoji: "🧹", appointment: true },
+      // Upkeep on a schedule: filters, gutters, smoke detectors.
+      maintenance: { label: "Maintenance", lead: 7, emoji: "🔧" },
+      // Something to fix. It needn't have a date.
+      fix: { label: "Fix", lead: 7, emoji: "🛠️", undated: true },
     },
   },
 };
@@ -117,7 +128,7 @@ export function cleanTask(c, { memberIds, petIds }) {
   if (!title) return { error: "title: required" };
 
   const task = { id: c.id, area: c.area, kind: c.kind, title };
-  task.petId = c.petId || null;
+  task.petId = c.area === "pets" ? c.petId || null : null;
   if (task.petId && !petIds.has(task.petId)) return { error: "petId: no such pet" };
   if (c.area === "pets" && !task.petId) return { error: "petId: required for a pet's task" };
   task.assignee = c.assignee || null;
