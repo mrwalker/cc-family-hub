@@ -42,7 +42,7 @@ test("a task repeats from the day it was done, or keeps to its schedule", () => 
   assert.equal(nextDue(filter, "2027-06-21"), "2027-09-21", "three months after it was changed");
   const pill = { repeatEvery: 1, repeatUnit: "month", repeatFrom: "due", dueDate: "2027-06-01" };
   assert.equal(nextDue(pill, "2027-06-04"), "2027-07-01", "given late, still due on the 1st");
-  assert.equal(nextDue(pill, "2027-05-30"), "2027-06-01", "given early, the date it was for stands");
+  assert.equal(nextDue(pill, "2027-05-30"), "2027-07-01", "given early, it counts for June's");
   assert.equal(nextDue(pill, "2027-08-15"), "2027-09-01", "skipped months aren't owed");
   assert.equal(nextDue({ dueDate: "2027-06-01" }, "2027-06-01"), null, "a one-off doesn't repeat");
 });
@@ -295,7 +295,7 @@ test("the export has what's due soon or overdue, and what was lately done, by na
     ["Rabies shot", "Biscuit", "2027-06-30", 9, false, null],
   ], "the far-off task waits");
   assert.equal(body.tasks[1].assignee, "Sam");
-  assert.deepEqual(body.recent, [{ title: "Brush", area: "pets", pet: "Biscuit", doneOn: "2027-06-20", doneBy: "Alex", note: "Matted behind the ears" }]);
+  assert.deepEqual(body.recent, [{ title: "Brush", area: "pets", pet: "Biscuit", place: null, doneOn: "2027-06-20", doneBy: "Alex", note: "Matted behind the ears" }]);
   const wider = await (await exportAs(env, "pub-secret", "?days=90")).json();
   assert.equal(wider.days, 60, "at most 60 days ahead");
   assert.equal(wider.tasks.length, 3, "September is still past 60 days");
@@ -321,29 +321,32 @@ test("a task gets a card when it's overdue or close, overdue first", async () =>
   const household = [
     t("a", "medication", "Heartworm pill", "2027-06-04", { repeatEvery: 1, repeatUnit: "month" }),
     t("b", "grooming", "Nail trim", "2027-06-21"),
-    t("c", "vet-visit", "Checkup", "2027-06-22", { dueTime: "15:30", provider: "Oak Vet", phone: "555-0100" }),
+    t("c", "vet-visit", "Checkup", "2027-06-23", { booked: true, apptDate: "2027-06-22", apptTime: "15:30", provider: "Oak Vet", phone: "555-0100" }),
     t("d", "vaccination", "Rabies shot", "2027-06-30"),
-    t("e", "grooming", "Bath", "2027-07-15"),                       // further off than grooming's 7 days
+    t("e", "grooming", "Bath", "2027-07-15"),                       // further off than grooming's 14 days
     t("f", "grooming", "Haircut", "2027-07-15", { leadDays: 30 }),  // its own lead time
   ];
   const cards = await byId.pets.cards(ctxWith({ household }));
   assert.deepEqual(cards.map(c => [c.id, c.glance.headline, c.glance.detail]), [
     ["pets:a", "Heartworm pill overdue", "Biscuit · Due Jun 4 · 17 days ago"],
-    ["pets:b", "Nail trim due today", "Biscuit"],
+    ["pets:b", "Nail trim due today", "Biscuit · not booked yet"],
     ["pets:c", "Checkup tomorrow", "Biscuit · 3:30 PM"],
-    ["pets:d", "Rabies shot due in 9 days", "Biscuit · Wed, Jun 30"],
-    ["pets:f", "Haircut due in 24 days", "Biscuit · Thu, Jul 15"],
+    ["pets:d", "Rabies shot due in 9 days", "Biscuit · Wed, Jun 30 · not booked yet"],
+    ["pets:f", "Haircut due in 24 days", "Biscuit · Thu, Jul 15 · not booked yet"],
   ]);
   assert.equal(cards[0].url, "https://hub.example.com/household/#pets");
   assert.deepEqual(cards[0].data.task, {
-    id: "a", kind: "medication", title: "Heartworm pill", pet: "Biscuit", assignee: null,
-    dueDate: "2027-06-04", dueTime: null, daysUntil: -17, overdue: true, repeats: "Every month", provider: undefined, phone: undefined,
+    id: "a", kind: "medication", title: "Heartworm pill", pet: "Biscuit", pets: ["Biscuit"], place: null, assignee: null,
+    dueDate: "2027-06-04", dueTime: null, date: "2027-06-04", daysUntil: -17, overdue: true,
+    booked: false, apptDate: null, apptTime: null, endDate: null, needsBooking: false,
+    repeats: "Every month", provider: undefined, phone: undefined,
   });
+  assert.equal(cards[2].data.task.date, "2027-06-22", "a booked appointment's date is what counts");
   assert.equal(leadDays(household[5]), 30);
 });
 
 test("a missed appointment asks whether it happened", async () => {
-  const household = [{ id: "c", area: "pets", kind: "vet-visit", title: "Checkup", petName: "Biscuit", dueDate: "2027-06-20", assignee: null }];
+  const household = [{ id: "c", area: "pets", kind: "vet-visit", title: "Checkup", petName: "Biscuit", dueDate: "2027-06-20", booked: true, apptDate: "2027-06-20", assignee: null }];
   const [card] = await byId.pets.cards(ctxWith({ household }));
   assert.deepEqual([card.glance.headline, card.glance.detail], ["Checkup: done?", "Biscuit · Was Jun 20 · 1 day ago"]);
 });
@@ -358,4 +361,135 @@ test("a member's view keeps what's theirs; unassigned tasks are for the adults",
   assert.deepEqual(await ids(null), ["pets:a", "pets:b"]);
   assert.deepEqual(await ids(alex), ["pets:b"]);
   assert.deepEqual(await ids(sam), ["pets:a"]);
+});
+
+// ─── Places, groups, booking and stays (v2.3) ─────────────────────────────────
+
+const DOGS = [["pet-peppr1", "Pepper"], ["pet-mochi1", "Mochi"], ["pet-waffl1", "Waffles"], ["pet-junip1", "Juniper"]];
+
+/** A database with four dogs, as an adult. */
+async function withDogs() {
+  const db = memoryD1();
+  const env = as("alex", db);
+  for (const [id, name] of DOGS) assert.equal((await post(env, "/pets", { id, name, species: "Dog" })).status, 200);
+  return { db, env };
+}
+
+/** The same task for several dogs, as the page sends it. */
+const forDogs = (groupId, ids, extra) => ({ tasks: ids.map(id => ({ id: `${groupId}-${id.slice(4)}`, area: "pets", petId: id, groupId, ...extra })) });
+
+test("places: a house task belongs to a place, and a card says which", D1, async () => {
+  const { env } = await withDogs();
+  let body = await (await post(env, "/places", { id: "place-home1", name: "Home", address: "1 Main St" })).json();
+  body = await (await post(env, "/places", { id: "place-farm1", name: "The farm" })).json();
+  assert.deepEqual(body.places.map(p => p.name), ["Home", "The farm"]);
+  assert.match((await (await post(env, "/tasks", houseTask({ placeId: "place-nope1" }))).json()).error, /^placeId:/);
+  body = await (await post(env, "/tasks", houseTask({ placeId: "place-farm1", dueDate: "2027-06-22" }))).json();
+  assert.equal(body.tasks[0].placeName, "The farm");
+  const [card] = await byId.house.cards(ctxWith({ household: body.tasks }));
+  assert.deepEqual([card.glance.headline, card.glance.detail], ["HVAC filter due tomorrow", "The farm"]);
+  assert.equal((await post(as("sam", env.HUB_DB), "/places", { id: "place-kid01", name: "Fort" })).status, 403, "only adults");
+});
+
+test("a task for several dogs: one card while they share a day, each dog its own history", D1, async () => {
+  const { env } = await withDogs();
+  const all = DOGS.map(d => d[0]);
+  let body = await (await post(env, "/tasks", forDogs("grp-heart1", all, { kind: "medication", title: "Heartworm pill", dueDate: "2027-06-22", repeatEvery: 1, repeatUnit: "month", repeatFrom: "due" }))).json();
+  assert.equal(body.tasks.length, 4);
+  let cards = await byId.pets.cards(ctxWith({ household: body.tasks }));
+  assert.deepEqual(cards.map(c => [c.id, c.glance.headline, c.glance.detail]), [["pets:grp-heart1:2027-06-22", "Heartworm pill due tomorrow", "4 dogs"]]);
+  assert.deepEqual(cards[0].data.task.pets.sort(), ["Juniper", "Mochi", "Pepper", "Waffles"]);
+
+  // Mochi gets hers early: just Mochi moves on.
+  body = await (await post(env, "/tasks/grp-heart1-mochi1/done")).json();
+  const mochi = body.tasks.find(t => t.petName === "Mochi");
+  assert.equal(mochi.dueDate, "2027-07-22");
+  cards = await byId.pets.cards(ctxWith({ household: body.tasks.filter(t => !t.archived) }));
+  assert.deepEqual(cards.map(c => [c.glance.headline, c.glance.detail]), [["Heartworm pill due tomorrow", "Pepper, Waffles & Juniper"]]);
+
+  // The rest together, then undo that in one go.
+  body = await (await post(env, "/tasks/grp-heart1-peppr1/done", { group: true })).json();
+  assert.deepEqual([...new Set(body.tasks.map(t => t.dueDate))], ["2027-07-22"], "every dog moved on, and Mochi, already there, didn't move again");
+  const action = body.log[0].actionId;
+  assert.equal(body.log.filter(l => l.actionId === action).length, 3, "the three that shared the card");
+  body = await (await post(env, "/undo", { actionId: action })).json();
+  assert.deepEqual(body.tasks.map(t => [t.petName, t.dueDate]).sort(), [["Juniper", "2027-06-22"], ["Mochi", "2027-07-22"], ["Pepper", "2027-06-22"], ["Waffles", "2027-06-22"]]);
+  assert.equal(body.log.length, 1, "Mochi's own done stays");
+});
+
+test("booking: an appointment has its own date and time, and done uses it up", D1, async () => {
+  const { env } = await withDogs();
+  let body = await (await post(env, "/tasks", forDogs("grp-teeth1", ["pet-peppr1"], { kind: "dental", title: "Teeth cleaning", dueDate: "2027-07-01", repeatEvery: 1, repeatUnit: "year", provider: "Oak Vet" }))).json();
+  let [card] = await byId.pets.cards(ctxWith({ household: body.tasks }));
+  assert.deepEqual([card.glance.headline, card.glance.detail], ["Teeth cleaning due in 10 days", "Pepper · Thu, Jul 1 · not booked yet"]);
+  assert.equal(card.data.task.needsBooking, true);
+  const booked = { ...body.tasks[0], booked: true, apptDate: "2027-06-24", apptTime: "09:30" };
+  body = await (await post(env, "/tasks", booked)).json();
+  [card] = await byId.pets.cards(ctxWith({ household: body.tasks }));
+  assert.deepEqual([card.glance.headline, card.glance.detail], ["Teeth cleaning in 3 days", "Pepper · Thu, Jun 24 · 9:30 AM"]);
+  assert.match((await (await post(env, "/tasks", { ...booked, apptTime: "9:30am" })).json()).error, /^apptTime:/);
+  body = await (await post(env, "/tasks/grp-teeth1-peppr1/done", { doneOn: "2027-06-21" })).json();
+  assert.deepEqual([body.tasks[0].dueDate, body.tasks[0].booked, body.tasks[0].apptDate], ["2028-06-21", false, null], "next year's isn't booked yet");
+  body = await (await post(env, "/tasks/grp-teeth1-peppr1/undo")).json();
+  assert.deepEqual([body.tasks[0].dueDate, body.tasks[0].booked, body.tasks[0].apptDate, body.tasks[0].apptTime], ["2027-07-01", true, "2027-06-24", "09:30"], "undo restores the booking");
+});
+
+test("boarding: a stay for some of the dogs, shown until they're home", D1, async () => {
+  const { env } = await withDogs();
+  const stay = { kind: "boarding", title: "Boarding", dueDate: "2027-06-25", endDate: "2027-06-29", provider: "Paws Inn" };
+  assert.match((await (await post(env, "/tasks", forDogs("grp-stay01", ["pet-peppr1"], { ...stay, endDate: "2027-06-20" }))).json()).error, /endDate:/);
+  let body = await (await post(env, "/tasks", forDogs("grp-stay01", ["pet-peppr1", "pet-mochi1"], stay))).json();
+  const card = async (today, tasks = body.tasks) => (await byId.pets.cards(ctxWith({ household: tasks, now: new Date(`${today}T19:00:00Z`) })))[0];
+  let c = await card("2027-06-21");
+  assert.deepEqual([c.glance.headline, c.glance.detail], ["Boarding in 4 days", "Pepper & Mochi · Jun 25 – 29 · not booked yet"]);
+  body = await (await post(env, "/tasks", { tasks: body.tasks.map(t => ({ ...t, booked: true, apptDate: "2027-06-25", apptTime: "08:00" })) })).json();
+  c = await card("2027-06-21");
+  assert.deepEqual([c.glance.headline, c.glance.detail], ["Boarding in 4 days", "Pepper & Mochi · Jun 25 – 29 · Paws Inn · 8:00 AM"]);
+  c = await card("2027-06-27");
+  assert.deepEqual([c.glance.headline, c.glance.detail], ["Boarding: home Tue, Jun 29", "Pepper & Mochi · Paws Inn"]);
+  c = await card("2027-06-29");
+  assert.equal(c.glance.headline, "Boarding: home today");
+  c = await card("2027-06-30");
+  assert.deepEqual([c.glance.headline, c.glance.detail], ["Boarding: done?", "Pepper & Mochi · Ended Jun 29"]);
+  body = await (await post(env, "/tasks/grp-stay01-peppr1/done", { group: true })).json();
+  assert.ok(body.tasks.every(t => t.archived), "a one-off stay is finished");
+});
+
+test("editing a group: change them all, add a dog, take one out", D1, async () => {
+  const { env } = await withDogs();
+  let body = await (await post(env, "/tasks", forDogs("grp-rabie1", ["pet-peppr1", "pet-mochi1"], { kind: "vaccination", title: "Rabies", dueDate: "2027-08-01" }))).json();
+  const edit = forDogs("grp-rabie1", ["pet-peppr1", "pet-waffl1"], { kind: "vaccination", title: "Rabies (3-year)", dueDate: "2027-08-01", repeatEvery: 3, repeatUnit: "year" });
+  body = await (await post(env, "/tasks", { ...edit, archive: ["grp-rabie1-mochi1"] })).json();
+  assert.deepEqual(body.tasks.map(t => [t.petName, t.title, t.archived]).sort(), [["Mochi", "Rabies", true], ["Pepper", "Rabies (3-year)", false], ["Waffles", "Rabies (3-year)", false]]);
+  const tooMany = { tasks: Array.from({ length: 51 }, (_, i) => ({ ...edit.tasks[0], id: `task-many${String(i).padStart(2, "0")}` })) };
+  assert.equal((await post(env, "/tasks", tooMany)).status, 400);
+  const bad = await (await post(env, "/tasks", { tasks: [edit.tasks[0], { ...edit.tasks[1], dueDate: "soon" }] })).json();
+  assert.match(bad.error, /^tasks\[1\]\.dueDate:/, "says which one");
+});
+
+test("the migration from v2.2 keeps tasks and their history", D1, async () => {
+  const db = memoryD1();
+  // A v2.2 database: migration 1 only, with a task done once.
+  const { MIGRATIONS } = await import("../app/worker/db/migrations.js");
+  db.sqlite.exec("CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY, applied_at INTEGER NOT NULL)");
+  for (const s of MIGRATIONS[0].statements) db.sqlite.exec(s);
+  db.sqlite.exec("INSERT INTO schema_migrations VALUES (1, 0)");
+  db.sqlite.exec("INSERT INTO tasks (id, area, kind, title, due_date, repeat_every, repeat_unit, created_at, updated_at) VALUES ('task-septic', 'house', 'service', 'Septic', '2027-09-01', 1, 'year', 0, 0)");
+  db.sqlite.exec("INSERT INTO task_log (id, task_id, done_on, due_before, created_at) VALUES ('log-1', 'task-septic', '2026-09-01', '2026-09-01', 0)");
+  const env = as("alex", db);
+  let body = await (await get(env)).json();
+  assert.deepEqual(body.tasks.map(t => [t.title, t.placeId, t.booked]), [["Septic", null, false]]);
+  body = await (await post(env, "/tasks/task-septic/undo")).json();
+  assert.equal(body.tasks[0].dueDate, "2026-09-01", "a pre-v2.3 log row still undoes");
+});
+
+test("a save that never arrived is reported, and logged", async () => {
+  const logged = [];
+  const log = console.log;
+  console.log = s => logged.push(s);
+  try {
+    const res = await handleHousehold(new Request(`${BASE}/diag?path=%2Fpets&error=Load%20failed&name=TypeError`, { headers: { "User-Agent": "iPhone Safari" } }), {}, HUB, "/diag", NOW);
+    assert.equal(res.status, 204);
+  } finally { console.log = log; }
+  assert.deepEqual(JSON.parse(logged[0]), { household: "save-failed", path: "/pets", error: "Load failed", name: "TypeError", online: "", page: "", ua: "iPhone Safari" });
 });

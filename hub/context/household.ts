@@ -72,14 +72,21 @@ export function renderHousehold(h: HouseholdContext | undefined | null): string[
   if (h.pets.length) {
     lines.push(`Pets: ${h.pets.map((p) => [p.name, p.species ? `(${p.species.toLowerCase()})` : ""].filter(Boolean).join(" ")).join(", ")}`);
   }
+  if (h.places?.length) {
+    lines.push(`Places: ${h.places.map((p) => (p.address ? `${p.name} (${p.address})` : p.name)).join(", ")}`);
+  }
   lines.push(``);
   lines.push(`### Due in the next ${h.days} days (as of ${h.today})`);
   if (!h.tasks.length) lines.push(`Nothing due.`);
   for (const t of h.tasks) {
     const when = t.overdue ? `OVERDUE since ${t.dueDate} (${-t.daysUntil} days)` : t.daysUntil === 0 ? `due today` : `due ${t.dueDate} (in ${t.daysUntil} days)`;
+    const booking = t.booked
+      ? `booked for ${t.apptDate ?? t.dueDate}${t.apptTime ? ` at ${t.apptTime}` : ""}${t.endDate ? ` until ${t.endDate}` : ""}`
+      : t.endDate ? `${t.dueDate} to ${t.endDate}, not booked yet` : null;
     const parts = [
-      `${t.title}${t.pet ? ` for ${t.pet}` : ""}`,
+      `${t.title}${t.pet ? ` for ${t.pet}` : ""}${t.place ? ` at ${t.place}` : ""}`,
       `${when}${t.dueTime ? ` at ${t.dueTime}` : ""}`,
+      booking,
       t.kind,
       t.repeats,
       t.assignee ? `assigned to ${t.assignee}` : null,
@@ -92,7 +99,7 @@ export function renderHousehold(h: HouseholdContext | undefined | null): string[
     lines.push(``);
     lines.push(`### Done in the last 30 days`);
     for (const r of h.recent) {
-      lines.push(`- ${r.title}${r.pet ? ` for ${r.pet}` : ""}, ${r.doneOn}${r.doneBy ? ` by ${r.doneBy}` : ""}${r.note ? `: ${r.note}` : ""}`);
+      lines.push(`- ${r.title}${r.pet ? ` for ${r.pet}` : ""}${r.place ? ` at ${r.place}` : ""}, ${r.doneOn}${r.doneBy ? ` by ${r.doneBy}` : ""}${r.note ? `: ${r.note}` : ""}`);
     }
   }
   lines.push(``);

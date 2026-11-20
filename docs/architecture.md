@@ -170,15 +170,29 @@ are no household cards, the page says it isn't set up, and nothing else changes.
 | Table | Holds |
 |-------|-------|
 | `pets` | Each pet: name, species, birthday, notes |
-| `tasks` | Anything due on a date: its area (`pets`, `house`, `kids`), kind, title, who or which pet it's for, when it's next due, how it repeats, how early its card appears, and a provider, phone number and link |
-| `task_log` | One row each time a task is done: when, by whom, and the due date it replaced |
+| `places` | Each house a family keeps: name, address, notes |
+| `tasks` | Anything due on a date: its area (`pets`, `house`, `kids`), kind, title, which pet or place it's for and whose job it is, when it's next due, how it repeats, how early its card appears, its booking (date, time, and for a stay its last day), its group, and a provider, phone number and link |
+| `task_log` | One row each time a task is done: when, by whom, what the task was before, and the action it was part of |
 
 A task repeats in one of two ways. A filter is due three months after you change it, so
 its next date counts from the day it was done. A monthly medication is due on the 1st
 whenever you gave the last one, so its next date counts from the day it was due.
 
-Marking a repeating task done adds a log row and moves its due date. A one-off is
-archived. Undo removes the row and restores the date. Nothing is deleted, only archived.
+Marking a repeating task done adds a log row and moves its due date, and uses up its
+booking: next time's isn't booked yet. A one-off is archived. Undo removes the row and puts
+the task back as it was. Nothing is deleted, only archived.
+
+**Several pets.** The same thing for several pets (a monthly pill for all four dogs) is a
+task for each, sharing a group. Each pet keeps its own dates and history, so one can be
+done early. While they fall on the same day they share a card, and can be done, booked or
+undone together. Done for the group means the group's tasks on that day.
+
+**Booking.** A vet visit, a vaccination, a cleaning, grooming or a stay has an appointment
+to book. Until it's booked, its card shows when it's due and "not booked yet". Once booked,
+the appointment's date and time are what the card shows. A stay, such as boarding, runs
+from its first day to its last, and its card shows until the pets are home.
+
+**Places.** A family with more than one house lists them, and each house task says which.
 
 The Worker applies its own migrations. The first time it uses the database after a
 release, it runs any that are new, in one transaction. You create the database once and
@@ -190,9 +204,11 @@ never run a migration by hand.
 |--------|------|-----|------|
 | GET | `/api/household` | Family | Everything the page needs, and who's asking |
 | POST | `/api/household/pets` | Adults | Add or change a pet |
-| POST | `/api/household/tasks` | Adults | Add or change a task |
+| POST | `/api/household/tasks` | Adults | Add or change a task, or several at once |
 | POST | `/api/household/tasks/:id/done` | Adults, and a kid for their own chore | Mark it done |
 | POST | `/api/household/tasks/:id/undo` | The same | Take back the last time it was done |
+| POST | `/api/household/places` | Adults | Add or change a place |
+| POST | `/api/household/undo` | Adults, and a kid for their own chore | Take back one action, such as a group's done |
 | POST | `/api/household/tasks/:id/archive` | Adults | Archive or restore it |
 | GET | `/api/household/export` | The pipeline (`PUBLISH_TOKEN`) | What's due, overdue and lately done, by name |
 

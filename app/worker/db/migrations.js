@@ -66,6 +66,39 @@ export const MIGRATIONS = [
       `CREATE INDEX IF NOT EXISTS task_log_task ON task_log (task_id, created_at)`,
     ],
   },
+  {
+    // v2.3: places (a family can have more than one house), tasks done for
+    // several pets together, booking an appointment, and stays with an end date.
+    version: 2,
+    statements: [
+      `CREATE TABLE IF NOT EXISTS places (
+         id TEXT PRIMARY KEY,
+         name TEXT NOT NULL,
+         address TEXT,
+         notes TEXT,
+         archived INTEGER NOT NULL DEFAULT 0,
+         created_at INTEGER NOT NULL,
+         updated_at INTEGER NOT NULL,
+         updated_by TEXT
+       )`,
+      `ALTER TABLE tasks ADD COLUMN place_id TEXT REFERENCES places(id)`,
+      // Tasks added together for several pets share a group, so they can be done,
+      // booked and edited together, and each pet keeps its own dates and history.
+      `ALTER TABLE tasks ADD COLUMN group_id TEXT`,
+      // A booked appointment: its date and time (which may differ from when it's
+      // due), and for a stay such as boarding, its last day.
+      `ALTER TABLE tasks ADD COLUMN booked INTEGER NOT NULL DEFAULT 0`,
+      `ALTER TABLE tasks ADD COLUMN appt_date TEXT`,
+      `ALTER TABLE tasks ADD COLUMN appt_time TEXT`,
+      `ALTER TABLE tasks ADD COLUMN end_date TEXT`,
+      `CREATE INDEX IF NOT EXISTS tasks_group ON tasks (group_id)`,
+      // One action can mark several tasks done (a group); undo takes it all back.
+      // before_json is what the task was, so undo restores every field done changed.
+      `ALTER TABLE task_log ADD COLUMN action_id TEXT`,
+      `ALTER TABLE task_log ADD COLUMN before_json TEXT`,
+      `CREATE INDEX IF NOT EXISTS task_log_action ON task_log (action_id)`,
+    ],
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

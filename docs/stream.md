@@ -189,7 +189,7 @@ to draw it more richly over time.
 | `photos` | `photo`: `id`, `width`, `height`, `takenAt` |
 | `trips` | `trip`, `name`, `destination`, `resort`, `start`, `end`, `dates`, `status`, `daysUntil`, `day`, `days`, `countdown`, `who[]`, `leaderboard[]`, `questsDone`, `questsTotal`, `today[]`, `album` |
 | `past-trips` | `trip`, `name`, `destination`, `start`, `end`, `dates`, `who[]`, `highlights[]`, `leaderboard[]`, `album` |
-| `pets`, `house` | `task`: `id`, `kind`, `title`, `pet`, `assignee`, `dueDate`, `dueTime`, `daysUntil`, `overdue`, `repeats`, `provider`, `phone` |
+| `pets`, `house` | `task`: `id`, `kind`, `title`, `pet`, `pets[]`, `place`, `assignee`, `dueDate`, `dueTime`, `date`, `daysUntil`, `overdue`, `booked`, `apptDate`, `apptTime`, `endDate`, `needsBooking`, `repeats`, `provider`, `phone` |
 | `grocery` | `items[]`, each with `id`, `name`, `quantity`, `store`, `addedBy`, `done` |
 | `escape-rooms` | `record`: `escaped`, `total`. `room`: `venue`, `room`, `city`, `date`, `solved`, `escapeTime`, `who[]` |
 | `movies` | `movie`: `title`, `releaseDate`, `format`, `streaming`, `who[]`, `status` |

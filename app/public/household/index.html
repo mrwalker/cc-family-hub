@@ -53,6 +53,7 @@
     }
     button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
     button.quiet { border-color: transparent; background: transparent; color: var(--accent); padding-left: 6px; padding-right: 6px; }
+    button.small { min-height: 34px; padding: 4px 10px; font-size: 14px; }
     button.danger { color: var(--urgent); }
     button:disabled { opacity: .5; cursor: default; }
 
@@ -70,25 +71,34 @@
     }
 
     .task { border-top: 1px solid var(--border); padding: 12px 0 10px 42px; position: relative; }
-    .card > .task:first-child { border-top: 0; padding-top: 0; }
+    .card > .task:first-child, .card-head + .task { border-top: 0; }
+    .card > .task:first-child { padding-top: 0; }
     .card > .task:first-child .task-emoji { top: -1px; }
     .task-emoji { position: absolute; left: 0; top: 11px; font-size: 26px; line-height: 1.2; }
     .task-title { font-size: 17px; font-weight: 600; }
+    .task-who { font-size: 14px; }
     .task-when { font-size: 14px; color: var(--muted); }
     .task.is-overdue .task-when { color: var(--urgent); font-weight: 600; }
     .task.is-soon .task-when { color: var(--warn); font-weight: 600; }
+    .booking { font-size: 14px; color: var(--muted); }
+    .booking.is-booked { color: #15803d; }
+    .booking.to-book { color: var(--warn); }
     .task-more { font-size: 13px; color: var(--muted); margin-top: 2px; word-break: break-word; }
     .task-actions { margin-top: 8px; }
-    .task-actions button { margin-right: 8px; }
+    .task-actions button { margin: 0 8px 6px 0; }
+    .each { margin-top: 4px; font-size: 14px; }
+    .each-row { padding: 4px 0; position: relative; padding-right: 80px; min-height: 34px; }
+    .each-row button { position: absolute; right: 0; top: 0; }
     .empty { color: var(--muted); font-size: 14px; padding: 8px 0 4px; }
     .log-row { font-size: 14px; padding: 8px 0; border-top: 1px solid var(--border); position: relative; padding-right: 76px; }
-    .log-row button { position: absolute; right: 0; top: 1px; min-height: 34px; padding: 4px 10px; font-size: 14px; }
+    .log-row button { position: absolute; right: 0; top: 1px; }
+    .next-list { font-size: 14px; color: var(--muted); margin-top: 4px; }
 
     /* Forms */
     .form { background: var(--accent-light); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; margin: 10px 0 4px; }
     .form h3 { font-size: 17px; margin-bottom: 10px; }
     .field { margin-bottom: 12px; }
-    .field label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+    .field > label, .field-label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; }
     .field .hint { font-size: 12px; color: var(--muted); margin-top: 3px; }
     input, select, textarea {
       font: inherit; font-size: 16px; width: 100%; color: var(--text);
@@ -97,8 +107,8 @@
     textarea { min-height: 70px; }
     .row { display: grid; grid-template-columns: 1fr 1fr; grid-gap: 10px; }
     .row3 { display: grid; grid-template-columns: 90px 1fr; grid-gap: 10px; }
-    .check { font-size: 15px; }
-    .check input { width: auto; min-height: 0; margin-right: 8px; }
+    .check { display: inline-block; font-size: 15px; margin: 0 14px 6px 0; font-weight: 400; }
+    .check input { width: auto; min-height: 0; margin-right: 6px; }
     .form-actions button { margin: 4px 8px 0 0; }
     .hidden { display: none !important; }
   </style>
@@ -126,9 +136,40 @@ const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&a
 
 let state = null;        // the last answer from the API
 let area = null;         // the tab that's showing
-let form = null;         // the open form: { type: "pet" | "task", id, petId, area }
+let form = null;         // the open form: { type, key, ... }
 let showArchived = false;
+let showEach = {};       // bundle key → showing each pet's own buttons
 let busy = false;
+
+// What "+ Add" offers first. Picking one fills in the kind, the name and how it repeats.
+const PRESETS = {
+  pets: [
+    { label: "Heartworm pill", kind: "medication", every: 1, unit: "month", from: "due" },
+    { label: "Flea & tick", kind: "medication", every: 1, unit: "month", from: "due" },
+    { label: "Rabies vaccine", kind: "vaccination", every: 1, unit: "year" },
+    { label: "DHPP vaccine", kind: "vaccination", every: 1, unit: "year" },
+    { label: "Bordetella vaccine", kind: "vaccination", every: 1, unit: "year" },
+    { label: "Teeth cleaning", kind: "dental", every: 1, unit: "year" },
+    { label: "Annual checkup", kind: "vet-visit", every: 1, unit: "year" },
+    { label: "Nail trim", kind: "grooming", every: 6, unit: "week" },
+    { label: "Grooming", kind: "grooming", every: 8, unit: "week" },
+    { label: "Boarding", kind: "boarding" },
+    { label: "Vet visit", kind: "vet-visit" },
+    { label: "Something else", kind: "other", title: "" },
+  ],
+  house: [
+    { label: "HVAC filter", kind: "maintenance", every: 3, unit: "month" },
+    { label: "Smoke detector batteries", kind: "maintenance", every: 1, unit: "year" },
+    { label: "Gutters", kind: "maintenance", every: 6, unit: "month" },
+    { label: "Water heater flush", kind: "maintenance", every: 1, unit: "year" },
+    { label: "Lawn service", kind: "service", every: 1, unit: "week", from: "due" },
+    { label: "Cleaning", kind: "service", every: 2, unit: "week", from: "due" },
+    { label: "Pest control", kind: "service", every: 3, unit: "month", from: "due" },
+    { label: "Septic service", kind: "service", every: 3, unit: "year" },
+    { label: "A fix", kind: "fix", title: "" },
+    { label: "Something else", kind: "maintenance", title: "" },
+  ],
+};
 
 // ── Talking to the hub ─────────────────────────────────────────────
 function setStatus(text, isError) {
@@ -143,7 +184,16 @@ function request(path, body) {
   return fetch(API + path, opts).then(r => r.json().catch(() => ({ error: `The hub answered ${r.status}` })).then(data => {
     if (!r.ok || data.error) throw new Error(data.error || `The hub answered ${r.status}`);
     return data;
-  }));
+  }), err => {
+    // The request never got an answer: the browser stopped it, or something on the
+    // way did. Tell the hub (reads get through), so it's in the logs.
+    const q = ["path=" + encodeURIComponent(path), "error=" + encodeURIComponent(err && err.message || ""),
+               "name=" + encodeURIComponent(err && err.name || ""), "online=" + (navigator.onLine ? "1" : "0"),
+               "page=" + encodeURIComponent(location.pathname + location.hash)].join("&");
+    try { fetch(API + "/diag?" + q, { credentials: "same-origin" }); } catch (e) {}
+    const said = err && err.message ? ` (your browser said “${err.message}”)` : "";
+    throw new Error(`That didn't reach the hub${said}. Reload the page and try again.`);
+  });
 }
 
 function load() {
@@ -171,6 +221,7 @@ function newId(prefix) {
 const noon = day => new Date(day + "T12:00:00Z");
 const daysUntil = day => Math.round((noon(day) - noon(state.today)) / 86400000);
 const dateText = (day, opts) => noon(day).toLocaleDateString(undefined, Object.assign({ timeZone: "UTC" }, opts));
+const shortDate = day => dateText(day, { weekday: "short", month: "short", day: "numeric", year: Math.abs(daysUntil(day)) > 300 ? "numeric" : undefined });
 const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
 function timeText(time) {
@@ -178,15 +229,12 @@ function timeText(time) {
   return new Date(Date.UTC(2000, 0, 1, +parts[0], +parts[1])).toLocaleTimeString(undefined, { timeZone: "UTC", hour: "numeric", minute: "2-digit" });
 }
 
-function whenText(task) {
-  if (!task.dueDate) return "Whenever";
-  const n = daysUntil(task.dueDate);
-  const date = dateText(task.dueDate, { weekday: "short", month: "short", day: "numeric", year: Math.abs(n) > 300 ? "numeric" : undefined });
-  const time = task.dueTime ? ` · ${timeText(task.dueTime)}` : "";
-  if (n < 0) return `Overdue by ${plural(-n, "day")} · ${date}`;
-  if (n === 0) return `Today${time}`;
-  if (n === 1) return `Tomorrow${time}`;
-  return `In ${plural(n, "day")} · ${date}${time}`;
+function relative(day) {
+  const n = daysUntil(day);
+  if (n < 0) return `${plural(-n, "day")} ago · ${shortDate(day)}`;
+  if (n === 0) return "Today";
+  if (n === 1) return "Tomorrow";
+  return `In ${plural(n, "day")} · ${shortDate(day)}`;
 }
 
 function repeatText(task) {
@@ -202,6 +250,40 @@ function ageText(birthday) {
 }
 
 const memberName = id => { const m = state.members.find(x => x.id === id); return m ? m.name : id; };
+const kindOf = t => (state.areas[t.area] && state.areas[t.area].kinds[t.kind]) || { emoji: "•", label: t.kind };
+const whenOf = t => (t.booked && t.apptDate ? t.apptDate : t.dueDate);
+const livePets = () => state.pets.filter(p => !p.archived);
+const livePlaces = () => state.places.filter(p => !p.archived);
+
+/** "Pepper", "Pepper & Mochi", or "All 4 dogs". */
+function petsText(tasks) {
+  const names = tasks.map(t => t.petName).filter(Boolean);
+  const all = livePets();
+  if (names.length > 2 && names.length === all.length) {
+    const species = all.every(p => (p.species || "").toLowerCase() === "dog") ? "dogs" : "pets";
+    return `All ${names.length} ${species}`;
+  }
+  return names.length < 2 ? names[0] || "" : `${names.slice(0, -1).join(", ")} & ${names[names.length - 1]}`;
+}
+
+// ── Bundles: the same task for several pets, on the same day ───────
+function bundles(tasks) {
+  const out = [], byKey = {};
+  tasks.forEach(t => {
+    const key = t.groupId ? [t.groupId, whenOf(t) || "", t.booked, t.apptTime || "", t.endDate || ""].join("|") : t.id;
+    if (byKey[key]) { byKey[key].tasks.push(t); return; }
+    byKey[key] = { key, task: t, tasks: [t] };
+    out.push(byKey[key]);
+  });
+  out.forEach(b => b.tasks.sort((x, y) => String(x.petName).localeCompare(String(y.petName))));
+  return out;
+}
+const sortBundles = list => list.sort((a, b) => {
+  const da = whenOf(a.task), db = whenOf(b.task);
+  if (!da || !db) return da ? -1 : db ? 1 : a.task.title.localeCompare(b.task.title);
+  return da.localeCompare(db) || String(a.task.apptTime || a.task.dueTime || "").localeCompare(String(b.task.apptTime || b.task.dueTime || ""));
+});
+const findBundle = key => bundles(state.tasks.filter(t => !t.archived)).find(b => b.key === key);
 
 // ── Drawing ────────────────────────────────────────────────────────
 function render() {
@@ -226,47 +308,89 @@ function render() {
   tabs.classList.toggle("hidden", areas.length < 2);
   tabs.innerHTML = areas.map(a => `<button data-do="area" data-id="${a}" class="${a === area ? "active" : ""}">${esc(state.areas[a].label)}</button>`).join("");
 
-  main.innerHTML = area === "pets" ? petsView() : listView(area);
+  main.innerHTML = area === "pets" ? petsView() : area === "house" ? houseView() : listView(area);
   const first = main.querySelector(".form input:not([type=checkbox]), .form select");
   if (first && form && form.fresh) { first.focus(); form.fresh = false; }
 }
 
-function taskRow(task) {
-  const kind = state.areas[task.area].kinds[task.kind] || { emoji: "•", label: task.kind };
-  if (form && form.type === "task" && form.id === task.id) return taskForm(task, task.petId, task.area);
-  const n = task.dueDate ? daysUntil(task.dueDate) : null;
-  const cls = task.archived ? "" : n !== null && n < 0 ? " is-overdue" : n !== null && n <= 1 ? " is-soon" : "";
+/** One row: a task, or the same task for several pets on one day. */
+function bundleRow(b) {
+  const task = b.task, kind = kindOf(task);
+  if (form && form.type === "task" && form.key === b.key) return taskForm(b);
+  if (form && form.type === "book" && form.key === b.key) return bookForm(b);
+  const date = whenOf(task);
+  const n = date ? daysUntil(date) : null;
+  const staying = kind.stay && task.booked && task.endDate && n !== null && n <= 0 && daysUntil(task.endDate) >= 0;
+  const cls = task.archived ? "" : staying ? " is-soon" : n !== null && n < 0 ? " is-overdue" : n !== null && n <= 1 ? " is-soon" : "";
+  const who = petsText(b.tasks) || (task.assignee ? memberName(task.assignee) : "");
+
+  let when;
+  if (task.archived) when = "Archived";
+  else if (!date) when = "Whenever";
+  else if (kind.stay && task.endDate) when = staying ? `Away until ${shortDate(task.endDate)}` : `${relative(date)} – ${dateText(task.endDate, { month: "short", day: "numeric" })}`;
+  else if (n < 0) when = `${task.booked || kind.appointment ? "Was" : "Overdue ·"} ${relative(date)}`;
+  else when = relative(date);
+  const time = task.booked ? task.apptTime : task.dueTime;
+  if (time && date && n >= 0) when += ` · ${timeText(time)}`;
+
+  let booking = "";
+  if (!task.archived && kind.bookable) {
+    booking = task.booked
+      ? `<div class="booking is-booked">Booked${task.dueDate && task.apptDate && task.apptDate !== task.dueDate ? ` · due ${esc(dateText(task.dueDate, { month: "short", day: "numeric" }))}` : ""}</div>`
+      : `<div class="booking to-book">Not booked yet</div>`;
+  }
   const more = [];
   if (task.repeatEvery) more.push(esc(repeatText(task)));
   if (task.provider) more.push(esc(task.provider));
   if (task.phone) more.push(`<a href="tel:${esc(task.phone.replace(/[^0-9+]/g, ""))}">${esc(task.phone)}</a>`);
   if (task.url) more.push(`<a href="${esc(task.url)}" target="_blank" rel="noopener">Link</a>`);
-  if (task.assignee) more.push(esc(memberName(task.assignee)));
-  if (task.dueTime && task.dueDate && daysUntil(task.dueDate) > 1) more.push(esc(timeText(task.dueTime)));
-  const manage = state.can.manage;
-  const actions = !manage ? "" : task.archived
-    ? `<button data-do="restore" data-id="${task.id}">Restore</button>`
-    : `<button class="primary" data-do="done" data-id="${task.id}">Done</button>
-       <button data-do="edit-task" data-id="${task.id}">Edit</button>`;
+  if (task.area !== "pets" && task.assignee) more.push(esc(memberName(task.assignee)));
+
+  const manage = state.can.manage, many = b.tasks.length > 1;
+  let actions = "", each = "";
+  if (manage && task.archived) actions = `<button data-do="restore" data-id="${task.id}">Restore</button>`;
+  else if (manage) {
+    actions = `<button class="primary" data-do="${many ? "done-all" : "done"}" data-id="${task.id}">${many ? "Done for all" : "Done"}</button>`
+      + (kind.bookable ? `<button data-do="book" data-key="${esc(b.key)}">${task.booked ? "Change booking" : "Book"}</button>` : "")
+      + `<button data-do="edit" data-key="${esc(b.key)}">Edit</button>`
+      + (many ? `<button class="quiet" data-do="each" data-key="${esc(b.key)}">${showEach[b.key] ? "Hide" : "One at a time"}</button>` : "");
+    if (many && showEach[b.key]) {
+      each = `<div class="each">` + b.tasks.map(t => `<div class="each-row">${esc(t.petName)}
+        <button class="small" data-do="done" data-id="${t.id}">Done</button></div>`).join("") + `</div>`;
+    }
+  }
   return `<div class="task${cls}">
     <div class="task-emoji">${kind.emoji}</div>
     <div class="task-title">${esc(task.title)}</div>
-    <div class="task-when">${task.archived ? "Archived" : esc(whenText(task))}</div>
+    ${who && task.area === "pets" ? `<div class="task-who">${esc(who)}</div>` : ""}
+    <div class="task-when">${esc(when)}</div>
+    ${booking}
     ${more.length ? `<div class="task-more">${more.join(" · ")}</div>` : ""}
     ${task.notes ? `<div class="task-more">${esc(task.notes)}</div>` : ""}
     ${actions ? `<div class="task-actions">${actions}</div>` : ""}
+    ${each}
   </div>`;
 }
 
 function petsView() {
   const manage = state.can.manage;
-  const pets = state.pets.filter(p => !p.archived);
+  const pets = livePets();
   const tasks = state.tasks.filter(t => t.area === "pets");
+  const live = sortBundles(bundles(tasks.filter(t => !t.archived)));
   let html = "";
+
+  html += `<div class="section-label">Coming up</div><div class="card">`;
+  html += live.length ? live.map(bundleRow).join("") : `<div class="empty">Nothing scheduled.${manage && pets.length ? " Add a shot, a pill, a cleaning or a stay." : ""}</div>`;
+  if (form && form.type === "task" && !form.key && form.area === "pets") html += taskForm(null);
+  else if (manage && pets.length) html += `<div class="task-actions" style="margin-top:12px"><button data-do="add-task" data-area="pets">+ Add</button></div>`;
+  html += `</div>`;
+
+  html += `<div class="section-label">${pets.length ? "The pets" : "Pets"}</div>`;
   pets.forEach(pet => {
     if (form && form.type === "pet" && form.id === pet.id) { html += petForm(pet); return; }
-    const mine = tasks.filter(t => t.petId === pet.id && !t.archived);
     const facts = [pet.species, pet.birthday ? ageText(pet.birthday) : ""].filter(Boolean).join(" · ");
+    const next = sortBundles(bundles(tasks.filter(t => !t.archived && t.petId === pet.id))).slice(0, 4)
+      .map(b => `${esc(b.task.title)}${whenOf(b.task) ? ` · ${esc(dateText(whenOf(b.task), { month: "short", day: "numeric" }))}` : ""}`);
     html += `<div class="card">
       <div class="card-head">
         <h2>${esc(pet.name)}</h2>
@@ -274,46 +398,75 @@ function petsView() {
         ${pet.notes ? `<div class="sub">${esc(pet.notes)}</div>` : ""}
         ${manage ? `<button class="quiet" data-do="edit-pet" data-id="${pet.id}">Edit</button>` : ""}
       </div>
-      ${mine.length ? mine.map(taskRow).join("") : `<div class="empty">Nothing scheduled.</div>`}
-      ${form && form.type === "task" && !form.id && form.petId === pet.id ? taskForm(null, pet.id, "pets")
-        : manage ? `<div class="task-actions" style="margin-top:12px"><button data-do="add-task" data-area="pets" data-id="${pet.id}">+ Add for ${esc(pet.name)}</button></div>` : ""}
+      <div class="next-list">${next.length ? "Next: " + next.join("; ") : "Nothing scheduled."}</div>
     </div>`;
   });
   if (!pets.length && !(form && form.type === "pet")) {
-    html += `<div class="card"><div class="empty">No pets yet.${manage ? " Add one to start keeping track of shots, medications, grooming and vet visits." : ""}</div></div>`;
+    html += `<div class="card"><div class="empty">No pets yet.${manage ? " Add one to start keeping track of shots, medications, grooming, cleanings and boarding." : ""}</div></div>`;
   }
   if (form && form.type === "pet" && !form.id) html += petForm(null);
   else if (manage) html += `<button data-do="add-pet">+ Add a pet</button>`;
-
   return html + recentView("pets") + archivedView(tasks);
 }
 
-/** One area's tasks as a list: what's dated, soonest first, then what can wait. */
-function listView(areaId) {
+/** The house: one card per place, each with its tasks. */
+function houseView() {
   const manage = state.can.manage;
-  const tasks = state.tasks.filter(t => t.area === areaId);
+  const places = livePlaces();
+  const tasks = state.tasks.filter(t => t.area === "house");
   const live = tasks.filter(t => !t.archived);
-  const dated = live.filter(t => t.dueDate), undated = live.filter(t => !t.dueDate);
-  const adding = form && form.type === "task" && !form.id && form.area === areaId;
-  let html = `<div class="card">${dated.length ? dated.map(taskRow).join("") : `<div class="empty">Nothing scheduled.${manage ? " Add a service visit, a filter to change, or a fix." : ""}</div>`}
-    ${adding ? taskForm(null, null, areaId) : manage ? `<div class="task-actions" style="margin-top:12px"><button data-do="add-task" data-area="${areaId}">+ Add</button></div>` : ""}
-  </div>`;
-  if (undated.length) html += `<div class="section-label">Whenever</div><div class="card">${undated.map(taskRow).join("")}</div>`;
-  return html + recentView(areaId) + archivedView(tasks);
+  let html = "";
+  const section = (placeId, title, sub) => {
+    const list = sortBundles(bundles(live.filter(t => (t.placeId || null) === placeId)));
+    const place = places.find(p => p.id === placeId);
+    if (place && form && form.type === "place" && form.id === place.id) return placeForm(place);
+    const adding = form && form.type === "task" && !form.key && form.area === "house" && (form.placeId || null) === placeId;
+    return `<div class="card">
+      <div class="card-head">
+        <h2>${esc(title)}</h2>
+        ${sub ? `<div class="sub">${esc(sub)}</div>` : ""}
+        ${manage && place ? `<button class="quiet" data-do="edit-place" data-id="${place.id}">Edit</button>` : ""}
+      </div>
+      ${list.length ? list.map(bundleRow).join("") : `<div class="empty">Nothing scheduled.</div>`}
+      ${adding ? taskForm(null) : manage ? `<div class="task-actions" style="margin-top:12px"><button data-do="add-task" data-area="house" data-place="${placeId || ""}">+ Add${place ? ` at ${esc(place.name)}` : ""}</button></div>` : ""}
+    </div>`;
+  };
+  places.forEach(p => { html += section(p.id, p.name, p.address); });
+  const loose = live.filter(t => !t.placeId || !places.some(p => p.id === t.placeId));
+  if (!places.length) html += section(null, "The house", "");
+  else if (loose.length) html += section(null, "No place yet", "Edit these to say which house they're for.");
+  if (form && form.type === "place" && !form.id) html += placeForm(null);
+  else if (manage) html += `<button data-do="add-place">+ Add a place</button>`;
+  return html + recentView("house") + archivedView(tasks);
 }
 
+function listView(areaId) {
+  const tasks = state.tasks.filter(t => t.area === areaId);
+  const list = sortBundles(bundles(tasks.filter(t => !t.archived)));
+  return `<div class="card">${list.length ? list.map(bundleRow).join("") : `<div class="empty">Nothing scheduled.</div>`}</div>` + recentView(areaId) + archivedView(tasks);
+}
+
+/** What was done lately. One action (a group's "done for all") is one row and one undo. */
 function recentView(areaId) {
   const manage = state.can.manage;
-  const log = state.log.filter(l => l.area === areaId);
-  if (!log.length) return "";
-  // Only the last time a task was done can be taken back.
-  const seen = {};
-  return `<div class="section-label">Recently done</div><div class="card">` + log.slice(0, 15).map((l, i) => {
-    const latest = !seen[l.taskId]; seen[l.taskId] = true;
+  const rows = [], byAction = {};
+  state.log.filter(l => l.area === areaId).forEach(l => {
+    if (l.actionId && byAction[l.actionId]) { byAction[l.actionId].pets.push(l.pet); return; }
+    const row = Object.assign({}, l, { pets: [l.pet] });
+    if (l.actionId) byAction[l.actionId] = row;
+    rows.push(row);
+  });
+  if (!rows.length) return "";
+  // Only the latest action on each task can be taken back.
+  const latest = {};
+  state.log.forEach(l => { if (!latest[l.taskId]) latest[l.taskId] = l.actionId || l.id; });
+  return `<div class="section-label">Recently done</div><div class="card">` + rows.slice(0, 15).map((r, i) => {
+    const undoable = manage && latest[r.taskId] === (r.actionId || r.id);
+    const pets = r.pets.filter(Boolean);
     return `<div class="log-row" ${i === 0 ? 'style="border-top:0"' : ""}>
-      <strong>${esc(l.title)}</strong> · ${esc(dateText(l.doneOn, { month: "short", day: "numeric" }))}${l.doneBy ? ` · ${esc(memberName(l.doneBy))}` : ""}
-      ${l.note ? `<div class="sub">${esc(l.note)}</div>` : ""}
-      ${manage && latest ? `<button data-do="undo" data-id="${l.taskId}">Undo</button>` : ""}
+      <strong>${esc(r.title)}</strong>${pets.length ? ` · ${esc(pets.length > 2 ? plural(pets.length, "pet") : pets.join(" & "))}` : ""} · ${esc(dateText(r.doneOn, { month: "short", day: "numeric" }))}${r.doneBy ? ` · ${esc(memberName(r.doneBy))}` : ""}
+      ${r.note ? `<div class="sub">${esc(r.note)}</div>` : ""}
+      ${undoable ? (r.actionId ? `<button class="small" data-do="undo-action" data-id="${r.actionId}">Undo</button>` : `<button class="small" data-do="undo" data-id="${r.taskId}">Undo</button>`) : ""}
     </div>`;
   }).join("") + `</div>`;
 }
@@ -322,10 +475,13 @@ function archivedView(tasks) {
   const archived = tasks.filter(t => t.archived);
   if (!archived.length) return "";
   return `<div class="section-label"><button class="quiet" data-do="toggle-archived">${showArchived ? "Hide" : "Show"} archived (${archived.length})</button></div>` +
-    (showArchived ? `<div class="card">${archived.map(taskRow).join("")}</div>` : "");
+    (showArchived ? `<div class="card">${archived.map(t => bundleRow({ key: t.id, task: t, tasks: [t] })).join("")}</div>` : "");
 }
 
 // ── Forms ──────────────────────────────────────────────────────────
+const opt = (value, label, current) => `<option value="${esc(value)}"${value === current ? " selected" : ""}>${esc(label)}</option>`;
+const val = id => ($(id) ? $(id).value.trim() : "");
+
 function petForm(pet) {
   const p = pet || {};
   return `<div class="form" data-form="pet">
@@ -344,46 +500,71 @@ function petForm(pet) {
   </div>`;
 }
 
-/** Defaults for a new task in each area. */
-const NEW_TASK = {
-  pets: { kind: "vaccination", repeatUnit: "year", repeatFrom: "done" },
-  house: { kind: "maintenance", repeatUnit: "month", repeatEvery: null, repeatFrom: "done" },
-};
-const EXAMPLES = {
-  pets: { title: "Rabies shot", provider: "Vet or groomer", repeat: "A shot is due a year after it was given. A monthly pill stays on the 1st even if it's given late." },
-  house: { title: "Change the HVAC filter", provider: "Company or person", repeat: "A filter is due three months after it was changed. A lawn service keeps to its day even if it comes late." },
-};
+function placeForm(place) {
+  const p = place || {};
+  return `<div class="form" data-form="place">
+    <h3>${place ? `Edit ${esc(place.name)}` : "Add a place"}</h3>
+    <div class="field"><label for="f-name">Name</label><input id="f-name" maxlength="40" placeholder="Home, the lake house" value="${esc(p.name)}"></div>
+    <div class="field"><label for="f-address">Address</label><input id="f-address" maxlength="200" value="${esc(p.address)}"></div>
+    <div class="field"><label for="f-notes">Notes</label><textarea id="f-notes" maxlength="500" placeholder="Gate code, who to call, when it's rented">${esc(p.notes)}</textarea></div>
+    <div class="form-actions">
+      <button class="primary" data-do="save-place">Save</button>
+      <button data-do="cancel">Cancel</button>
+      ${place ? `<button class="danger" data-do="archive-place">Archive</button>` : ""}
+    </div>
+  </div>`;
+}
 
-function taskForm(task, petId, areaId) {
-  const t = task || NEW_TASK[areaId] || { kind: Object.keys(state.areas[areaId].kinds)[0], repeatUnit: "week", repeatFrom: "done" };
+/** Add (b is null) or edit a task, or the same task for several pets. */
+function taskForm(b) {
+  const areaId = b ? b.task.area : form.area;
   const kinds = state.areas[areaId].kinds;
-  const ex = EXAMPLES[areaId] || EXAMPLES.pets;
-  const opt = (value, label, current) => `<option value="${value}"${value === current ? " selected" : ""}>${esc(label)}</option>`;
-  const pet = state.pets.find(p => p.id === petId);
+  const t = b ? b.task : (form.draft || { kind: Object.keys(kinds)[0], repeatFrom: "done" });
+  const kind = kinds[t.kind] || {};
+  const presets = PRESETS[areaId] || [];
+  const checked = b ? b.tasks.map(x => x.petId) : (form.petIds || livePets().map(p => p.id));
+  const sameDue = b ? b.tasks.every(x => x.dueDate === b.task.dueDate) : true;
   const repeats = !!t.repeatEvery;
+  const places = livePlaces();
+  const placeId = b ? t.placeId || "" : form.placeId || "";
   return `<div class="form" data-form="task">
-    <h3>${task ? "Edit" : pet ? `Add for ${esc(pet.name)}` : `Add to ${esc(state.areas[areaId].label)}`}</h3>
+    <h3>${b ? `Edit ${esc(t.title)}` : `Add to ${esc(state.areas[areaId].label)}`}</h3>
+    ${b ? "" : `<div class="field"><label for="f-preset">What is it?</label>
+      <select id="f-preset">${opt("", "Choose…", form.preset || "")}${presets.map((p, i) => opt(String(i), p.label, form.preset)).join("")}</select></div>`}
     <div class="row">
-      <div class="field"><label for="f-kind">What kind</label><select id="f-kind">${Object.keys(kinds).map(k => opt(k, kinds[k].label, t.kind)).join("")}</select></div>
-      <div class="field"><label for="f-title">What it is</label><input id="f-title" maxlength="80" placeholder="${esc(ex.title)}" value="${esc(t.title)}"></div>
+      <div class="field"><label for="f-kind">Kind</label><select id="f-kind">${Object.keys(kinds).map(k => opt(k, kinds[k].label, t.kind)).join("")}</select></div>
+      <div class="field"><label for="f-title">Name</label><input id="f-title" maxlength="80" value="${esc(t.title)}"></div>
     </div>
+    ${areaId === "pets" ? `<div class="field"><span class="field-label">For</span>
+      ${livePets().map(p => `<label class="check"><input type="checkbox" class="f-pet" value="${p.id}"${checked.indexOf(p.id) >= 0 ? " checked" : ""}>${esc(p.name)}</label>`).join("")}
+      <div class="hint">Each one keeps its own dates and history. Ones done on the same day share a card.</div></div>` : ""}
+    ${areaId === "house" && places.length ? `<div class="field"><label for="f-place">Where</label>
+      <select id="f-place">${opt("", "Choose a place…", placeId)}${places.map(p => opt(p.id, p.name, placeId)).join("")}</select></div>` : ""}
     <div class="row">
-      <div class="field"><label for="f-due">Due${areaId === "house" ? " (a fix can wait)" : ""}</label><input id="f-due" type="date" value="${esc(t.dueDate)}"></div>
-      <div class="field"><label for="f-time">Time (appointments)</label><input id="f-time" type="time" value="${esc(t.dueTime)}"></div>
+      <div class="field"><label for="f-due">${kind.stay ? "From" : "Due"}${kind.undated ? " (can wait)" : ""}</label>
+        <input id="f-due" type="date" value="${esc(sameDue ? t.dueDate : "")}">
+        ${sameDue ? "" : `<div class="hint">They're due on different days. Leave this empty to keep each one's.</div>`}</div>
+      ${kind.stay ? `<div class="field"><label for="f-end">To</label><input id="f-end" type="date" value="${esc(t.endDate)}"></div>`
+        : kind.appointment ? `<div class="field"><label for="f-time">Time</label><input id="f-time" type="time" value="${esc(t.dueTime)}"></div>` : `<div></div>`}
     </div>
+    ${kind.bookable ? `<div class="field"><label class="check"><input type="checkbox" id="f-booked"${t.booked ? " checked" : ""}>${kind.stay ? "Reserved" : "Booked"}</label></div>
+      <div id="f-booked-box" class="${t.booked ? "" : "hidden"}"><div class="row">
+        <div class="field"><label for="f-appt">${kind.stay ? "Drop off" : "Appointment"}</label><input id="f-appt" type="date" value="${esc(t.apptDate || t.dueDate)}"></div>
+        <div class="field"><label for="f-appt-time">Time</label><input id="f-appt-time" type="time" value="${esc(t.apptTime)}"></div>
+      </div></div>` : ""}
     <div class="field"><label class="check"><input type="checkbox" id="f-repeats"${repeats ? " checked" : ""}>Repeats</label></div>
     <div id="f-repeat-box" class="${repeats ? "" : "hidden"}">
       <div class="row3">
         <div class="field"><label for="f-every">Every</label><input id="f-every" type="number" min="1" max="365" inputmode="numeric" value="${esc(t.repeatEvery || 1)}"></div>
-        <div class="field"><label for="f-unit">&nbsp;</label><select id="f-unit">${["day", "week", "month", "year"].map(u => opt(u, u + "s", t.repeatUnit || "year")).join("")}</select></div>
+        <div class="field"><label for="f-unit">&nbsp;</label><select id="f-unit">${["day", "week", "month", "year"].map(u => opt(u, u + "s", t.repeatUnit || "month")).join("")}</select></div>
       </div>
       <div class="field"><label for="f-from">Next one counts from</label>
         <select id="f-from">${opt("done", "The day it was done", t.repeatFrom)}${opt("due", "The day it was due (keeps to a schedule)", t.repeatFrom)}</select>
-        <div class="hint">${esc(ex.repeat)}</div>
+        <div class="hint">A shot or a filter is due a set time after it was done. A monthly pill or a lawn service keeps to its day.</div>
       </div>
     </div>
     <div class="row">
-      <div class="field"><label for="f-provider">Who does it</label><input id="f-provider" maxlength="80" placeholder="${esc(ex.provider)}" value="${esc(t.provider)}"></div>
+      <div class="field"><label for="f-provider">Who does it</label><input id="f-provider" maxlength="80" placeholder="${areaId === "pets" ? "Vet, groomer, kennel" : "Company or person"}" value="${esc(t.provider)}"></div>
       <div class="field"><label for="f-phone">Phone</label><input id="f-phone" type="tel" maxlength="30" value="${esc(t.phone)}"></div>
     </div>
     ${areaId === "pets" ? "" : `<div class="field"><label for="f-assignee">Whose job</label>
@@ -391,17 +572,37 @@ function taskForm(task, petId, areaId) {
     <div class="field"><label for="f-url">Link</label><input id="f-url" type="url" maxlength="300" placeholder="https://" value="${esc(t.url)}"></div>
     <div class="field"><label for="f-notes">Notes</label><textarea id="f-notes" maxlength="500">${esc(t.notes)}</textarea></div>
     <div class="field"><label for="f-lead">Show on screens this many days before</label>
-      <input id="f-lead" type="number" min="0" max="60" inputmode="numeric" placeholder="${kinds[t.kind] ? kinds[t.kind].lead : 7}" value="${esc(t.leadDays)}">
+      <input id="f-lead" type="number" min="0" max="60" inputmode="numeric" placeholder="${kind.lead == null ? 7 : kind.lead}" value="${esc(t.leadDays)}">
       <div class="hint">Leave empty for the usual for this kind.</div></div>
     <div class="form-actions">
       <button class="primary" data-do="save-task">Save</button>
       <button data-do="cancel">Cancel</button>
-      ${task ? `<button class="danger" data-do="archive" data-id="${task.id}">Archive</button>` : ""}
+      ${b ? `<button class="danger" data-do="archive-bundle" data-key="${esc(b.key)}">Archive</button>` : ""}
     </div>
   </div>`;
 }
 
-const val = id => $(id).value.trim();
+/** Book (or change the booking of) a task, for every pet on its card. */
+function bookForm(b) {
+  const t = b.task, kind = kindOf(t);
+  return `<div class="form" data-form="book">
+    <h3>${t.booked ? "Change booking" : "Book"}: ${esc(t.title)}${b.tasks.length > 1 || t.petName ? ` · ${esc(petsText(b.tasks))}` : ""}</h3>
+    <div class="row">
+      <div class="field"><label for="b-date">${kind.stay ? "Drop off" : "Date"}</label><input id="b-date" type="date" value="${esc(t.apptDate || t.dueDate)}"></div>
+      <div class="field"><label for="b-time">Time</label><input id="b-time" type="time" value="${esc(t.apptTime)}"></div>
+    </div>
+    ${kind.stay ? `<div class="field"><label for="b-end">Pick up</label><input id="b-end" type="date" value="${esc(t.endDate)}"></div>` : ""}
+    <div class="row">
+      <div class="field"><label for="b-provider">With</label><input id="b-provider" maxlength="80" value="${esc(t.provider)}"></div>
+      <div class="field"><label for="b-phone">Phone</label><input id="b-phone" type="tel" maxlength="30" value="${esc(t.phone)}"></div>
+    </div>
+    <div class="form-actions">
+      <button class="primary" data-do="save-book" data-key="${esc(b.key)}">${t.booked ? "Save" : "Booked"}</button>
+      <button data-do="cancel">Cancel</button>
+      ${t.booked ? `<button class="danger" data-do="unbook" data-key="${esc(b.key)}">Not booked</button>` : ""}
+    </div>
+  </div>`;
+}
 
 function savePet() {
   const old = form.id ? state.pets.find(p => p.id === form.id) : null;
@@ -410,63 +611,153 @@ function savePet() {
   send("/pets", pet).then(ok => { if (ok) form = null; render(); });
 }
 
+function savePlace() {
+  const old = form.id ? state.places.find(p => p.id === form.id) : null;
+  const place = { id: old ? old.id : newId("place"), name: val("f-name"), address: val("f-address"), notes: val("f-notes") };
+  if (!place.name) { setStatus("Give the place a name", true); return; }
+  send("/places", place).then(ok => { if (ok) form = null; render(); });
+}
+
+/** The task as the hub wants it, from a stored task (so nothing is lost on a partial update). */
+const asSent = t => ({
+  id: t.id, area: t.area, kind: t.kind, title: t.title, petId: t.petId, placeId: t.placeId, groupId: t.groupId,
+  assignee: t.assignee, dueDate: t.dueDate, dueTime: t.dueTime, repeatEvery: t.repeatEvery, repeatUnit: t.repeatUnit,
+  repeatFrom: t.repeatFrom, leadDays: t.leadDays, booked: t.booked, apptDate: t.apptDate, apptTime: t.apptTime,
+  endDate: t.endDate, provider: t.provider, phone: t.phone, url: t.url, notes: t.notes,
+});
+
 function saveTask() {
-  const old = form.id ? state.tasks.find(t => t.id === form.id) : null;
-  const repeats = $("f-repeats").checked;
-  const kind = val("f-kind");
-  const areaId = old ? old.area : form.area;
+  const b = form.key ? findBundle(form.key) : null;
+  const areaId = b ? b.task.area : form.area;
   const kinds = state.areas[areaId].kinds;
-  const task = {
-    id: old ? old.id : newId("task"), area: areaId, kind,
-    title: val("f-title") || kinds[kind].label,
-    petId: old ? old.petId : form.petId || null,
-    assignee: $("f-assignee") ? val("f-assignee") || null : old ? old.assignee : null,
-    dueDate: val("f-due") || null, dueTime: val("f-time") || null,
-    repeatEvery: repeats ? Number(val("f-every")) : null, repeatUnit: repeats ? val("f-unit") : null, repeatFrom: val("f-from"),
+  const kind = val("f-kind"), k = kinds[kind];
+  const repeats = $("f-repeats").checked;
+  const booked = !!($("f-booked") && $("f-booked").checked);
+  const shared = {
+    area: areaId, kind, title: val("f-title") || k.label,
+    placeId: areaId === "house" ? val("f-place") || (b ? b.task.placeId : form.placeId) || null : null,
+    assignee: $("f-assignee") ? val("f-assignee") || null : b ? b.task.assignee : null,
+    dueTime: k.appointment ? val("f-time") || null : null,
+    repeatEvery: repeats ? Number(val("f-every")) : null, repeatUnit: repeats ? val("f-unit") : null, repeatFrom: val("f-from") || "done",
     leadDays: val("f-lead") === "" ? null : Number(val("f-lead")),
+    booked: k.bookable ? booked : false,
+    apptDate: booked ? val("f-appt") || null : null, apptTime: booked ? val("f-appt-time") || null : null,
+    endDate: k.stay ? val("f-end") || null : null,
     provider: val("f-provider"), phone: val("f-phone"), url: val("f-url"), notes: val("f-notes"),
   };
-  if (!task.dueDate && !kinds[kind].undated) { setStatus("Pick the date it's due", true); return; }
-  send("/tasks", task).then(ok => { if (ok) form = null; render(); });
+  const due = val("f-due") || null;
+  if (!due && !(b && !b.tasks.every(x => x.dueDate === b.task.dueDate)) && !k.undated) { setStatus(k.stay ? "Pick the first day" : "Pick the date it's due", true); return; }
+  if (k.stay && !shared.endDate) { setStatus("Pick the last day", true); return; }
+  if (areaId === "house" && livePlaces().length && !shared.placeId) { setStatus("Pick which place it's for", true); return; }
+
+  const tasks = [], archive = [];
+  if (areaId === "pets") {
+    const petIds = Array.prototype.filter.call(document.querySelectorAll(".f-pet"), c => c.checked).map(c => c.value);
+    if (!petIds.length) { setStatus("Pick at least one pet", true); return; }
+    const existing = b ? b.tasks : [];
+    const groupId = (b && b.task.groupId) || (petIds.length > 1 || existing.length > 1 ? newId("grp") : null);
+    petIds.forEach(petId => {
+      const old = existing.find(x => x.petId === petId);
+      tasks.push(Object.assign({}, old ? asSent(old) : {}, shared, {
+        id: old ? old.id : newId("task"), petId, groupId,
+        dueDate: due || (old ? old.dueDate : null),
+      }));
+    });
+    existing.forEach(x => { if (petIds.indexOf(x.petId) < 0) archive.push(x.id); });
+  } else {
+    const old = b ? b.task : null;
+    tasks.push(Object.assign({}, old ? asSent(old) : {}, shared, { id: old ? old.id : newId("task"), dueDate: due }));
+  }
+  send("/tasks", { tasks, archive }).then(ok => { if (ok) form = null; render(); });
+}
+
+function saveBooking(key, unbook) {
+  const b = findBundle(key);
+  if (!b) return;
+  const kind = kindOf(b.task);
+  const date = val("b-date"), end = val("b-end");
+  if (!unbook && !date) { setStatus("Pick the date", true); return; }
+  if (!unbook && kind.stay && !end) { setStatus("Pick the pick-up date", true); return; }
+  const tasks = b.tasks.map(t => Object.assign(asSent(t), unbook
+    ? { booked: false, apptDate: null, apptTime: null }
+    : { booked: true, apptDate: date, apptTime: val("b-time") || null, endDate: kind.stay ? end : t.endDate,
+        provider: val("b-provider") || t.provider, phone: val("b-phone") || t.phone }));
+  send("/tasks", { tasks }, unbook ? "Marked not booked" : "Booked").then(ok => { if (ok) form = null; render(); });
+}
+
+function applyPreset(i) {
+  const p = (PRESETS[form.area] || [])[i];
+  if (!p) return;
+  form.preset = String(i);
+  form.petIds = Array.prototype.filter.call(document.querySelectorAll(".f-pet"), c => c.checked).map(c => c.value);
+  form.draft = { kind: p.kind, title: p.title == null ? p.label : p.title, repeatEvery: p.every || null, repeatUnit: p.unit || null,
+    repeatFrom: p.from || "done", dueDate: val("f-due") || null };
+  render();
 }
 
 // ── Actions ────────────────────────────────────────────────────────
 document.addEventListener("click", e => {
   const btn = e.target.closest ? e.target.closest("[data-do]") : null;
   if (!btn || btn.disabled) return;
-  const id = btn.getAttribute("data-id");
+  const id = btn.getAttribute("data-id"), key = btn.getAttribute("data-key");
   const redraw = () => render();
+  const closeThen = ok => { if (ok) form = null; render(); };
   switch (btn.getAttribute("data-do")) {
     case "area": area = id; form = null; history.replaceState(null, "", "#" + id); render(); break;
     case "add-pet": form = { type: "pet", id: null, fresh: true }; render(); break;
     case "edit-pet": form = { type: "pet", id, fresh: true }; render(); break;
-    case "add-task": form = { type: "task", id: null, petId: id || null, area: btn.getAttribute("data-area"), fresh: true }; render(); break;
-    case "edit-task": { const t = state.tasks.find(x => x.id === id); form = { type: "task", id, area: t ? t.area : area, fresh: true }; render(); break; }
+    case "add-place": form = { type: "place", id: null, fresh: true }; render(); break;
+    case "edit-place": form = { type: "place", id, fresh: true }; render(); break;
+    case "add-task": form = { type: "task", key: null, area: btn.getAttribute("data-area"), placeId: btn.getAttribute("data-place") || null, fresh: true }; render(); break;
+    case "edit": form = { type: "task", key, fresh: true }; render(); break;
+    case "book": form = { type: "book", key, fresh: true }; render(); break;
+    case "each": showEach[key] = !showEach[key]; render(); break;
     case "cancel": form = null; setStatus(""); render(); break;
     case "save-pet": savePet(); break;
+    case "save-place": savePlace(); break;
     case "save-task": saveTask(); break;
+    case "save-book": saveBooking(key, false); break;
+    case "unbook": saveBooking(key, true); break;
     case "archive-pet": {
       const pet = state.pets.find(p => p.id === form.id);
-      if (pet && confirm(`Archive ${pet.name}? Their records are kept.`)) {
-        send("/pets", Object.assign({}, pet, { archived: true }), `${pet.name} archived`).then(ok => { if (ok) form = null; render(); });
-      }
+      if (pet && confirm(`Archive ${pet.name}? Their records are kept.`)) send("/pets", Object.assign({}, pet, { archived: true }), `${pet.name} archived`).then(closeThen);
+      break;
+    }
+    case "archive-place": {
+      const place = state.places.find(p => p.id === form.id);
+      if (place && confirm(`Archive ${place.name}? Its records are kept.`)) send("/places", Object.assign({}, place, { archived: true }), `${place.name} archived`).then(closeThen);
+      break;
+    }
+    case "archive-bundle": {
+      const b = findBundle(key);
+      if (b) send("/tasks", { archive: b.tasks.map(t => t.id) }, "Archived").then(closeThen);
       break;
     }
     case "done": send(`/tasks/${id}/done`, {}, "Marked done. It's under Recently done if you need to undo it.").then(redraw); break;
+    case "done-all": send(`/tasks/${id}/done`, { group: true }, "Marked done for all. It's under Recently done if you need to undo it.").then(redraw); break;
     case "undo": send(`/tasks/${id}/undo`, {}, "Put back").then(redraw); break;
-    case "archive": send(`/tasks/${id}/archive`, { archived: true }, "Archived").then(ok => { if (ok) form = null; render(); }); break;
+    case "undo-action": send("/undo", { actionId: id }, "Put back").then(redraw); break;
     case "restore": send(`/tasks/${id}/archive`, { archived: false }, "Restored").then(redraw); break;
     case "toggle-archived": showArchived = !showArchived; render(); break;
   }
 });
 
 document.addEventListener("change", e => {
-  if (e.target.id === "f-repeats") $("f-repeat-box").classList.toggle("hidden", !e.target.checked);
-  // A new task takes its kind's name until you type one.
-  if (e.target.id === "f-kind" && form && !form.id) {
-    const kinds = state.areas[form.area].kinds, title = $("f-title");
-    if (!title.value.trim() || Object.keys(kinds).some(k => kinds[k].label === title.value.trim())) title.value = kinds[e.target.value].label;
-    $("f-lead").placeholder = kinds[e.target.value].lead;
+  const id = e.target.id;
+  if (id === "f-repeats") $("f-repeat-box").classList.toggle("hidden", !e.target.checked);
+  if (id === "f-booked") $("f-booked-box").classList.toggle("hidden", !e.target.checked);
+  if (id === "f-preset" && form && !form.key) applyPreset(Number(e.target.value));
+  // A different kind can mean different fields (a stay's dates, a booking): redraw, keeping what's typed.
+  if (id === "f-kind" && form && form.type === "task") {
+    const b = form.key ? findBundle(form.key) : null;
+    const areaId = b ? b.task.area : form.area;
+    const draft = Object.assign({}, b ? b.task : form.draft || {}, {
+      kind: e.target.value, title: val("f-title"), dueDate: val("f-due") || null, provider: val("f-provider"), phone: val("f-phone"),
+      url: val("f-url"), notes: val("f-notes"), repeatEvery: $("f-repeats").checked ? Number(val("f-every")) : null,
+      repeatUnit: val("f-unit"), repeatFrom: val("f-from"),
+    });
+    if (!b) { form.draft = draft; form.petIds = Array.prototype.filter.call(document.querySelectorAll(".f-pet"), c => c.checked).map(c => c.value); render(); }
+    else if (state.areas[areaId].kinds[e.target.value].stay !== kindOf(b.task).stay) setStatus("Save to see the new kind's fields");
   }
 });
 

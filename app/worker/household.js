@@ -2,17 +2,27 @@
  * Household records: the pets' care and the upkeep of the house (and, in a
  * later release, the kids' chores). Stored in D1 (HUB_DB), edited at /household/.
  *
- *   GET  /api/household                    → { enabled, viewer, can, problem, today, areas, pets, tasks, log, serverTime }
+ *   GET  /api/household                    → { enabled, viewer, can, problem, today, areas, members,
+ *                                              pets, places, tasks, log, serverTime }
  *   POST /api/household/pets                 { id, name, species?, birthday?, notes?, archived? }
- *   POST /api/household/tasks                { id, area, kind, title, petId?, assignee?, dueDate?, dueTime?,
- *                                              repeatEvery?, repeatUnit?, repeatFrom?, leadDays?,
- *                                              provider?, phone?, url?, notes? }
- *   POST /api/household/tasks/:id/done       { doneOn?, note? }
- *   POST /api/household/tasks/:id/undo
+ *   POST /api/household/places               { id, name, address?, notes?, archived? }
+ *   POST /api/household/tasks                a task, or { tasks: [task…], archive: [id…] } in one go
+ *        task: { id, area, kind, title, petId?, placeId?, groupId?, assignee?, dueDate?, dueTime?,
+ *                repeatEvery?, repeatUnit?, repeatFrom?, leadDays?, booked?, apptDate?, apptTime?,
+ *                endDate?, provider?, phone?, url?, notes? }
+ *   POST /api/household/tasks/:id/done       { doneOn?, note?, group? }   group: its group's tasks on the same day
+ *   POST /api/household/tasks/:id/undo       takes back the last time it was done
+ *   POST /api/household/undo                 { actionId }  takes back one action (a group's done)
  *   POST /api/household/tasks/:id/archive    { archived }
- *   GET  /api/household/export?days=14       → { enabled, today, pets, tasks, recent }   for the planner
+ *   GET  /api/household/export?days=14       → { enabled, today, days, pets, places, tasks, recent }   for the planner
+ *   GET  /api/household/diag?…               a page reporting that a save didn't arrive (logged; 204)
  *
  * Every POST answers with the same body as GET, so the page redraws from it.
+ *
+ * A task is due on a date and may repeat. Tasks added together for several pets
+ * share a group: each pet keeps its own dates and history, and the group can be
+ * done or booked at once. Booking an appointment gives it a date and time of its
+ * own; a stay (boarding) also has an end date.
  *
  * Who may write (access.js works out who's asking): adults manage everything; a
  * child may mark their own chore done and undo it; guests and screens only read.
@@ -31,15 +41,24 @@ import { identify } from "./access.js";
 import { ymd, addDays, daysBetween, json } from "./util.js";
 import { timingSafeEqual } from "./data-api.js";
 
-/** Each area's kinds of task, and how many days before it's due a card appears. */
+/**
+ * Each area's kinds of task.
+ *   lead:        how many days before it's due a card appears
+ *   bookable:    has an appointment to book; until it's booked, the card says "Book …"
+ *   appointment: its date is a visit, not a deadline ("Lawn tomorrow", not "due tomorrow")
+ *   stay:        runs from one date to another (boarding)
+ *   undated:     may have no date at all
+ */
 export const AREAS = {
   pets: {
     label: "Pets",
     kinds: {
-      vaccination: { label: "Vaccination", lead: 30, emoji: "💉" },
+      vaccination: { label: "Vaccination", lead: 30, emoji: "💉", bookable: true },
       medication: { label: "Medication", lead: 3, emoji: "💊" },
-      grooming: { label: "Grooming", lead: 7, emoji: "✂️" },
-      "vet-visit": { label: "Vet visit", lead: 7, emoji: "🩺", appointment: true },
+      dental: { label: "Teeth cleaning", lead: 30, emoji: "🦷", bookable: true },
+      grooming: { label: "Grooming", lead: 14, emoji: "✂️", bookable: true },
+      "vet-visit": { label: "Vet visit", lead: 14, emoji: "🩺", bookable: true },
+      boarding: { label: "Boarding", lead: 30, emoji: "🏨", bookable: true, stay: true },
       other: { label: "Other", lead: 7, emoji: "🐾" },
     },
   },
@@ -61,12 +80,16 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 const UNITS = ["day", "week", "month", "year"];
 const MAX_LEAD_DAYS = 60;
+const MAX_STAY_DAYS = 90;
 const MAX_PETS = 50;
+const MAX_PLACES = 20;
 const MAX_TASKS = 500;
+const MAX_BATCH = 50;
 const LOG_ROWS = 100;
 
 const isDate = s => typeof s === "string" && DATE_RE.test(s) && !Number.isNaN(Date.parse(`${s}T12:00:00Z`));
 const text = (v, max) => (typeof v === "string" ? v.replace(/\s+/g, " ").trim().slice(0, max) : "");
+export const kindOf = task => AREAS[task.area]?.kinds[task.kind] ?? {};
 
 // ─── Dates ────────────────────────────────────────────────────────────────────
 
@@ -89,17 +112,22 @@ export function addInterval(day, n, unit) {
 export function nextDue(task, doneOn) {
   if (!task.repeatEvery || !task.repeatUnit) return null;
   if (task.repeatFrom !== "due" || !task.dueDate) return addInterval(doneOn, task.repeatEvery, task.repeatUnit);
-  // Keep to the schedule: the first date on it that's after the day it was done.
+  // Keep to the schedule. Doing it counts for the date it was due, early or late,
+  // so the next one is the first date on the schedule after both.
+  const after = doneOn > task.dueDate ? doneOn : task.dueDate;
   let next = task.dueDate;
-  for (let k = 1; next <= doneOn && k < 5000; k++) next = addInterval(task.dueDate, k * task.repeatEvery, task.repeatUnit);
+  for (let k = 1; next <= after && k < 5000; k++) next = addInterval(task.dueDate, k * task.repeatEvery, task.repeatUnit);
   return next;
 }
 
 /** How early a task's card appears. */
 export function leadDays(task) {
-  const lead = task.leadDays ?? AREAS[task.area]?.kinds[task.kind]?.lead ?? 7;
+  const lead = task.leadDays ?? kindOf(task).lead ?? 7;
   return Math.min(MAX_LEAD_DAYS, Math.max(0, lead));
 }
+
+/** The date that matters now: a booked appointment's, or else when it's due. */
+export const whenOf = task => (task.booked && task.apptDate ? task.apptDate : task.dueDate);
 
 // ─── Validation ───────────────────────────────────────────────────────────────
 
@@ -118,12 +146,21 @@ export function cleanPet(c) {
   } };
 }
 
+/** Validates a place (a house) from a client. Returns { place } or { error }. */
+export function cleanPlace(c) {
+  if (!c || typeof c.id !== "string" || !ID_RE.test(c.id)) return { error: "id: expected 6 to 40 letters, digits, - or _" };
+  const name = text(c.name, 40);
+  if (!name) return { error: "name: required" };
+  return { place: { id: c.id, name, address: text(c.address, 200) || null, notes: text(c.notes, 500) || null, archived: c.archived === true } };
+}
+
 /** Validates a task from a client. Returns { task } or { error }. */
-export function cleanTask(c, { memberIds, petIds }) {
+export function cleanTask(c, { memberIds, petIds, placeIds = new Set() }) {
   if (!c || typeof c.id !== "string" || !ID_RE.test(c.id)) return { error: "id: expected 6 to 40 letters, digits, - or _" };
   const area = AREAS[c.area];
   if (!area) return { error: `area: expected one of ${Object.keys(AREAS).join(", ")}` };
-  if (!area.kinds[c.kind]) return { error: `kind: expected one of ${Object.keys(area.kinds).join(", ")}` };
+  const kind = area.kinds[c.kind];
+  if (!kind) return { error: `kind: expected one of ${Object.keys(area.kinds).join(", ")}` };
   const title = text(c.title, 80);
   if (!title) return { error: "title: required" };
 
@@ -131,6 +168,10 @@ export function cleanTask(c, { memberIds, petIds }) {
   task.petId = c.area === "pets" ? c.petId || null : null;
   if (task.petId && !petIds.has(task.petId)) return { error: "petId: no such pet" };
   if (c.area === "pets" && !task.petId) return { error: "petId: required for a pet's task" };
+  task.placeId = c.area === "house" ? c.placeId || null : null;
+  if (task.placeId && !placeIds.has(task.placeId)) return { error: "placeId: no such place" };
+  task.groupId = c.groupId || null;
+  if (task.groupId && !ID_RE.test(task.groupId)) return { error: "groupId: expected 6 to 40 letters, digits, - or _" };
   task.assignee = c.assignee || null;
   if (task.assignee && !memberIds.has(task.assignee)) return { error: "assignee: not a family member" };
 
@@ -138,6 +179,20 @@ export function cleanTask(c, { memberIds, petIds }) {
   if (task.dueDate && !isDate(task.dueDate)) return { error: "dueDate: expected YYYY-MM-DD" };
   task.dueTime = c.dueTime || null;
   if (task.dueTime && !TIME_RE.test(task.dueTime)) return { error: "dueTime: expected HH:MM" };
+
+  task.booked = c.booked === true;
+  task.apptDate = task.booked ? c.apptDate || null : null;
+  task.apptTime = task.booked ? c.apptTime || null : null;
+  if (task.apptDate && !isDate(task.apptDate)) return { error: "apptDate: expected YYYY-MM-DD" };
+  if (task.apptTime && !TIME_RE.test(task.apptTime)) return { error: "apptTime: expected HH:MM" };
+  if (task.booked && !task.apptDate && !task.dueDate) return { error: "apptDate: required when it's booked" };
+  task.endDate = kind.stay ? c.endDate || null : null;
+  if (task.endDate) {
+    const start = task.apptDate || task.dueDate;
+    if (!isDate(task.endDate)) return { error: "endDate: expected YYYY-MM-DD" };
+    if (!start || task.endDate < start) return { error: "endDate: expected a date on or after the stay starts" };
+    if (daysBetween(start, task.endDate) > MAX_STAY_DAYS) return { error: `endDate: a stay can be at most ${MAX_STAY_DAYS} days` };
+  }
 
   const every = c.repeatEvery == null || c.repeatEvery === "" ? null : Number(c.repeatEvery);
   if (every != null) {
@@ -173,16 +228,21 @@ export function canComplete(viewer, task) {
 
 // ─── Reading ──────────────────────────────────────────────────────────────────
 
-const TASK_COLUMNS = `t.id, t.area, t.kind, t.title, t.pet_id, t.assignee, t.due_date, t.due_time,
-  t.repeat_every, t.repeat_unit, t.repeat_from, t.lead_days, t.provider, t.phone, t.url, t.notes,
-  t.archived, t.updated_at, t.updated_by, p.name AS pet_name`;
+const TASK_COLUMNS = `t.id, t.area, t.kind, t.title, t.pet_id, t.place_id, t.group_id, t.assignee, t.due_date, t.due_time,
+  t.repeat_every, t.repeat_unit, t.repeat_from, t.lead_days, t.booked, t.appt_date, t.appt_time, t.end_date,
+  t.provider, t.phone, t.url, t.notes, t.archived, t.updated_at, t.updated_by,
+  p.name AS pet_name, p.species AS pet_species, pl.name AS place_name`;
+const TASK_FROM = `tasks t LEFT JOIN pets p ON p.id = t.pet_id LEFT JOIN places pl ON pl.id = t.place_id`;
 
 const taskFromRow = r => ({
   id: r.id, area: r.area, kind: r.kind, title: r.title,
-  petId: r.pet_id ?? null, petName: r.pet_name ?? null, assignee: r.assignee ?? null,
+  petId: r.pet_id ?? null, petName: r.pet_name ?? null, petSpecies: r.pet_species ?? null,
+  placeId: r.place_id ?? null, placeName: r.place_name ?? null, groupId: r.group_id ?? null,
+  assignee: r.assignee ?? null,
   dueDate: r.due_date ?? null, dueTime: r.due_time ?? null,
   repeatEvery: r.repeat_every ?? null, repeatUnit: r.repeat_unit ?? null, repeatFrom: r.repeat_from,
   leadDays: r.lead_days ?? null,
+  booked: !!r.booked, apptDate: r.appt_date ?? null, apptTime: r.appt_time ?? null, endDate: r.end_date ?? null,
   provider: r.provider ?? null, phone: r.phone ?? null, url: r.url ?? null, notes: r.notes ?? null,
   archived: !!r.archived, updatedAt: r.updated_at, updatedBy: r.updated_by ?? null,
 });
@@ -192,37 +252,41 @@ const petFromRow = r => ({
   notes: r.notes ?? null, archived: !!r.archived,
 });
 
+const placeFromRow = r => ({ id: r.id, name: r.name, address: r.address ?? null, notes: r.notes ?? null, archived: !!r.archived });
+
 /**
- * The tasks whose cards could show today: not archived, and due within the
- * longest lead time. One indexed query; the stream calls this on every request.
- * Returns null when the hub has no household database.
+ * The tasks whose cards could show today: not archived, and due (or booked)
+ * within the longest lead time. One query; the stream calls this on every
+ * request. Returns null when the hub has no household database.
  */
 export async function loadDueTasks(env, today) {
   if (!env.HUB_DB) return null;
   await ensureSchema(env.HUB_DB);
+  const until = addDays(today, MAX_LEAD_DAYS);
   const { results } = await env.HUB_DB
-    .prepare(`SELECT ${TASK_COLUMNS} FROM tasks t LEFT JOIN pets p ON p.id = t.pet_id
-              WHERE t.archived = 0 AND t.due_date IS NOT NULL AND t.due_date <= ?
+    .prepare(`SELECT ${TASK_COLUMNS} FROM ${TASK_FROM}
+              WHERE t.archived = 0 AND (t.due_date <= ? OR (t.booked = 1 AND t.appt_date <= ?))
               ORDER BY t.due_date, t.due_time, t.title`)
-    .bind(addDays(today, MAX_LEAD_DAYS))
+    .bind(until, until)
     .all();
   return results.map(taskFromRow);
 }
 
 async function getTask(db, id) {
-  const row = await db.prepare(`SELECT ${TASK_COLUMNS} FROM tasks t LEFT JOIN pets p ON p.id = t.pet_id WHERE t.id = ?`).bind(id).first();
+  const row = await db.prepare(`SELECT ${TASK_COLUMNS} FROM ${TASK_FROM} WHERE t.id = ?`).bind(id).first();
   return row ? taskFromRow(row) : null;
 }
 
 async function snapshot(env, hub, who, now) {
   const db = env.HUB_DB;
-  const [pets, tasks, log] = await Promise.all([
+  const [pets, places, tasks, log] = await Promise.all([
     db.prepare("SELECT * FROM pets ORDER BY archived, name").all(),
-    db.prepare(`SELECT ${TASK_COLUMNS} FROM tasks t LEFT JOIN pets p ON p.id = t.pet_id
+    db.prepare("SELECT * FROM places ORDER BY archived, name").all(),
+    db.prepare(`SELECT ${TASK_COLUMNS} FROM ${TASK_FROM}
                 ORDER BY t.archived, t.due_date IS NULL, t.due_date, t.title LIMIT ${MAX_TASKS}`).all(),
-    db.prepare(`SELECT l.id, l.task_id, l.done_on, l.done_by, l.note, t.title, t.area
-                FROM task_log l JOIN tasks t ON t.id = l.task_id
-                ORDER BY l.created_at DESC LIMIT ${LOG_ROWS}`).all(),
+    db.prepare(`SELECT l.id, l.task_id, l.done_on, l.done_by, l.note, l.action_id, t.title, t.area, t.group_id, p.name AS pet_name
+                FROM task_log l JOIN tasks t ON t.id = l.task_id LEFT JOIN pets p ON p.id = t.pet_id
+                ORDER BY l.created_at DESC, l.rowid DESC LIMIT ${LOG_ROWS}`).all(),
   ]);
   return {
     enabled: true,
@@ -234,8 +298,13 @@ async function snapshot(env, hub, who, now) {
     areas: AREAS,
     members: hub.members.map(({ id, name, color, role }) => ({ id, name, color, role: role === "child" ? "child" : "adult" })),
     pets: pets.results.map(petFromRow),
+    places: places.results.map(placeFromRow),
     tasks: tasks.results.map(taskFromRow),
-    log: log.results.map(r => ({ id: r.id, taskId: r.task_id, title: r.title, area: r.area, doneOn: r.done_on, doneBy: r.done_by ?? null, note: r.note ?? null })),
+    log: log.results.map(r => ({
+      id: r.id, taskId: r.task_id, actionId: r.action_id ?? null, groupId: r.group_id ?? null,
+      title: r.title, area: r.area, pet: r.pet_name ?? null,
+      doneOn: r.done_on, doneBy: r.done_by ?? null, note: r.note ?? null,
+    })),
     serverTime: now,
   };
 }
@@ -246,21 +315,24 @@ const EXPORT_DAYS = 14;
 const EXPORT_RECENT_DAYS = 30;
 
 /**
- * What the planner needs to know: every pet, each task that's overdue or due in
- * the next `days` days, and what was done in the last 30 days. Names, not ids.
+ * What the planner needs to know: every pet and place, each task that's overdue
+ * or due (or booked) in the next `days` days, and what was done in the last 30
+ * days. Names, not ids.
  */
 export async function householdExport(env, hub, { now = Date.now(), days = EXPORT_DAYS } = {}) {
   const db = env.HUB_DB;
   const today = ymd(new Date(now), hub.timezone);
   const until = addDays(today, days);
   const name = id => (id ? hub.members.find(m => m.id === id)?.name ?? id : null);
-  const [pets, tasks, recent] = await Promise.all([
+  const [pets, places, tasks, recent] = await Promise.all([
     db.prepare("SELECT name, species, birthday, notes FROM pets WHERE archived = 0 ORDER BY name").all(),
-    db.prepare(`SELECT ${TASK_COLUMNS} FROM tasks t LEFT JOIN pets p ON p.id = t.pet_id
-                WHERE t.archived = 0 AND t.due_date IS NOT NULL AND t.due_date <= ?
-                ORDER BY t.due_date, t.due_time, t.title`).bind(until).all(),
-    db.prepare(`SELECT t.title, t.area, p.name AS pet_name, l.done_on, l.done_by, l.note
+    db.prepare("SELECT name, address FROM places WHERE archived = 0 ORDER BY name").all(),
+    db.prepare(`SELECT ${TASK_COLUMNS} FROM ${TASK_FROM}
+                WHERE t.archived = 0 AND (t.due_date <= ? OR (t.booked = 1 AND t.appt_date <= ?))
+                ORDER BY t.due_date, t.due_time, t.title`).bind(until, until).all(),
+    db.prepare(`SELECT t.title, t.area, p.name AS pet_name, pl.name AS place_name, l.done_on, l.done_by, l.note
                 FROM task_log l JOIN tasks t ON t.id = l.task_id LEFT JOIN pets p ON p.id = t.pet_id
+                LEFT JOIN places pl ON pl.id = t.place_id
                 WHERE l.done_on >= ? ORDER BY l.done_on DESC LIMIT ${LOG_ROWS}`).bind(addDays(today, -EXPORT_RECENT_DAYS)).all(),
   ]);
   const every = t => (!t.repeatEvery ? null : t.repeatEvery === 1 ? `every ${t.repeatUnit}` : `every ${t.repeatEvery} ${t.repeatUnit}s`);
@@ -269,15 +341,17 @@ export async function householdExport(env, hub, { now = Date.now(), days = EXPOR
     today,
     days,
     pets: pets.results.map(p => ({ name: p.name, species: p.species ?? null, birthday: p.birthday ?? null, notes: p.notes ?? null })),
+    places: places.results.map(p => ({ name: p.name, address: p.address ?? null })),
     tasks: tasks.results.map(taskFromRow).map(t => {
-      const daysUntil = daysBetween(today, t.dueDate);
+      const daysUntil = daysBetween(today, t.dueDate ?? whenOf(t));
       return {
-        area: t.area, kind: t.kind, title: t.title, pet: t.petName, assignee: name(t.assignee),
+        area: t.area, kind: t.kind, title: t.title, pet: t.petName, place: t.placeName, assignee: name(t.assignee),
         dueDate: t.dueDate, dueTime: t.dueTime, daysUntil, overdue: daysUntil < 0, repeats: every(t),
+        booked: t.booked, apptDate: t.apptDate, apptTime: t.apptTime, endDate: t.endDate,
         provider: t.provider, phone: t.phone, notes: t.notes,
       };
     }),
-    recent: recent.results.map(r => ({ title: r.title, area: r.area, pet: r.pet_name ?? null, doneOn: r.done_on, doneBy: name(r.done_by), note: r.note ?? null })),
+    recent: recent.results.map(r => ({ title: r.title, area: r.area, pet: r.pet_name ?? null, place: r.place_name ?? null, doneOn: r.done_on, doneBy: name(r.done_by), note: r.note ?? null })),
   };
 }
 
@@ -294,10 +368,83 @@ async function handleExport(request, env, hub, opts) {
   return json(await householdExport(env, hub, { now: opts.now ?? Date.now(), days }));
 }
 
+/**
+ * The page reports here when a save never reached the hub (the request failed in
+ * the browser). Reads always reach the hub, so this one does too; it goes in the
+ * Worker's logs, where someone can see what the browser said.
+ */
+function handleDiag(request) {
+  const url = new URL(request.url);
+  const field = k => (url.searchParams.get(k) || "").slice(0, 200);
+  console.log(JSON.stringify({
+    household: "save-failed",
+    path: field("path"), error: field("error"), name: field("name"),
+    online: field("online"), page: field("page"),
+    ua: (request.headers.get("User-Agent") || "").slice(0, 200),
+  }));
+  return new Response(null, { status: 204 });
+}
+
+// ─── Writing ──────────────────────────────────────────────────────────────────
+
+function upsertTask(db, task, viewer, now) {
+  return db.prepare(`INSERT INTO tasks (id, area, kind, title, pet_id, place_id, group_id, assignee, due_date, due_time,
+                       repeat_every, repeat_unit, repeat_from, lead_days, booked, appt_date, appt_time, end_date,
+                       provider, phone, url, notes, archived, created_at, created_by, updated_at, updated_by)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)
+                     ON CONFLICT (id) DO UPDATE SET area = excluded.area, kind = excluded.kind, title = excluded.title,
+                       pet_id = excluded.pet_id, place_id = excluded.place_id, group_id = excluded.group_id,
+                       assignee = excluded.assignee, due_date = excluded.due_date, due_time = excluded.due_time,
+                       repeat_every = excluded.repeat_every, repeat_unit = excluded.repeat_unit,
+                       repeat_from = excluded.repeat_from, lead_days = excluded.lead_days,
+                       booked = excluded.booked, appt_date = excluded.appt_date, appt_time = excluded.appt_time,
+                       end_date = excluded.end_date, provider = excluded.provider, phone = excluded.phone,
+                       url = excluded.url, notes = excluded.notes, archived = 0,
+                       updated_at = excluded.updated_at, updated_by = excluded.updated_by`)
+    .bind(task.id, task.area, task.kind, task.title, task.petId, task.placeId, task.groupId, task.assignee,
+          task.dueDate, task.dueTime, task.repeatEvery, task.repeatUnit, task.repeatFrom, task.leadDays,
+          task.booked ? 1 : 0, task.apptDate, task.apptTime, task.endDate,
+          task.provider, task.phone, task.url, task.notes, now, viewer.id, now, viewer.id);
+}
+
+/** What done changes on a task, so undo can put it back. */
+const beforeOf = t => ({ dueDate: t.dueDate, booked: t.booked, apptDate: t.apptDate, apptTime: t.apptTime, endDate: t.endDate, archived: t.archived });
+
+/** The statements that mark `task` done on `doneOn`, as part of `actionId`. */
+function doneStatements(db, task, { doneOn, note, actionId, viewer, now }) {
+  const next = nextDue(task, doneOn);
+  return [
+    db.prepare(`INSERT INTO task_log (id, task_id, done_on, done_by, note, due_before, action_id, before_json, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      .bind(crypto.randomUUID(), task.id, doneOn, viewer.id, note, task.dueDate, actionId, JSON.stringify(beforeOf(task)), now),
+    // A repeating task moves to its next date, and its booking is used up; a one-off is finished.
+    next
+      ? db.prepare(`UPDATE tasks SET due_date = ?, booked = 0, appt_date = NULL, appt_time = NULL, end_date = NULL,
+                    updated_at = ?, updated_by = ? WHERE id = ?`).bind(next, now, viewer.id, task.id)
+      : db.prepare("UPDATE tasks SET archived = 1, updated_at = ?, updated_by = ? WHERE id = ?").bind(now, viewer.id, task.id),
+  ];
+}
+
+/** The statements that take back one log row. */
+function undoStatements(db, row, viewer, now) {
+  let before = null;
+  try { before = row.before_json ? JSON.parse(row.before_json) : null; } catch { before = null; }
+  // Rows from before v2.3 only kept the due date.
+  before ??= { dueDate: row.due_before ?? null, booked: false, apptDate: null, apptTime: null, endDate: null, archived: false };
+  return [
+    db.prepare("DELETE FROM task_log WHERE id = ?").bind(row.id),
+    db.prepare(`UPDATE tasks SET due_date = ?, booked = ?, appt_date = ?, appt_time = ?, end_date = ?, archived = ?,
+                updated_at = ?, updated_by = ? WHERE id = ?`)
+      .bind(before.dueDate ?? null, before.booked ? 1 : 0, before.apptDate ?? null, before.apptTime ?? null,
+            before.endDate ?? null, before.archived ? 1 : 0, now, viewer.id, row.task_id),
+  ];
+}
+
 // ─── The API ──────────────────────────────────────────────────────────────────
 
 export async function handleHousehold(request, env, hub, path, opts = {}) {
   if (path === "/export") return handleExport(request, env, hub, opts);
+  if (path === "/diag" && request.method === "GET") return handleDiag(request);
   if (!env.HUB_DB) {
     if (request.method === "GET" && path === "") return json({ enabled: false });
     return json({ error: "Household records aren't set up on this hub (no HUB_DB database). See docs/getting-started.md" }, 503);
@@ -328,6 +475,8 @@ export async function handleHousehold(request, env, hub, path, opts = {}) {
 
   const viewer = who.viewer;
   const forbidden = what => json({ error: `Only adults can ${what}` }, 403);
+  const answer = async () => json(await snapshot(env, hub, who, now));
+  const today = ymd(new Date(now), hub.timezone);
 
   if (path === "/pets") {
     if (!canManage(viewer)) return forbidden("add or change pets");
@@ -344,35 +493,65 @@ export async function handleHousehold(request, env, hub, path, opts = {}) {
                         birthday = excluded.birthday, notes = excluded.notes, archived = excluded.archived,
                         updated_at = excluded.updated_at, updated_by = excluded.updated_by`)
       .bind(pet.id, pet.name, pet.species, pet.birthday, pet.notes, pet.archived ? 1 : 0, now, now, viewer.id).run();
-    return json(await snapshot(env, hub, who, now));
+    return answer();
+  }
+
+  if (path === "/places") {
+    if (!canManage(viewer)) return forbidden("add or change places");
+    const { place, error } = cleanPlace(body);
+    if (error) return json({ error }, 400);
+    const exists = await db.prepare("SELECT id FROM places WHERE id = ?").bind(place.id).first();
+    if (!exists) {
+      const { n } = await db.prepare("SELECT COUNT(*) AS n FROM places").first();
+      if (n >= MAX_PLACES) return json({ error: `No more than ${MAX_PLACES} places` }, 400);
+    }
+    await db.prepare(`INSERT INTO places (id, name, address, notes, archived, created_at, updated_at, updated_by)
+                      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                      ON CONFLICT (id) DO UPDATE SET name = excluded.name, address = excluded.address,
+                        notes = excluded.notes, archived = excluded.archived,
+                        updated_at = excluded.updated_at, updated_by = excluded.updated_by`)
+      .bind(place.id, place.name, place.address, place.notes, place.archived ? 1 : 0, now, now, viewer.id).run();
+    return answer();
   }
 
   if (path === "/tasks") {
     if (!canManage(viewer)) return forbidden("add or change tasks");
-    const pets = await db.prepare("SELECT id FROM pets").all();
-    const { task, error } = cleanTask(body, {
+    // One task, or several at once: a task for each of several pets, a group's edit.
+    const list = Array.isArray(body.tasks) ? body.tasks : body.id ? [body] : [];
+    const archive = Array.isArray(body.archive) ? body.archive.filter(id => typeof id === "string" && ID_RE.test(id)) : [];
+    if (!list.length && !archive.length) return json({ error: "tasks: expected a task, or { tasks: [...] }" }, 400);
+    if (list.length + archive.length > MAX_BATCH) return json({ error: `No more than ${MAX_BATCH} tasks at once` }, 400);
+    const [pets, places] = await Promise.all([db.prepare("SELECT id FROM pets").all(), db.prepare("SELECT id FROM places").all()]);
+    const known = {
       memberIds: new Set(hub.members.map(m => m.id)),
       petIds: new Set(pets.results.map(p => p.id)),
-    });
-    if (error) return json({ error }, 400);
-    const exists = await db.prepare("SELECT id FROM tasks WHERE id = ?").bind(task.id).first();
-    if (!exists) {
-      const { n } = await db.prepare("SELECT COUNT(*) AS n FROM tasks").first();
-      if (n >= MAX_TASKS) return json({ error: `No more than ${MAX_TASKS} tasks. Archive some first` }, 400);
+      placeIds: new Set(places.results.map(p => p.id)),
+    };
+    const tasks = [];
+    for (const [i, raw] of list.entries()) {
+      const { task, error } = cleanTask(raw, known);
+      if (error) return json({ error: list.length > 1 ? `tasks[${i}].${error}` : error }, 400);
+      tasks.push(task);
     }
-    await db.prepare(`INSERT INTO tasks (id, area, kind, title, pet_id, assignee, due_date, due_time, repeat_every, repeat_unit,
-                        repeat_from, lead_days, provider, phone, url, notes, archived, created_at, created_by, updated_at, updated_by)
-                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)
-                      ON CONFLICT (id) DO UPDATE SET area = excluded.area, kind = excluded.kind, title = excluded.title,
-                        pet_id = excluded.pet_id, assignee = excluded.assignee, due_date = excluded.due_date,
-                        due_time = excluded.due_time, repeat_every = excluded.repeat_every, repeat_unit = excluded.repeat_unit,
-                        repeat_from = excluded.repeat_from, lead_days = excluded.lead_days, provider = excluded.provider,
-                        phone = excluded.phone, url = excluded.url, notes = excluded.notes,
-                        updated_at = excluded.updated_at, updated_by = excluded.updated_by`)
-      .bind(task.id, task.area, task.kind, task.title, task.petId, task.assignee, task.dueDate, task.dueTime,
-            task.repeatEvery, task.repeatUnit, task.repeatFrom, task.leadDays, task.provider, task.phone, task.url,
-            task.notes, now, viewer.id, now, viewer.id).run();
-    return json(await snapshot(env, hub, who, now));
+    const { n } = await db.prepare("SELECT COUNT(*) AS n FROM tasks").first();
+    if (n + tasks.length > MAX_TASKS) {
+      const existing = tasks.length ? (await db.prepare(`SELECT COUNT(*) AS n FROM tasks WHERE id IN (${tasks.map(() => "?").join(",")})`).bind(...tasks.map(t => t.id)).first()).n : 0;
+      if (n + tasks.length - existing > MAX_TASKS) return json({ error: `No more than ${MAX_TASKS} tasks. Archive some first` }, 400);
+    }
+    await db.batch([
+      ...tasks.map(t => upsertTask(db, t, viewer, now)),
+      ...archive.map(id => db.prepare("UPDATE tasks SET archived = 1, updated_at = ?, updated_by = ? WHERE id = ?").bind(now, viewer.id, id)),
+    ]);
+    return answer();
+  }
+
+  if (path === "/undo") {
+    const actionId = typeof body.actionId === "string" ? body.actionId : "";
+    const { results } = await db.prepare(`SELECT l.*, t.kind, t.assignee FROM task_log l JOIN tasks t ON t.id = l.task_id WHERE l.action_id = ?`).bind(actionId).all();
+    if (!results.length) return json({ error: "Nothing to undo" }, 400);
+    if (!results.every(r => canComplete(viewer, r))) return json({ error: "You can only undo your own chores" }, 403);
+    await db.batch(results.flatMap(r => undoStatements(db, r, viewer, now)));
+    return answer();
   }
 
   const action = path.match(/^\/tasks\/([A-Za-z0-9_-]{6,40})\/(done|undo|archive)$/);
@@ -384,35 +563,30 @@ export async function handleHousehold(request, env, hub, path, opts = {}) {
     if (!canManage(viewer)) return forbidden("archive tasks");
     await db.prepare("UPDATE tasks SET archived = ?, updated_at = ?, updated_by = ? WHERE id = ?")
       .bind(body.archived === false ? 0 : 1, now, viewer.id, task.id).run();
-    return json(await snapshot(env, hub, who, now));
+    return answer();
   }
 
   if (!canComplete(viewer, task)) return json({ error: "You can only mark your own chores done" }, 403);
 
   if (action[2] === "done") {
     if (task.archived) return json({ error: "This task is archived" }, 400);
-    const today = ymd(new Date(now), hub.timezone);
     const doneOn = body.doneOn || today;
     if (!isDate(doneOn) || doneOn > today) return json({ error: "doneOn: expected a date (YYYY-MM-DD) that isn't in the future" }, 400);
-    const next = nextDue(task, doneOn);
-    await db.batch([
-      db.prepare("INSERT INTO task_log (id, task_id, done_on, done_by, note, due_before, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)")
-        .bind(crypto.randomUUID(), task.id, doneOn, viewer.id, text(body.note, 200) || null, task.dueDate, now),
-      // A repeating task moves to its next date; a one-off is finished.
-      next
-        ? db.prepare("UPDATE tasks SET due_date = ?, updated_at = ?, updated_by = ? WHERE id = ?").bind(next, now, viewer.id, task.id)
-        : db.prepare("UPDATE tasks SET archived = 1, updated_at = ?, updated_by = ? WHERE id = ?").bind(now, viewer.id, task.id),
-    ]);
-    return json(await snapshot(env, hub, who, now));
+    // Just this one, or the group's tasks that fall on the same day (one card's worth).
+    let targets = [task];
+    if (body.group === true && task.groupId) {
+      const { results } = await db.prepare(`SELECT ${TASK_COLUMNS} FROM ${TASK_FROM} WHERE t.group_id = ? AND t.archived = 0`).bind(task.groupId).all();
+      targets = results.map(taskFromRow).filter(t => whenOf(t) === whenOf(task) && canComplete(viewer, t));
+    }
+    const actionId = crypto.randomUUID();
+    const note = text(body.note, 200) || null;
+    await db.batch(targets.flatMap(t => doneStatements(db, t, { doneOn, note, actionId, viewer, now })));
+    return answer();
   }
 
-  // undo: take back the last time it was done.
-  const last = await db.prepare("SELECT id, due_before FROM task_log WHERE task_id = ? ORDER BY created_at DESC, rowid DESC LIMIT 1").bind(task.id).first();
+  // undo: take back the last time this task was done (only this task's row).
+  const last = await db.prepare("SELECT * FROM task_log WHERE task_id = ? ORDER BY created_at DESC, rowid DESC LIMIT 1").bind(task.id).first();
   if (!last) return json({ error: "This task hasn't been marked done" }, 400);
-  await db.batch([
-    db.prepare("DELETE FROM task_log WHERE id = ?").bind(last.id),
-    db.prepare("UPDATE tasks SET due_date = ?, archived = 0, updated_at = ?, updated_by = ? WHERE id = ?")
-      .bind(last.due_before ?? null, now, viewer.id, task.id),
-  ]);
-  return json(await snapshot(env, hub, who, now));
+  await db.batch(undoStatements(db, last, viewer, now));
+  return answer();
 }
