@@ -53,11 +53,12 @@ export async function cards(ctx) {
   });
 }
 
-/** "Out Dec 18 · IMAX", "In theaters now", "On Netflix now", "On Netflix Dec 5". */
+/** "In theaters Dec 18", "In theaters now", "On Netflix Dec 5", "On Netflix now", "On Netflix" (no date yet). */
 function whenText(ctx, m) {
   const theaters = !m.where || /theat/i.test(m.where);
-  const day = m.releaseDate ? dateLabel(m.releaseDate, ctx.locale, { month: "short", day: "numeric" }) : null;
-  const out = !m.releaseDate || m.releaseDate <= ctx.today;
+  if (!m.releaseDate) return theaters ? "In theaters soon" : `On ${m.where}`;
+  const day = dateLabel(m.releaseDate, ctx.locale, { month: "short", day: "numeric" });
+  const out = m.releaseDate <= ctx.today;
   if (theaters) return out ? "In theaters now" : `In theaters ${day}`;
   return out ? `On ${m.where} now` : `On ${m.where} ${day}`;
 }
