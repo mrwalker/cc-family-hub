@@ -6,6 +6,9 @@
  *                                              pets, places, tasks, log, chores, serverTime }
  *   GET  /api/household/chores?day=        → the same, with chores as of that day
  *   POST /api/household/chores…             see chores.js
+ *   GET  /api/household/rooms                the same (the page's escape rooms are in it)
+ *   POST /api/household/rooms…              see rooms.js
+ *   GET  /api/household/image/rooms/:id      a room's picture, from its site, cached
  *   POST /api/household/pets                 { id, name, species?, birthday?, notes?, archived? }
  *   POST /api/household/places               { id, name, address?, notes?, archived? }
  *   POST /api/household/tasks                a task, or { tasks: [task…], archive: [id…] } in one go
@@ -49,6 +52,8 @@ import { timingSafeEqual } from "./data-api.js";
 import { calendarClient } from "./google.js";
 import { pushToCalendar, pullFromCalendar, PULL_EVERY_MS } from "./household-calendar.js";
 import { choresSnapshot, choresExport, handleChoreWrite, canUndoTick, undoTickStatements } from "./chores.js";
+import { roomsSnapshot, handleRoomWrite } from "./rooms.js";
+import { imageResponse } from "./link-image.js";
 
 /**
  * Each area's kinds of task.
@@ -294,7 +299,7 @@ async function getTask(db, id) {
 async function snapshot(env, hub, who, now, calendarProblem = null, choresDay = null) {
   const db = env.HUB_DB;
   const today = ymd(new Date(now), hub.timezone);
-  const [pets, photos, places, tasks, log, chores] = await Promise.all([
+  const [pets, photos, places, tasks, log, chores, rooms] = await Promise.all([
     db.prepare("SELECT * FROM pets ORDER BY archived, name").all(),
     db.prepare("SELECT id, pet_id, width, height FROM pet_photos ORDER BY created_at DESC").all(),
     db.prepare("SELECT * FROM places ORDER BY archived, name").all(),
@@ -304,6 +309,7 @@ async function snapshot(env, hub, who, now, calendarProblem = null, choresDay = 
                 FROM task_log l JOIN tasks t ON t.id = l.task_id LEFT JOIN pets p ON p.id = t.pet_id
                 ORDER BY l.created_at DESC, l.rowid DESC LIMIT ${LOG_ROWS}`).all(),
     choresSnapshot(db, hub, { day: choresDay ?? today, today, now }),
+    roomsSnapshot(env),
   ]);
   const family = who.viewer?.role === "adult" || who.viewer?.role === "child";
   return {
@@ -314,6 +320,8 @@ async function snapshot(env, hub, who, now, calendarProblem = null, choresDay = 
     problem: who.viewer ? null : who.problem,
     today,
     chores,
+    rooms: rooms.rooms,
+    canImportRooms: rooms.canImport,
     areas: AREAS,
     members: hub.members.map(({ id, name, color, role }) => ({ id, name, color, role: role === "child" ? "child" : "adult" })),
     pets: pets.results.map(r => ({ ...petFromRow(r), photos: photos.results.filter(p => p.pet_id === r.id).map(p => ({ id: p.id, width: p.width, height: p.height })) })),
@@ -452,6 +460,15 @@ export function cleanPhoto(c) {
   return { photo: { mime: m[1], data: m[2], bytes, width: size(c.width), height: size(c.height) } };
 }
 
+/** A room's picture, fetched from its site and cached (link-image.js). */
+export async function roomImage(env, id, opts = {}) {
+  if (!env.HUB_DB) return json({ error: "No household database" }, 404);
+  await ensureSchema(env.HUB_DB);
+  const row = await env.HUB_DB.prepare("SELECT image_url FROM escape_rooms WHERE id = ?").bind(id).first();
+  if (!row?.image_url) return json({ error: "That room has no picture" }, 404);
+  return imageResponse(row.image_url, { fetcher: opts.fetcher ?? fetch });
+}
+
 // ─── The calendar ─────────────────────────────────────────────────────────────
 
 const meta = async (db, k) => (await db.prepare("SELECT v FROM household_meta WHERE k = ?").bind(k).first())?.v ?? null;
@@ -567,6 +584,9 @@ export async function handleHousehold(request, env, hub, path, opts = {}) {
   if (request.method === "GET") {
     const photo = path.match(/^\/photo\/([A-Za-z0-9_-]{6,40})$/);
     if (photo) return photoResponse(env, photo[1]);
+    const picture = path.match(/^\/image\/rooms\/([A-Za-z0-9_-]{6,40})$/);
+    if (picture) return roomImage(env, picture[1], opts);
+    if (path === "/rooms") return json(await snapshot(env, hub, who, now));
     if (path === "/chores") {
       // The page looking at another day's chores; no calendar sync for that.
       const day = new URL(request.url).searchParams.get("day");
@@ -608,6 +628,14 @@ export async function handleHousehold(request, env, hub, path, opts = {}) {
     const reply = await handleChoreWrite({
       db, hub, path, body, viewer, now, today, json,
       answer: async (extra = {}) => json({ ...(await snapshot(env, hub, who, now, null, choresDay)), ...extra }),
+    });
+    return reply ?? json({ error: "Not found" }, 404);
+  }
+
+  if (path.startsWith("/rooms")) {
+    const reply = await handleRoomWrite({
+      env, db, hub, path, body, viewer, now, json, fetcher: opts.fetcher ?? fetch,
+      answer: async (extra = {}) => json({ ...(await snapshot(env, hub, who, now)), ...extra }),
     });
     return reply ?? json({ error: "Not found" }, 404);
   }
