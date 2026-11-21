@@ -1,7 +1,7 @@
 /**
- * Trips for the trips and past-trips components: trips.yaml (published as
- * data:family) joined with each trip app's summary (dates, hero photo,
- * leaderboard, today's schedule).
+ * Trips for the trips and past-trips components: the hub's trips (trip-records.js),
+ * or before it has any, the published trips.yaml list (data:family), joined with each
+ * trip app's summary (dates, hero photo, leaderboard, today's schedule).
  */
 
 import { daysBetween, dateRange, shuffled } from "../util.js";
@@ -10,13 +10,14 @@ const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 /** Every family trip (not work trips) in the view, with its status by date. */
 export async function familyTrips(ctx) {
-  const family = await ctx.data("family");
-  const yamlTrips = Array.isArray(family?.trips) ? family.trips : [];
+  const kept = typeof ctx.tripRecords === "function" ? await ctx.tripRecords().catch(() => null) : null;
+  const family = kept ? null : await ctx.data("family");
+  const listed = kept ?? (Array.isArray(family?.trips) ? family.trips : []);
   const apps = await ctx.trips().catch(() => []);
   const appByTrip = new Map(apps.map(a => [a.trip, a]));
   const out = [];
   const seen = new Set();
-  for (const t of yamlTrips) {
+  for (const t of listed) {
     if (!t?.id || t.type === "work") continue;
     seen.add(t.id);
     const app = appByTrip.get(t.id);
@@ -61,7 +62,7 @@ export function heroImage(ctx, cardId, t) {
 const ALBUM_PHOTOS = 12;
 
 /**
- * A trip's shared album, if trips.yaml gives it one: { count, photos: [image URL…] }
+ * A trip's shared album, if it has one: { count, photos: [image URL…] }
  * in a shuffled order that changes each minute, or null. An album that can't be
  * read counts as none, so a trip still gets its card.
  */

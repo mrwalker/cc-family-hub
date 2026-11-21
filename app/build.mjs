@@ -197,7 +197,7 @@ const guestIds = new Set(guests.map(g => g.id));
 
 const tripApps = (Array.isArray(hub.tripApps) ? hub.tripApps : []).map((t, i) => {
   const at = `hub.tripApps[${i}]`;
-  if (typeof t?.trip !== "string") fail("family.yaml", `${at}.trip`, "required (the trip's id in trips.yaml)");
+  if (typeof t?.trip !== "string") fail("family.yaml", `${at}.trip`, "required (the trip's id: on /household/ › Trips, or in trips.yaml)");
   if (!/^\/[a-z0-9-]+\/$/.test(t?.path ?? "")) fail("family.yaml", `${at}.path`, `expected "/<dir>/", got ${JSON.stringify(t?.path)}`);
   if (["/trip-app/", "/api/", "/household/"].includes(t?.path)) fail("family.yaml", `${at}.path`, `${t.path} is reserved by the hub`);
   if (!ID_RE.test(t?.appId ?? "")) fail("family.yaml", `${at}.appId`, "expected a lowercase id");
@@ -244,16 +244,22 @@ function tripSummary(path, at) {
   };
 }
 
-const trips = tripApps.length || existsSync(ws("trips.yaml")) ? load("trips.yaml") : [];
+// Since v2.9 the hub keeps a family's trips (edited on /household/), and trips.yaml is
+// only the list it imports once. While the file is here, check it; without it, a trip
+// app's trip id can't be checked until the Worker runs (an app whose trip it doesn't
+// know still gets a card).
+const trips = existsSync(ws("trips.yaml")) ? load("trips.yaml") : null;
 // A trip's shared album (trips.yaml → album) has to be a link the Worker can read.
 (Array.isArray(trips) ? trips : []).forEach((t, i) => {
   if (t?.album != null && !albumKey(t.album)) {
     fail("trips.yaml", `[${i}] (${t.id ?? "?"}).album`, "expected an iCloud shared album link (https://photos.icloud.com/shared/album/… or https://www.icloud.com/sharedalbum/#…) with Public Website on");
   }
 });
-const knownTrips = new Set((Array.isArray(trips) ? trips : []).map(t => t?.id));
-for (const [i, t] of tripApps.entries()) {
-  if (t.trip && !knownTrips.has(t.trip)) fail("family.yaml", `hub.tripApps[${i}].trip`, `"${t.trip}" is not an id in trips.yaml`);
+if (Array.isArray(trips)) {
+  const knownTrips = new Set(trips.map(t => t?.id));
+  for (const [i, t] of tripApps.entries()) {
+    if (t.trip && !knownTrips.has(t.trip)) fail("family.yaml", `hub.tripApps[${i}].trip`, `"${t.trip}" is not an id in trips.yaml`);
+  }
 }
 
 if (errors.length) {

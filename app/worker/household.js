@@ -14,6 +14,8 @@
  *   POST /api/household/movies/picks         the pipeline (PUBLISH_TOKEN): the assistant's monthly picks
  *   GET  /api/household/movies/history       the pipeline: past picks and marks
  *   GET  /api/household/image/movies/:id     a movie's poster
+ *   GET  /api/household/trips                the same (the trips are in it)
+ *   POST /api/household/trips…              see trip-records.js
  *   POST /api/household/pets                 { id, name, species?, birthday?, notes?, archived? }
  *   POST /api/household/places               { id, name, address?, notes?, archived? }
  *   POST /api/household/tasks                a task, or { tasks: [task…], archive: [id…] } in one go
@@ -59,6 +61,7 @@ import { pushToCalendar, pullFromCalendar, PULL_EVERY_MS } from "./household-cal
 import { choresSnapshot, choresExport, handleChoreWrite, canUndoTick, undoTickStatements } from "./chores.js";
 import { roomsSnapshot, handleRoomWrite } from "./rooms.js";
 import { listMovies, applyPicks, moviesHistory, handleMovieWrite } from "./movies.js";
+import { tripsSnapshot, handleTripWrite } from "./trip-records.js";
 import { imageResponse } from "./link-image.js";
 
 /**
@@ -305,7 +308,7 @@ async function getTask(db, id) {
 async function snapshot(env, hub, who, now, calendarProblem = null, choresDay = null) {
   const db = env.HUB_DB;
   const today = ymd(new Date(now), hub.timezone);
-  const [pets, photos, places, tasks, log, chores, rooms, movies] = await Promise.all([
+  const [pets, photos, places, tasks, log, chores, rooms, movies, trips] = await Promise.all([
     db.prepare("SELECT * FROM pets ORDER BY archived, name").all(),
     db.prepare("SELECT id, pet_id, width, height FROM pet_photos ORDER BY created_at DESC").all(),
     db.prepare("SELECT * FROM places ORDER BY archived, name").all(),
@@ -317,6 +320,7 @@ async function snapshot(env, hub, who, now, calendarProblem = null, choresDay = 
     choresSnapshot(db, hub, { day: choresDay ?? today, today, now }),
     roomsSnapshot(env),
     listMovies(db),
+    tripsSnapshot(env, hub, { manage: canManage(who.viewer) }),
   ]);
   const family = who.viewer?.role === "adult" || who.viewer?.role === "child";
   return {
@@ -330,6 +334,9 @@ async function snapshot(env, hub, who, now, calendarProblem = null, choresDay = 
     rooms: rooms.rooms,
     canImportRooms: rooms.canImport,
     movies,
+    trips: trips.trips,
+    canImportTrips: trips.canImport,
+    tripApps: trips.tripApps,
     areas: AREAS,
     members: hub.members.map(({ id, name, color, role }) => ({ id, name, color, role: role === "child" ? "child" : "adult" })),
     pets: pets.results.map(r => ({ ...petFromRow(r), photos: photos.results.filter(p => p.pet_id === r.id).map(p => ({ id: p.id, width: p.width, height: p.height })) })),
@@ -631,7 +638,7 @@ export async function handleHousehold(request, env, hub, path, opts = {}) {
     if (picture) return roomImage(env, picture[1], opts);
     const poster = path.match(/^\/image\/movies\/([A-Za-z0-9_-]{6,40})$/);
     if (poster) return movieImage(env, poster[1], opts);
-    if (path === "/rooms" || path === "/movies") return json(await snapshot(env, hub, who, now));
+    if (path === "/rooms" || path === "/movies" || path === "/trips") return json(await snapshot(env, hub, who, now));
     if (path === "/chores") {
       // The page looking at another day's chores; no calendar sync for that.
       const day = new URL(request.url).searchParams.get("day");
@@ -680,6 +687,14 @@ export async function handleHousehold(request, env, hub, path, opts = {}) {
   if (path === "/movies" || path.startsWith("/movies/")) {
     const reply = await handleMovieWrite({
       db, hub, path, body, viewer, now, json, fetcher: opts.fetcher ?? fetch,
+      answer: async (extra = {}) => json({ ...(await snapshot(env, hub, who, now)), ...extra }),
+    });
+    return reply ?? json({ error: "Not found" }, 404);
+  }
+
+  if (path === "/trips" || path.startsWith("/trips/")) {
+    const reply = await handleTripWrite({
+      env, db, hub, path, body, viewer, now, json, fetcher: opts.fetcher ?? fetch,
       answer: async (extra = {}) => json({ ...(await snapshot(env, hub, who, now)), ...extra }),
     });
     return reply ?? json({ error: "Not found" }, 404);

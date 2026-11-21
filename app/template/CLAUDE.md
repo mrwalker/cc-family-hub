@@ -11,7 +11,7 @@ It holds our config and content. All the code comes from the cc-family-hub versi
 |------|------|
 | `workspace/family.yaml` | The family, members and their colors, inputs, the stream, outputs, trip apps |
 | `workspace/members/<id>.yaml` | One profile per person: calendars, email, school or work, interests |
-| `workspace/trips.yaml`, `escape-rooms.yaml`, `movies.yaml` | Content lists |
+| `workspace/trips.yaml` | Before cc-family-hub v2.9: trips. The hub keeps them now (`/household/` › Trips), as it does escape rooms and movies. |
 | `workspace/context/notes/` | Things the planner should know |
 | `workspace/state/`, `workspace/calendars/` | Runtime state. Gitignored. |
 | `<trip>/` | A trip app's content, if we have any |
@@ -35,8 +35,8 @@ Slash commands: `/daily-plan`, `/add-member`, `/add-trip`, `/context`, `/weekly-
   `google-service-account.json` in `HUB_SECRETS_DIR` (set in `.env`), and in Worker secrets.
   This repo still holds personal data, so keep it private.
 - **Config needs a deploy; content needs a publish.** A change to `family.yaml`, a member, or
-  a trip folder reaches the hub when the Worker deploys. A change to `trips.yaml`,
-  `movies.yaml`, `escape-rooms.yaml` or the notes reaches it on the next pipeline run.
+  a trip folder reaches the hub when the Worker deploys. A change to the notes reaches it
+  on the next pipeline run. Trips, escape rooms and movies are edited on `/household/`.
 - **Ids are forever.** Don't rename a member id, trip id, or a trip app's `appId`, quest
   ids or packing ids once in use: other things refer to them.
 - **Trip apps:** after changing a trip folder, or upgrading cc-family-hub past a release that
