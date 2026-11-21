@@ -16,8 +16,9 @@
  * Every command but doctor says where it's working: --channel <id> (or HUB_AGENT_CHANNEL).
  * The channel decides what it may touch (family.yaml → hub.agent.channels). In a trip's
  * channel the trip is that one; elsewhere name it with --trip <id>. A change also says who
- * asked: --for <their chat id> (or HUB_AGENT_FOR), and --for-name for someone the hub
- * doesn't know. A value of - reads that text from stdin, so quotes can't break a command.
+ * asked: --for <their chat id, or their name> (or HUB_AGENT_FOR); with a chat id,
+ * --for-name adds a name for someone the hub doesn't know. A value of - reads that text
+ * from stdin, so quotes can't break a command.
  *
  * The last line is "<WHAT> OK: …" or "<WHAT> FAILED: …". Exit codes: 0 done (or nothing to
  * do); 1 refused, don't retry as it is; 2 the command was mistyped; 3 the hub couldn't be
@@ -60,10 +61,13 @@ function channel(flags: Flags): string {
   return c;
 }
 
-function actor(flags: Flags): { slack: string; name?: string } {
-  const slack = flags.for ?? process.env.HUB_AGENT_FOR;
-  if (!slack) throw new Usage("Say who asked: --for <their chat id, like U0123ABCD>");
-  return { slack, ...(flags["for-name"] ? { name: flags["for-name"] } : {}) };
+/** Who asked: --for takes their chat id (U0123ABCD) or, without one, their name. */
+function actor(flags: Flags): { slack?: string; name?: string } {
+  const who = flags.for ?? process.env.HUB_AGENT_FOR;
+  const name = flags["for-name"];
+  if (!who && !name) throw new Usage("Say who asked: --for <their chat id like U0123ABCD, or their name>");
+  const isId = !!who && /^[UW][A-Z0-9]{5,19}$/.test(who);
+  return { ...(isId ? { slack: who } : {}), ...(name || (who && !isId) ? { name: name ?? who } : {}) };
 }
 
 function need(flags: Flags, name: string, form: string): string {

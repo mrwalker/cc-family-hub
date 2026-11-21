@@ -42,6 +42,7 @@ const hubWith = (extra = {}) => ({
       U0ALEX0001: { id: "alex", role: "adult", name: "Alex" },
       U0GRANDMA1: { id: "grandma", role: "guest", name: "Grandma" },
     },
+    names: { alex: { id: "alex", role: "adult", name: "Alex" }, sam: { id: "sam", role: "child", name: "Sam" }, grandma: { id: "grandma", role: "guest", name: "Grandma" } },
   },
   ...extra,
 });
@@ -167,6 +168,11 @@ test("groceries: family adds and checks off from the household channels", D1, as
   const stranger = await op("grocery.add", { name: "Oat milk" }, FOOD, STRANGER);
   assert.equal(stranger.status, 403);
   assert.match(stranger.body.error, /Only a family member/);
+
+  assert.equal((await op("grocery.add", { name: "Bread" }, FOOD, { name: "Grandma" })).status, 403, "a guest, by name");
+  const byName = await op("grocery.add", { name: "Apples" }, FOOD, { name: " SAM " });
+  assert.equal(byName.body.status, "applied", "a family member known only by name");
+  await call(`/log/${byName.body.logId}/undo`, { body: { channel: FOOD, actor: { name: "Sam" } } });
 
   const added = await op("grocery.add", { name: "Oat milk", quantity: 2, store: "Co-op" }, FOOD);
   assert.equal(added.body.status, "applied");

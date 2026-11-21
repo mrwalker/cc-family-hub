@@ -74,6 +74,7 @@ Built so far:
   `grocery …`. Each chat channel is mapped to what it may touch (`hub.agent.channels`),
   every change is logged and can be undone, `trip brief` gives the facts for a briefing,
   and `family-hub doctor` checks the live hub.
+- **v2.12.1:** the assistant can say who asked by name when it doesn't have their chat id.
 
 The rest ships in steps:
 
