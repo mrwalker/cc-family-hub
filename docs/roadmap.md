@@ -63,6 +63,10 @@ Built so far:
   screen with its own icon and name (`hub.shortTitle`), and its clock fits a phone.
 - **v2.10.1:** the home-screen icon is the house the TV apps use, and an album photo that
   iCloud keeps only as a small original (no medium or full JPEG) now shows.
+- **v2.11.0:** **house portraits**: each house full screen over its photos (added on
+  `/household/` like a pet's), with what's next there. A portrait's tasks carry what the
+  task's own card says (booking, time, provider, a stay's end), so a family can show the
+  portraits instead of the `pets` and `house` lists. Pet portraits are titled "Dogs".
 
 The rest ships in steps:
 

@@ -20,7 +20,7 @@ import { COMPONENT_IDS, byId } from "./components/index.js";
 import { tripSummaries, heroResponse } from "./trips.js";
 import { albumPhotos, albumPhotosFor, photoById, photoFromAlbum } from "./photos.js";
 import { listGrocery } from "./grocery.js";
-import { loadDueTasks, loadPets, photoResponse, roomImage, movieImage } from "./household.js";
+import { loadDueTasks, loadPets, loadPlaces, photoResponse, roomImage, movieImage } from "./household.js";
 import { loadRooms } from "./rooms.js";
 import { loadMovies } from "./movies.js";
 import { loadTrips, tripAlbumLink } from "./trip-records.js";
@@ -140,6 +140,8 @@ export function makeContext({ request, env, hub, loadEvents, now = new Date(), v
     household: once(() => loadDueTasks(env, today, { hub, origin: url.origin })),
     // Pets and their photos, for pet-portraits; null without a HUB_DB database.
     pets: once(() => loadPets(env)),
+    // The places (houses) and their photos, for house-portraits.
+    places: once(() => loadPlaces(env)),
     // Each kid's chores today, and the week's jobs; null without a HUB_DB database or chores.
     chores: once(() => loadChoresToday(env, hub, now)),
     // The escape rooms the hub keeps; null without a database or before the old list is imported.
@@ -215,6 +217,12 @@ async function streamImage(env, hub, cardId, origin, version = null) {
   if (component === "pet-portraits" && id) {
     const pet = (await loadPets(env))?.find(p => p.id === id);
     const photo = pet?.photos.find(p => p.id === version) ?? pet?.photos[0];
+    return photo ? photoResponse(env, photo.id) : json({ error: `No photo of "${id}"` }, 404);
+  }
+  // house-portraits:<place id>?v=<photo id> — the same, for a house.
+  if (component === "house-portraits" && id) {
+    const place = (await loadPlaces(env))?.find(p => p.id === id);
+    const photo = place?.photos.find(p => p.id === version) ?? place?.photos[0];
     return photo ? photoResponse(env, photo.id) : json({ error: `No photo of "${id}"` }, 404);
   }
   if (component === "photos" && id) return photoById(hub, id);

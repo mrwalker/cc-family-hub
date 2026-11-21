@@ -10,7 +10,7 @@ workspace file they read. Each input feeds one or more [stream components](strea
 | [`trips`](#trips) | The hub's trips, edited on `/household/` (before v2.9, `workspace/trips.yaml`) | Interactive | `trips`, `past-trips` |
 | [`trip-apps`](#trip-apps) | Trip folders in your hub repo, and check-ins | Deploy and interactive | `trips`, `past-trips` |
 | [`grocery`](#grocery) | The hub's shared list | Interactive | `grocery` |
-| [`household`](#household) | The hub's household records | Interactive | `pets`, `house`, `chores`, `pet-portraits`, `plan` |
+| [`household`](#household) | The hub's household records | Interactive | `pets`, `house`, `chores`, `pet-portraits`, `house-portraits`, `plan` |
 | [`escape-rooms`](#escape-rooms-and-movies) | The hub's records (`workspace/escape-rooms.yaml` before v2.7) | Interactive | `escape-rooms` |
 | [`movies`](#escape-rooms-and-movies) | The hub's records, picked monthly by your assistant (`workspace/movies.yaml` before v2.8) | Interactive | `movies` |
 | [`notes`](#notes) | `workspace/context/` | Workspace | `plan` |
@@ -137,7 +137,8 @@ done. An appointment can be booked, with its own date and time, and a stay has a
 date. A fix can go without a date: it waits on the page, with no card, until it's done.
 Booked appointments can also go on a Google Calendar, and edits made there come back.
 Each pet can have up to ten photos, added from a phone on `/household/` (several at once); the
-`pet-portraits` cards show each pet over one of them.
+`pet-portraits` cards show each pet over one of them. Each place (a house) can have the
+same, for the `house-portraits` cards.
 
 You add and change them at `/household/` on your hub, on a phone or the hub page. Adults
 can change anything. Everyone else can look. A task shows on every screen as a `pets` or

@@ -500,9 +500,7 @@ function petsView() {
         ${manage ? `<button class="quiet" data-do="edit-pet" data-id="${pet.id}">Edit</button>` : ""}
       </div>
       <div class="next-list">${next.length ? "Next: " + next.join("; ") : "Nothing scheduled."}</div>
-      ${(pet.photos || []).length ? `<div class="thumbs">${pet.photos.map(ph => `<div class="thumb"><img src="${API}/photo/${ph.id}" alt="" loading="lazy">
-        ${manage ? `<button class="small quiet" data-do="remove-photo" data-id="${ph.id}">Remove</button>` : ""}</div>`).join("")}</div>` : ""}
-      ${manage ? `<div class="task-actions"><label class="btn small">${(pet.photos || []).length ? "+ Another photo" : "+ Add a photo"}<input type="file" accept="image/*" multiple class="f-photo hidden" data-id="${pet.id}"></label></div>` : ""}
+      ${photoBlock("pets", pet, manage)}
     </div>`;
   });
   if (!pets.length && !(form && form.type === "pet")) {
@@ -511,6 +509,14 @@ function petsView() {
   if (form && form.type === "pet" && !form.id) html += petForm(null);
   else if (manage) html += `<button data-do="add-pet">+ Add a pet</button>`;
   return html + recentView("pets") + archivedView(tasks);
+}
+
+/** A pet's or place's photos, and (for adults) the button that adds more. kind: "pets" or "places". */
+function photoBlock(kind, owner, manage) {
+  const photos = owner.photos || [];
+  return `${photos.length ? `<div class="thumbs">${photos.map(ph => `<div class="thumb"><img src="${API}/photo/${ph.id}" alt="" loading="lazy">
+      ${manage ? `<button class="small quiet" data-do="remove-photo" data-id="${ph.id}">Remove</button>` : ""}</div>`).join("")}</div>` : ""}
+    ${manage ? `<div class="task-actions"><label class="btn small">${photos.length ? "+ Another photo" : "+ Add a photo"}<input type="file" accept="image/*" multiple class="f-photo hidden" data-kind="${kind}" data-id="${owner.id}"></label></div>` : ""}`;
 }
 
 /** The house: one card per place, each with its tasks. */
@@ -533,6 +539,7 @@ function houseView() {
       </div>
       ${list.length ? list.map(bundleRow).join("") : `<div class="empty">Nothing scheduled.</div>`}
       ${adding ? taskForm(null) : manage ? `<div class="task-actions" style="margin-top:12px"><button data-do="add-task" data-area="house" data-place="${placeId || ""}">+ Add${place ? ` at ${esc(place.name)}` : ""}</button></div>` : ""}
+      ${place ? photoBlock("places", place, manage) : ""}
     </div>`;
   };
   places.forEach(p => { html += section(p.id, p.name, p.address); });
@@ -1539,7 +1546,7 @@ function shrink(file) {
 }
 
 /** Uploads the chosen photos one after another. */
-function uploadPhotos(petId, files) {
+function uploadPhotos(kind, id, files) {
   picking = 0;
   const list = Array.prototype.slice.call(files || []);
   if (!list.length) return;
@@ -1549,7 +1556,7 @@ function uploadPhotos(petId, files) {
     if (i >= list.length) return Promise.resolve();
     setStatus(list.length > 1 ? `Adding photo ${i + 1} of ${list.length}…` : "Getting the photo ready…");
     return shrink(list[i])
-      .then(photo => { busy = false; return send(`/pets/${petId}/photo`, photo, ""); })
+      .then(photo => { busy = false; return send(`/${kind}/${id}/photo`, photo, ""); })
       .then(ok => { if (!ok) throw new Error($("status").textContent || "That photo didn't save"); added++; return next(i + 1); });
   };
   next(0)
@@ -1566,7 +1573,7 @@ function uploadPhotos(petId, files) {
 function wirePhotoInputs() {
   Array.prototype.forEach.call(document.querySelectorAll(".f-photo"), input => {
     input.onclick = () => { picking = Date.now(); };
-    input.onchange = () => uploadPhotos(input.getAttribute("data-id"), input.files);
+    input.onchange = () => uploadPhotos(input.getAttribute("data-kind") || "pets", input.getAttribute("data-id"), input.files);
   });
 }
 

@@ -21,6 +21,7 @@ GET /api/stream?view=family
 | `house` | 1 per task that's due soon or overdue | What the house needs and when: a service visit, maintenance, a fix | Household records |
 | `chores` | 1 for the family, 1 for a kid in their view, and 1 for the new rotation on the week's first day | Whose chores are done today, and what's next; a kid's own chores; who has which job this week | Household records |
 | `pet-portraits` | 1 per pet | The pet over its photo, with its age and what's next for it | Household records |
+| `house-portraits` | 1 per place (house) | The house over its photo, with what's next there | Household records |
 | `photos` | 1 per photo | A photo from the family album | iCloud album |
 | `trips` | 1 per upcoming or active trip | Countdown (or "Day 2 of 5"), hero photo, leaderboard, today's schedule | The hub's trips, trip apps |
 | `past-trips` | 1 per past trip | Where and when, highlights, final standings | The hub's trips, trip apps |
@@ -193,7 +194,8 @@ to draw it more richly over time.
 | `past-trips` | `trip`, `name`, `destination`, `start`, `end`, `dates`, `who[]`, `highlights[]`, `leaderboard[]`, `album` |
 | `pets`, `house` | `task`: `id`, `kind`, `title`, `pet`, `pets[]`, `place`, `assignee`, `dueDate`, `dueTime`, `date`, `daysUntil`, `overdue`, `booked`, `apptDate`, `apptTime`, `endDate`, `needsBooking`, `repeats`, `provider`, `phone` |
 | `chores` | `type` (`day` or `week`), `day`, `week`, `jobs[]` each with `id`, `name`, `emoji`, `member`; `people[]`, each with `id`, `name`, `color`, `jobs[]`, and `chores[]`, each with `id`, `title`, `job`, `cadence`, `time`, `timeKind`, `status` (`todo`, `late`, `done`, `missed`), `doneAt`, `count` |
-| `pet-portraits` | `pet`: `id`, `name`, `species`, `age`. `photo`: `url`, `width`, `height`, or `null`. `next[]`, each with `title`, `kind`, `emoji`, `when`, `date`, `overdue` |
+| `pet-portraits` | `pet`: `id`, `name`, `species`, `age`. `photo`: `url`, `width`, `height`, or `null`. `next[]`, each with `title`, `kind`, `emoji`, `when`, `date`, `overdue`, and `note` (`"not booked yet"`, the time, the provider, or when a stay ends; or `null`) |
+| `house-portraits` | `place`: `id`, `name`, `address`. `photo` and `next[]` as `pet-portraits` |
 | `grocery` | `items[]`, each with `id`, `name`, `quantity`, `store`, `addedBy`, `done` |
 | `escape-rooms` | `record`: `escaped`, `total`. `room`: `id`, `venue`, `room`, `city`, `date`, `solved`, `escapeTime`, `who[]`, `url`, `image` (the room's picture, or `null`) |
 | `movies` | `movie`: `id`, `title`, `kind` (`movie` or `show`), `releaseDate`, `where` (`theaters` or a streaming service), `format`, `blurb`, `url`, `image` (its poster, or `null`), `want[]`, `seen[]`, `who[]` (the same as `want[]`) |
