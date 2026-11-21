@@ -141,6 +141,14 @@ b { font-weight: 600; color: var(--text); }
 .more { font-family: var(--mono); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); }
 .note { font-size: 13.5px; color: var(--muted); margin-top: 12px; }
 .note.top { margin-top: 0; margin-bottom: 8px; }
+/* Ask the assistant (app.js askPanel) */
+.ask-note { color: var(--text); white-space: pre-wrap; }
+.ask-thread { border-top: 1px solid var(--hair); padding-top: 10px; margin-top: 10px; }
+.ask-msg { font-size: 14.5px; line-height: 1.5; margin: 6px 0; white-space: pre-wrap; }
+.ask-msg.reply { padding-left: 10px; border-left: 2px solid var(--accent, var(--text)); }
+.ask-msg small, .ask-wait { display: block; font-size: 12px; color: var(--faint); }
+.ask-input { display: block; width: 100%; box-sizing: border-box; margin-top: 16px; padding: 12px 14px; border-radius: 12px;
+  border: 1px solid var(--hair); background: transparent; color: var(--text); font: inherit; font-size: 16px; resize: vertical; }
 .rows > * + * { border-top: 1px solid var(--hair-2); }
 .empty { padding: 18px 0 6px; text-align: center; font-family: var(--mono); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); }
 

@@ -27,6 +27,10 @@
  *                                                → { status: "pending", proposalId, expiresAt, summary }
  *   POST /api/agent/log/:id/undo                 { channel, actor }
  *   POST /api/agent/proposals/:id/approve|reject { channel, actor }: from an ops channel, by an adult
+ *   GET  /api/agent/inbox?channel=               questions from the hub to answer (an ops channel; inbox.js)
+ *   POST /api/agent/inbox/claim                  { channel, ids } → { claimed }
+ *   POST /api/agent/inbox/:id/reply              { channel, body }
+ *   POST /api/agent/notes                        { channel, body, until? }: a note for the channel's trip or home
  *
  * And for the household page (household.js routes them, with the viewer's real sign-in):
  *   assistantSnapshot()                          the log and what's waiting, for /household/ › Assistant
@@ -48,6 +52,7 @@ import { handleHousehold, householdExport } from "./household.js";
 import { choresExport } from "./chores.js";
 import { listMovies } from "./movies.js";
 import { OPS, UNDO, OpError } from "./agent-ops.js";
+import { agentInbox, claimInbox, replyInbox, postNote } from "./inbox.js";
 import { ymd, addDays, daysBetween, json } from "./util.js";
 
 const CHANNEL_RE = /^[A-Z0-9]{6,20}$/;
@@ -100,6 +105,10 @@ export async function handleAgent(request, env, hub, path, opts = {}) {
       }
       if (path === "/log") return json({ log: await readLog(db, scope, Number(q.get("limit")) || 20) });
       if (path === "/proposals") return json({ proposals: await readProposals(db, scope, now) });
+      if (path === "/inbox") {
+        allow(scope, ["ops"], "read the hub's questions");
+        return json({ messages: await agentInbox(db, hub, now) });
+      }
       return json({ error: "Not found" }, 404);
     }
     if (request.method !== "POST") return json({ error: "Method not allowed" }, 405);
@@ -108,6 +117,21 @@ export async function handleAgent(request, env, hub, path, opts = {}) {
     try { body = await request.json(); } catch { return json({ error: "Body is not valid JSON" }, 400); }
     if (!body || typeof body !== "object" || Array.isArray(body)) return json({ error: "Body must be a JSON object" }, 400);
     const scope = channelScope(hub, body.channel);
+    if (path === "/inbox/claim") {
+      allow(scope, ["ops"], "answer the hub's questions");
+      return json({ claimed: await claimInbox(db, body.ids, now) });
+    }
+    const reply = path.match(/^\/inbox\/([A-Za-z0-9_-]{8,40})\/reply$/);
+    if (reply) {
+      allow(scope, ["ops"], "answer the hub's questions");
+      const r = await replyInbox(db, hub, reply[1], body.body, now);
+      return json(r.error ? { error: r.error } : r, r.status ?? 200);
+    }
+    if (path === "/notes") {
+      allow(scope, ["trip", "household"], "leave a note; notes are for a trip's or the household's channel");
+      const r = await postNote(db, hub, scope.key, body.body, body.until ?? null, now);
+      return json(r.error ? { error: r.error } : r, r.status ?? 200);
+    }
     const actor = whoAsked(hub, body.actor);
     const base = { env, db, hub, now, origin, opts };
 

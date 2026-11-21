@@ -81,13 +81,16 @@ Built so far:
   Tasks, chores and movie marks from chat, by the household's own rules; channels for the
   pets, one house, or movies. Saving a trip on `/household/` no longer quietly undoes what
   the assistant added since the form was opened.
+- **v2.14.0:** **ask the assistant from the hub**: an Ask button on the hub page and an
+  Ask panel in every trip app (offline-first), whose questions reach the assistant in the
+  family's chat and whose answers come back; notes from the assistant on those panels.
+  Bump each trip's `sw.js`.
 
 The rest ships in steps:
 
 | Release | What it adds |
 |---------|--------------|
 | v2.10.0 | **Activities:** completing what the calendar leaves out |
-| v2.14.0 | **Ask the assistant from the hub:** a box on the hub page whose messages reach the assistant, with its answers shown back |
 
 Activities stay in the calendar, where families already put them. But a practice typed in
 a hurry is often missing its address, a phone number or a link. The hub keeps what it

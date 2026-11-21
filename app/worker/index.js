@@ -41,6 +41,9 @@ import { handleStream } from "./stream.js";
 import { handleGrocery } from "./grocery.js";
 import { handleHousehold } from "./household.js";
 import { handleAgent } from "./agent.js";
+import { pageInbox, postInbox } from "./inbox.js";
+import { identify } from "./access.js";
+import { ensureSchema } from "./db/migrations.js";
 import { warmAlbums } from "./photos.js";
 import { tripAlbumLinks } from "./trip-records.js";
 import { serviceAccountToken, SCOPES } from "./google.js";
@@ -144,7 +147,7 @@ async function route(request, env, hub, ectx = null) {
   }
 
   if (url.pathname === "/api/config.js") {
-    const page = { ...hub.pageConfig, eventsToken: env.API_TOKEN ?? null, household: !!env.HUB_DB };
+    const page = { ...hub.pageConfig, eventsToken: env.API_TOKEN ?? null, household: !!env.HUB_DB, assistant: env.HUB_DB && hub.agent ? hub.agent.name : null };
     return new Response(`window.HUB_CONFIG = ${JSON.stringify(page).replace(/<\//g, "<\\/")};\n`, {
       headers: { "Content-Type": "application/javascript; charset=utf-8", "Cache-Control": "private, no-store" },
     });
@@ -158,6 +161,11 @@ async function route(request, env, hub, ectx = null) {
   const tripMatch = url.pathname.match(/^\/api\/trip\/([a-z0-9-]{1,40})\/checkins$/);
   if (tripMatch) {
     return handleTripCheckins(request, env, hub, tripMatch[1]);
+  }
+
+  const inboxMatch = url.pathname.match(/^\/api\/trip\/([a-z0-9-]{1,40})\/inbox$/);
+  if (inboxMatch) {
+    return handleTripInbox(request, env, hub, inboxMatch[1]);
   }
 
   const packMatch = url.pathname.match(/^\/api\/trip\/([a-z0-9-]{1,40})\/packing$/);
@@ -387,6 +395,30 @@ async function handleTripPacking(request, env, hub, tripId) {
   const lists = {};
   for (const m of members) if (current[m]) lists[m] = current[m];
   return jsonResponse({ lists });
+}
+
+// Questions for the assistant about this trip (inbox.js): the signed-in family member or
+// the trip's guest, never the player the app was told it is.
+//   GET  /api/trip/:tripId/inbox → { scopes, threads, notes, name }
+//   POST /api/trip/:tripId/inbox   { id, body, threadId? }
+async function handleTripInbox(request, env, hub, appId) {
+  const app = hub.tripApps.find(a => a.appId === appId);
+  if (!app) return jsonResponse({ error: "Unknown trip" }, 404);
+  if (!env.HUB_DB || !hub.agent) return jsonResponse({ error: "The assistant isn't set up on this hub" }, 404);
+  await ensureSchema(env.HUB_DB);
+  const who = await identify(request, env, hub);
+  if (!who.viewer) return jsonResponse({ error: who.problem }, 403);
+  const only = `trip:${app.trip}`;
+  if (request.method === "POST") {
+    if (!/^application\/json\b/i.test(request.headers.get("Content-Type") || "")) return jsonResponse({ error: "Send JSON" }, 415);
+    let body;
+    try { body = await request.json(); } catch { return jsonResponse({ error: "Bad JSON" }, 400); }
+    const refused = await postInbox(env.HUB_DB, hub, who.viewer, body, Date.now(), { only });
+    if (refused) return refused;
+  } else if (request.method !== "GET") {
+    return new Response("Method not allowed", { status: 405 });
+  }
+  return jsonResponse(await pageInbox(env.HUB_DB, hub, who.viewer, Date.now(), { only }));
 }
 
 function isValidId(id) {

@@ -20,6 +20,8 @@
  *   family-hub chore list | chore done --title T [--day YYYY-MM-DD]
  *   family-hub movie list | movie mark --title T [--mark want|seen|none] [--who member]
  *   family-hub proposal list | proposal approve <id> | proposal reject <id>                      (ops channel, an adult)
+ *   family-hub inbox poll [--json] | inbox claim <id>… | inbox reply <id> --text T      (an ops channel)
+ *   family-hub note set --text T [--until YYYY-MM-DD]       a note on the hub for this trip or home
  *   family-hub log list [--limit 20]
  *   family-hub log undo <id>
  *   family-hub doctor [--max-age-hours 26] [--json]
@@ -267,6 +269,32 @@ async function movie(verb: string | undefined, flags: Flags): Promise<string> {
   throw new Usage("Usage: family-hub movie list | mark --title T");
 }
 
+interface InboxMessage { id: string; thread: string; scope: string; scopeLabel: string; channel: string | null; by: string; role: string; via: string; body: string; at: string; earlier: { by: string; body: string }[] }
+
+async function inbox(verb: string | undefined, ids: string[], flags: Flags): Promise<string> {
+  if (verb === "poll") {
+    const { messages } = await hubFetch<{ messages: InboxMessage[] }>(`/api/agent/inbox${query({ channel: channel(flags) })}`, { token: "agent" });
+    if (flags.json) { out(JSON.stringify(messages)); return `${plural(messages.length, "message")}`; }
+    for (const m of messages) out(`- ${m.id} [${m.scopeLabel} → ${m.channel ?? "no channel"}] ${m.by}: ${m.body}`);
+    return messages.length ? `${plural(messages.length, "message")} to answer` : "nothing to answer";
+  }
+  if (verb === "claim" && ids.length) {
+    const { claimed } = await hubFetch<{ claimed: string[] }>("/api/agent/inbox/claim", { token: "agent", method: "POST", body: { channel: channel(flags), ids } });
+    return `claimed ${claimed.join(" ") || "nothing"}`;
+  }
+  if (verb === "reply" && ids[0]) {
+    await hubFetch(`/api/agent/inbox/${encodeURIComponent(ids[0])}/reply`, { token: "agent", method: "POST", body: { channel: channel(flags), body: need(flags, "text", "inbox reply <id> --text T") } });
+    return "answered";
+  }
+  throw new Usage("Usage: family-hub inbox poll | claim <id>… | reply <id> --text T");
+}
+
+async function note(verb: string | undefined, flags: Flags): Promise<string> {
+  if (verb !== "set") throw new Usage("Usage: family-hub note set --text T [--until YYYY-MM-DD]");
+  await hubFetch("/api/agent/notes", { token: "agent", method: "POST", body: { channel: channel(flags), body: need(flags, "text", "note set --text T [--until YYYY-MM-DD]"), until: flags.until } });
+  return "note set";
+}
+
 async function proposal(verb: string | undefined, id: string | undefined, flags: Flags): Promise<string> {
   if (verb === "list") {
     const { proposals } = await hubFetch<{ proposals: { id: string; summary: string; by: string | null; expiresAt: string }[] }>(`/api/agent/proposals${query({ channel: channel(flags) })}`, { token: "agent" });
@@ -345,8 +373,10 @@ async function main(): Promise<number> {
     : what === "chore" ? await chore(words[0], flags)
     : what === "movie" ? await movie(words[0], flags)
     : what === "proposal" ? await proposal(words[0], words[1], flags)
+    : what === "inbox" ? await inbox(words[0], words.slice(1), flags)
+    : what === "note" ? await note(words[0], flags)
     : null;
-  if (done == null) throw new Usage("Usage: family-hub trip | grocery | task | chore | movie | proposal | log | doctor …");
+  if (done == null) throw new Usage("Usage: family-hub trip | grocery | task | chore | movie | proposal | inbox | note | log | doctor …");
   out(`\n${WHAT} ${pending ? "PENDING" : "OK"}: ${done}`);
   return 0;
 }
