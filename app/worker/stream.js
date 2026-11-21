@@ -23,7 +23,7 @@ import { listGrocery } from "./grocery.js";
 import { loadDueTasks, loadPets, photoResponse, roomImage, movieImage } from "./household.js";
 import { loadRooms } from "./rooms.js";
 import { loadMovies } from "./movies.js";
-import { loadTrips } from "./trip-records.js";
+import { loadTrips, tripAlbumLink } from "./trip-records.js";
 import { ensureSchema } from "./db/migrations.js";
 import { loadChoresToday } from "./chores.js";
 import { ymd, addDays, json } from "./util.js";
@@ -225,10 +225,9 @@ async function streamImage(env, hub, cardId, origin, version = null) {
   // trip-photo:<trip id>:<photo id> — a photo from that trip's shared album.
   if (component === "trip-photo" && id) {
     const [tripId, ...photo] = id.split(":");
-    const family = env.HUB_DATA ? await env.HUB_DATA.get("data:family", "json") : null;
-    const trip = (family?.trips ?? []).find(t => t?.id === tripId);
-    if (!trip?.album || !photo.length) return json({ error: `No album for trip "${tripId}"` }, 404);
-    return photoFromAlbum(trip.album, photo.join(":"));
+    const album = await tripAlbumLink(env, tripId);
+    if (!album || !photo.length) return json({ error: `No album for trip "${tripId}"` }, 404);
+    return photoFromAlbum(album, photo.join(":"));
   }
   if ((component === "trips" || component === "past-trips") && id) {
     return heroResponse(env, hub.tripApps.find(t => t.trip === id), origin);

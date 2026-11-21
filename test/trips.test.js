@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { handleHousehold } from "../app/worker/household.js";
-import { cleanTrip, cleanBbox, findMap, tripId, HIGHLIGHT_COLORS } from "../app/worker/trip-records.js";
+import { cleanTrip, cleanBbox, findMap, tripId, tripAlbumLink, HIGHLIGHT_COLORS } from "../app/worker/trip-records.js";
 import { byId } from "../app/worker/components/index.js";
 import { memoryD1, memoryKV, HUB, NO_SQLITE, ctxWith } from "./helpers.js";
 
@@ -151,6 +151,16 @@ test("a bad trip in the published list stops the import and says which", D1, asy
   const { status, body } = await as("alex")("/trips/import", {});
   assert.equal(status, 400);
   assert.match(body.error, /^trips\[1\] \(bad-trip\)\.endDate/);
+});
+
+test("a trip's photos come from its album in the hub, or the published one before", D1, async () => {
+  const OLD = "https://www.icloud.com/sharedalbum/#B0oldAlbumLink1";
+  const { as, env } = setup([{ id: "beach-jul-2027", name: "Beach", startDate: "2027-07-10", endDate: "2027-07-14", album: OLD }]);
+  assert.equal(await tripAlbumLink(env, "beach-jul-2027"), OLD, "before the hub has trips");
+  await as("alex")("/trips", trip({ isNew: true, album: ALBUM }));
+  assert.equal(await tripAlbumLink(env, "lake-jul-2027"), ALBUM, "a trip only the hub has");
+  assert.equal(await tripAlbumLink(env, "beach-jul-2027"), null, "once the hub has trips, the published list is ignored");
+  assert.equal(await tripAlbumLink({ HUB_DATA: env.HUB_DATA }, "beach-jul-2027"), OLD, "no database: the published list");
 });
 
 // ─── The components ──────────────────────────────────────────────────────────
