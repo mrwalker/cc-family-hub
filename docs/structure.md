@@ -57,6 +57,7 @@ cc-family-hub/
 | [`app/public/index.html`](../app/public/index.html) | The hub page |
 | [`app/public/household/`](../app/public/household/index.html) | The page where the family edits household records |
 | `app/public/trip-app/` | The trip-app engine that every trip shares |
+| `app/public/icons/` | The hub's home-screen icons (`hub.svg` is the source) |
 | [`app/build.mjs`](../app/build.mjs) | Validates a workspace and assembles a family's site. Runs as the `wrangler` build command. |
 | `app/template/` | What `family-hub init` copies into a new hub repo, with its `CLAUDE.md` and slash commands |
 | `app/widgets/` | iPhone widgets (Scriptable) |

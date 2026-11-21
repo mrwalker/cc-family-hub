@@ -61,6 +61,7 @@ outputs:                            # see outputs.md
 
 hub:
   title: "Rivera Family Hub"
+  shortTitle: "Rivera Hub"         # optional: the name under its icon on a phone's home screen
 
   # Lets the hub check who's signed in before anyone changes household records.
   # Both are in Cloudflare Zero Trust; neither is a secret. See getting-started.md.
