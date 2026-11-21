@@ -130,6 +130,8 @@ with `--trip <id>`.
 | `family-hub chore list`, `chore done --title T` | Today's chores, and ticking one |
 | `family-hub movie list`, `movie mark --title T [--mark want\|seen\|none] [--who member]` | Movies, and marks |
 | `family-hub proposal list`, `proposal approve <id>`, `proposal reject <id>` | What's waiting; deciding it (an `ops` channel, an adult) |
+| `family-hub inbox poll [--json]`, `inbox claim <id>…`, `inbox reply <id> --text T` | Questions from the hub, and answering them (an `ops` channel) |
+| `family-hub note set --text T [--until D]` | A note on the hub for this trip or home |
 | `family-hub log list [--limit 20]` | What the assistant changed lately |
 | `family-hub log undo <id>` | Reverses one change |
 | `family-hub doctor` | Checks the live hub; needs no channel |
@@ -177,6 +179,27 @@ the bindings, the database schema, the assistant's setup, and that every trip ap
 trip the hub has. It makes no judgment calls, so it can run on a schedule without an
 assistant and report only when it fails.
 
+## Asking from the hub
+
+The hub page has an **Ask** button (named for `hub.agent.name`), and each trip app has an
+**Ask** panel on its Today view. A question goes to the assistant, and its answer shows
+there in a minute or two. The family can ask about home or any trip; a trip's guests only
+about their trips. A trip app keeps a question written offline and sends it on the next
+sync.
+
+Nothing reaches the assistant by itself: a script on the assistant's machine polls
+(`family-hub inbox poll` from an `ops` channel), claims each question
+(`inbox claim <id>`), posts it in the channel its scope maps to, has the assistant answer
+there, and hands the answer back (`inbox reply <id> --text -`). A claimed question that
+isn't answered in 15 minutes is offered again.
+
+The assistant can also leave a **note** for a trip or for home, shown at the top of the
+Ask panels until a date: `family-hub note set --text - --until 2026-12-01`, from that
+trip's or the household's channel. A trip briefing is a good note.
+
+A trip app change reaches phones only after the family bumps each trip's `sw.js` version
+(see [trip-apps.md](trip-apps.md)).
+
 ## The API
 
 All under `/api/agent`, with `Authorization: Bearer <AGENT_TOKEN>` (and the Access service
@@ -197,6 +220,14 @@ token, if the hub is behind Cloudflare Access).
 | POST | `/ops` | `{ op, args, channel, actor: { slack?, name? } }` → `{ status: "applied" \| "unchanged", summary, logId? }`, or `{ status: "pending", proposalId, expiresAt, summary }` |
 | POST | `/log/:id/undo` | `{ channel, actor }`; from the channel the change was made for, or `ops` |
 | POST | `/proposals/:id/approve`, `/reject` | `{ channel, actor }`; from an `ops` channel, by an adult |
+
+| GET | `/inbox?channel=` | Questions from the hub to answer (an `ops` channel) |
+| POST | `/inbox/claim` | `{ channel, ids }` → `{ claimed }` |
+| POST | `/inbox/:id/reply` | `{ channel, body }` |
+| POST | `/notes` | `{ channel, body, until? }`, from a trip's or the household's channel |
+
+The pages use `GET`/`POST /api/household/inbox` and `GET`/`POST /api/trip/:appId/inbox`,
+with the viewer's sign-in.
 
 And for the household page, with the viewer's sign-in (adults): `POST /api/household/agent/proposals/:id/approve|reject` and `POST /api/household/agent/log/:id/undo`.
 

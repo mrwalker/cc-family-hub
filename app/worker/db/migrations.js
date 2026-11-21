@@ -362,6 +362,30 @@ export const MIGRATIONS = [
       `CREATE INDEX IF NOT EXISTS agent_proposals_status ON agent_proposals (status, created_at)`,
     ],
   },
+  {
+    // v2.14: questions for the assistant from the hub page and trip apps, its answers, and
+    // the notes it leaves (inbox.js). A thread is its first message's id.
+    version: 12,
+    statements: [
+      `CREATE TABLE IF NOT EXISTS inbox_messages (
+         id TEXT PRIMARY KEY,
+         thread_id TEXT NOT NULL,
+         scope TEXT NOT NULL,
+         kind TEXT NOT NULL,
+         author TEXT,
+         author_label TEXT,
+         via TEXT NOT NULL,
+         body TEXT NOT NULL,
+         status TEXT,
+         claimed_at INTEGER,
+         until TEXT,
+         created_at INTEGER NOT NULL
+       )`,
+      `CREATE INDEX IF NOT EXISTS inbox_status ON inbox_messages (status, created_at)`,
+      `CREATE INDEX IF NOT EXISTS inbox_thread ON inbox_messages (thread_id, created_at)`,
+      `CREATE INDEX IF NOT EXISTS inbox_scope ON inbox_messages (scope, kind, created_at)`,
+    ],
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

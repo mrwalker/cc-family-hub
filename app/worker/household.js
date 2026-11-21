@@ -65,6 +65,7 @@ import { listMovies, applyPicks, moviesHistory, handleMovieWrite } from "./movie
 import { tripsSnapshot, handleTripWrite } from "./trip-records.js";
 import { imageResponse } from "./link-image.js";
 import { assistantSnapshot, handleAssistantWrite } from "./agent.js";
+import { pageInbox, postInbox } from "./inbox.js";
 
 /**
  * Each area's kinds of task.
@@ -664,6 +665,7 @@ export async function handleHousehold(request, env, hub, path, opts = {}) {
     const poster = path.match(/^\/image\/movies\/([A-Za-z0-9_-]{6,40})$/);
     if (poster) return movieImage(env, poster[1], opts);
     if (path === "/rooms" || path === "/movies" || path === "/trips") return json(await snapshot(env, hub, who, now));
+    if (path === "/inbox") return who.viewer ? json(await pageInbox(db, hub, who.viewer, now)) : json({ error: who.problem }, hub.access ? 403 : 503);
     if (path === "/chores") {
       // The page looking at another day's chores; no calendar sync for that.
       const day = new URL(request.url).searchParams.get("day");
@@ -715,6 +717,11 @@ export async function handleHousehold(request, env, hub, path, opts = {}) {
       answer: async (extra = {}) => json({ ...(await snapshot(env, hub, who, now)), ...extra }),
     });
     return reply ?? json({ error: "Not found" }, 404);
+  }
+
+  if (path === "/inbox") {
+    const refused = await postInbox(db, hub, viewer, body, now);
+    return refused ?? json(await pageInbox(db, hub, viewer, now));
   }
 
   if (path.startsWith("/agent/")) {

@@ -283,6 +283,7 @@ never run a migration by hand.
 | GET | `/api/household/export` | The pipeline (`PUBLISH_TOKEN`) | What's due, overdue and lately done, by name |
 | POST | `/api/household/agent/proposals/:id/approve` | Adults | Approve (or `/reject`) a change the assistant was asked for |
 | POST | `/api/household/agent/log/:id/undo` | Adults | Undo one of the assistant's changes |
+| GET, POST | `/api/household/inbox` | Family and guests | Questions for the assistant, and its answers and notes |
 
 Every write is validated in the Worker and answers with the fresh list. A write has to be
 a JSON request, which a form on another website can't send.

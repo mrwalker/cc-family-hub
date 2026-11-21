@@ -383,3 +383,46 @@ test("the trip form can't quietly undo what the assistant added", D1, async () =
   const fresh = (await db.prepare("SELECT updated_at FROM trips WHERE id = 'lake-jul-2027'").first()).updated_at;
   assert.equal((await save(fresh)).status, 200);
 });
+
+// ─── Questions from the hub ───────────────────────────────────────────────────
+
+test("questions from the hub reach the assistant, and its answers come back", D1, async () => {
+  const { env, call } = await setup();
+  const page = async (path, { member = "alex", body } = {}) => {
+    const res = await handleHousehold(new Request(`https://hub.example.com/api/household${path}`, body
+      ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : {}),
+      { ...env, DEV_MEMBER: member }, hubWith(), path, { now: NOW });
+    return { status: res.status, body: await res.json() };
+  };
+  const seen = (await page("/inbox")).body;
+  assert.deepEqual(seen.scopes.map(s => [s.key, s.label]), [["trip:lake-jul-2027", "Lake week"], ["trip:beach-aug-2027", "Beach"], ["household", "Home"]]);
+  assert.deepEqual((await page("/inbox", { member: "grandma" })).body.scopes.map(s => s.key), ["trip:lake-jul-2027"], "a guest asks only about their trips");
+  assert.equal((await page("/inbox", { member: "grandma", body: { id: "ask-grandma-1", scope: "household", body: "Hi" } })).status, 403);
+
+  const ask = { id: "ask-sam-0001", scope: "trip:lake-jul-2027", body: "Is there a canoe rental near the cabin?" };
+  assert.equal((await page("/inbox", { member: "sam", body: ask })).status, 200);
+  assert.equal((await page("/inbox", { member: "sam", body: ask })).status, 200, "sent twice, asked once");
+  assert.equal((await page("/inbox", { body: { ...ask, id: "ask-long-001", body: "x".repeat(1001) } })).status, 400);
+
+  assert.equal((await call(`/inbox?channel=${LAKE}`)).status, 403, "only an ops channel reads the questions");
+  const [m] = (await call(`/inbox?channel=${OPS}`)).body.messages;
+  assert.deepEqual([m.id, m.by, m.channel, m.scopeLabel, m.via], ["ask-sam-0001", "Sam", LAKE, "Lake week", "hub"]);
+  assert.deepEqual((await call("/inbox/claim", { body: { channel: OPS, ids: [m.id] } })).body.claimed, [m.id]);
+  assert.deepEqual((await call("/inbox/claim", { body: { channel: OPS, ids: [m.id] } })).body.claimed, [], "taken once");
+  assert.equal((await call(`/inbox?channel=${OPS}`)).body.messages.length, 0);
+  assert.equal((await call(`/inbox/${m.id}/reply`, { body: { channel: OPS, body: "Yes: Lakeside Rentals, 5 minutes away." } })).status, 200);
+
+  const thread = (await page("/inbox", { member: "sam" })).body.threads[0];
+  assert.deepEqual(thread.messages.map(x => [x.kind, x.by]), [["message", "Sam"], ["reply", "Assistant"]]);
+  assert.equal(thread.messages[0].mine, true);
+
+  // A follow-up carries the conversation so far.
+  await page("/inbox", { member: "sam", body: { id: "ask-sam-0002", scope: "trip:lake-jul-2027", threadId: "ask-sam-0001", body: "How much?" } });
+  const [next] = (await call(`/inbox?channel=${OPS}`)).body.messages;
+  assert.deepEqual(next.earlier.map(e => e.by), ["Sam", "Assistant"]);
+
+  // Notes: one per scope, until a date.
+  assert.equal((await call("/notes", { body: { channel: OPS, body: "Hi" } })).status, 403);
+  assert.equal((await call("/notes", { body: { channel: LAKE, body: "10 days to go!", until: "2027-06-22" } })).status, 200);
+  assert.deepEqual((await page("/inbox", { member: "grandma" })).body.notes.map(n => n.body), ["10 days to go!"]);
+});

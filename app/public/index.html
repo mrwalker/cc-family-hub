@@ -634,6 +634,20 @@
       border-bottom: 1px solid var(--bg);
     }
     .modal-action:last-child { border-bottom: none; }
+    /* ── Ask the assistant (inbox) ───────────────────────────────── */
+    .ask-form select, .ask-form textarea { width: 100%; box-sizing: border-box; font: inherit; font-size: 16px; padding: 10px 12px;
+      border-radius: 10px; border: 1px solid var(--border); background: var(--bg); color: var(--text); }
+    .ask-form textarea { min-height: 84px; resize: vertical; margin-top: 8px; }
+    .ask-form .ask-row { margin-top: 8px; text-align: right; }
+    .ask-form button { font: inherit; font-weight: 600; padding: 9px 18px; border-radius: 10px; border: 0; background: #2563eb; color: #fff; cursor: pointer; }
+    .ask-form button[disabled] { opacity: .5; }
+    .ask-status { font-size: 13px; color: var(--muted); margin-top: 6px; }
+    .ask-note { font-size: 14px; line-height: 1.55; padding: 10px 12px; border-radius: 10px; background: var(--info-light); white-space: pre-wrap; }
+    .ask-thread { border-top: 1px solid var(--border); padding-top: 10px; }
+    .ask-msg { font-size: 14px; line-height: 1.55; margin: 6px 0; white-space: pre-wrap; }
+    .ask-msg b { font-weight: 600; }
+    .ask-msg.reply { padding-left: 12px; border-left: 3px solid #2563eb; }
+    .ask-more { font: inherit; font-size: 13px; background: none; border: 0; color: #2563eb; cursor: pointer; padding: 0; }
 
     /* ── Featured Trip ──────────────────────────────────────────────── */
     .ft-section { margin-bottom: 20px; }
@@ -1309,6 +1323,7 @@
     <h1 id="hub-title">Family Hub</h1>
     <div class="hub-header-right">
       <span class="hub-meta" id="generated-at"></span>
+      <a class="hub-link" id="ask-link" href="#ask">Ask</a>
       <a class="hub-link" id="household-link" href="/household/">Household</a>
       <button class="theme-toggle" id="theme-toggle">Light</button>
     </div>
@@ -1461,6 +1476,12 @@ document.title = HUB_CONFIG.title;
 document.getElementById("hub-title").textContent = HUB_CONFIG.title;
 // Household records (pets, and more to come) are edited on their own page.
 if (HUB_CONFIG.household) document.getElementById("household-link").classList.add("shown");
+if (HUB_CONFIG.assistant) {
+  const ask = document.getElementById("ask-link");
+  ask.textContent = "Ask " + HUB_CONFIG.assistant;
+  ask.classList.add("shown");
+  ask.addEventListener("click", e => { e.preventDefault(); openAsk(); });
+}
 
 // Make a whole trip card/row open its trip app (big tap target for the wall tablet).
 function linkTripApp(el, tripId) {
@@ -3543,7 +3564,74 @@ function openModal(day) {
   document.getElementById("day-modal").classList.remove("hidden");
   document.body.style.overflow = "hidden"; // lock background scroll
 }
+// ── Ask the assistant ──────────────────────────────────────────────
+// Questions go to the family's assistant in its chat (app/worker/inbox.js); its answers
+// show here. Polled while open, since an answer takes a minute or two.
+const askState = { data: null, scope: null, replyTo: null, timer: null };
+function askId() {
+  const b = new Uint8Array(9); crypto.getRandomValues(b);
+  return "ask-" + Array.prototype.map.call(b, x => ("0" + x.toString(16)).slice(-2)).join("");
+}
+function askFetch(body) {
+  return fetch("/api/household/inbox", body ? { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }
+    : { credentials: "same-origin" }).then(r => r.json().then(j => { if (!r.ok) throw new Error(j.error || "The hub said no"); return j; }));
+}
+function openAsk() {
+  document.getElementById("modal-date").textContent = "Ask " + HUB_CONFIG.assistant;
+  document.getElementById("modal-body").innerHTML = `<p style="color:var(--muted);font-size:13px">Loading…</p>`;
+  document.getElementById("day-modal").classList.remove("hidden");
+  document.body.style.overflow = "hidden";
+  askLoad();
+  clearInterval(askState.timer);
+  askState.timer = setInterval(() => { if (!document.getElementById("day-modal").classList.contains("hidden") && document.getElementById("ask-text") && !document.getElementById("ask-text").value) askLoad(); }, 20000);
+}
+function askLoad() {
+  return askFetch().then(d => { askState.data = d; askRender(); })
+    .catch(e => { document.getElementById("modal-body").innerHTML = `<p style="font-size:14px">${esc(e.message)}</p>`; });
+}
+function askRender() {
+  const d = askState.data, name = esc(d.name || HUB_CONFIG.assistant);
+  if (!d.scopes.length) { document.getElementById("modal-body").innerHTML = `<p style="font-size:14px">There's nothing you can ask about here yet.</p>`; return; }
+  if (!askState.scope || !d.scopes.some(s => s.key === askState.scope)) askState.scope = d.scopes[d.scopes.length - 1].key;
+  const label = key => (d.scopes.find(s => s.key === key) || {}).label || key;
+  const replying = askState.replyTo && d.threads.find(t => t.id === askState.replyTo);
+  let html = d.notes.map(n => `<div class="ask-note"><b>${esc(label(n.scope))}:</b> ${esc(n.body)}</div>`).join("");
+  html += `<div class="ask-form">
+    ${replying ? `<div class="ask-status">Replying about: “${esc(replying.body.slice(0, 80))}” <button class="ask-more" id="ask-new">Ask something new</button></div>`
+      : `<select id="ask-scope">${d.scopes.map(s => `<option value="${esc(s.key)}"${s.key === askState.scope ? " selected" : ""}>${esc(s.label)}</option>`).join("")}</select>`}
+    <textarea id="ask-text" maxlength="1000" placeholder="Ask a question, or ask ${name} to add something"></textarea>
+    <div class="ask-row"><button id="ask-send">Send</button></div>
+    <div class="ask-status">${name} answers in a minute or two. The question also goes to the family's chat.</div>
+  </div>`;
+  html += d.threads.map(t => `<div class="ask-thread">
+    <div class="modal-section-label">${esc(label(t.scope))}</div>
+    ${t.messages.map(m => `<div class="ask-msg${m.kind === "reply" ? " reply" : ""}"><b>${esc(m.by)}:</b> ${esc(m.body)}</div>`).join("")}
+    ${t.messages[t.messages.length - 1].kind === "reply" ? "" : `<div class="ask-status">Waiting for ${name}…</div>`}
+    <button class="ask-more" data-reply="${esc(t.id)}">Reply</button>
+  </div>`).join("");
+  const body = document.getElementById("modal-body");
+  body.innerHTML = html;
+  const scopeSel = document.getElementById("ask-scope");
+  if (scopeSel) scopeSel.addEventListener("change", () => { askState.scope = scopeSel.value; });
+  const fresh = document.getElementById("ask-new");
+  if (fresh) fresh.addEventListener("click", () => { askState.replyTo = null; askRender(); });
+  Array.prototype.forEach.call(body.querySelectorAll("[data-reply]"), b => b.addEventListener("click", () => {
+    askState.replyTo = b.getAttribute("data-reply");
+    askState.scope = d.threads.find(t => t.id === askState.replyTo).scope;
+    askRender(); document.getElementById("ask-text").focus();
+  }));
+  document.getElementById("ask-send").addEventListener("click", () => {
+    const text = document.getElementById("ask-text").value.trim();
+    if (!text) return;
+    const btn = document.getElementById("ask-send"); btn.disabled = true;
+    askFetch({ id: askId(), scope: askState.scope, body: text, threadId: askState.replyTo || undefined })
+      .then(d2 => { askState.data = d2; askState.replyTo = null; askRender(); })
+      .catch(e => { btn.disabled = false; alert(e.message); });
+  });
+}
+
 function closeModal() {
+  clearInterval(askState.timer);
   document.getElementById("day-modal").classList.add("hidden");
   document.body.style.overflow = ""; // restore scroll
 }

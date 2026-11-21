@@ -37,6 +37,9 @@
     packing: {},     // member → {checked:[], ts} edited on this device
     packPend: {},    // member → true
     serverPacking: {},
+    asks: {},        // questions for the assistant written on this device, by id
+    askPend: {},     // id → true (not sent yet)
+    inbox: null,     // the last { threads, notes, name } from the hub, or null without an assistant
     lastSync: 0,
   });
 
@@ -253,6 +256,21 @@
         if (s && s.ts >= lists[m].ts) delete state.packPend[m];
       }
 
+      // Questions for the assistant. A hub without one (or an older hub) answers 404: skip it.
+      try {
+        for (const id of Object.keys(state.askPend)) {
+          const a = state.asks[id];
+          if (a) state.inbox = await api("/inbox", { id: a.id, body: a.body, threadId: a.threadId || undefined });
+          delete state.askPend[id];
+        }
+        state.inbox = await api("/inbox");
+        const answered = new Set((state.inbox.threads || []).flatMap(t => t.messages.map(m => m.id)));
+        for (const id of Object.keys(state.asks)) if (answered.has(id) && !state.askPend[id]) delete state.asks[id];
+      } catch (e) {
+        if (e.auth) throw e;
+        if (/HTTP 404/.test(e.message)) state.inbox = null;
+      }
+
       state.lastSync = Date.now();
       sync.status = "ok";
       save();
@@ -267,7 +285,7 @@
   }
 
   function pendingCount() {
-    return Object.keys(state.pendUp).length + Object.keys(state.pendDel).length + Object.keys(state.packPend).length;
+    return Object.keys(state.pendUp).length + Object.keys(state.pendDel).length + Object.keys(state.packPend).length + Object.keys(state.askPend).length;
   }
 
   function renderSync() {
@@ -381,6 +399,44 @@
   }
 
   // ── Views ──────────────────────────────────────────────────────────────
+  // ── Ask the assistant ──────────────────────────────────────────────────
+  // Questions go to the family's assistant in its chat; answers come back on the next
+  // sync. Written offline, they wait on this device until there's a connection.
+  function askPanel() {
+    const box = state.inbox;
+    if (!box) return "";
+    const name = box.name || "the assistant";
+    const note = (box.notes || [])[0];
+    const waiting = Object.values(state.asks).filter(a => state.askPend[a.id]);
+    const threads = (box.threads || []).slice(0, 3);
+    return panel(`Ask ${name}`, `
+      ${note ? `<p class="note top ask-note">${h(note.body)}</p>` : ""}
+      ${waiting.map(a => `<div class="ask-msg"><b>You:</b> ${h(a.body)}<small>${navigator.onLine ? "Sending…" : "Sends when you’re online"}</small></div>`).join("")}
+      ${threads.map(t => `<div class="ask-thread">${t.messages.slice(-3).map(m => `<div class="ask-msg ${m.kind === "reply" ? "reply" : ""}"><b>${h(m.mine ? "You" : m.by)}:</b> ${h(m.body)}</div>`).join("")}
+        ${t.messages[t.messages.length - 1].kind === "reply" ? "" : `<small class="ask-wait">${h(name)} is on it…</small>`}</div>`).join("")}
+      <div class="actions"><button class="btn ghost" data-action="ask">Ask a question</button></div>`);
+  }
+
+  function askSheet() {
+    const name = (state.inbox && state.inbox.name) || "the assistant";
+    openSheet(`<div class="sheet-head"><span class="label">Ask ${h(name)}</span></div>
+      <p>Ask anything about the trip, or ask ${h(name)} to add a restaurant, something to do, or an idea. It answers here in a minute or two, and the trip’s chat sees it too.</p>
+      <textarea id="askText" class="ask-input" maxlength="1000" rows="4" placeholder="Is there a good taco place near the hotel?"></textarea>
+      <div class="actions"><button class="btn" data-action="ask-send">Send</button><button class="btn ghost" data-close>Close</button></div>`);
+    setTimeout(() => { const t = $("#askText"); if (t) t.focus(); }, 50);
+  }
+
+  function sendAsk() {
+    const text = ($("#askText")?.value || "").trim();
+    if (!text) return;
+    const id = "ask-" + newId().slice(0, 20);
+    state.asks[id] = { id, body: text.slice(0, 1000), ts: Date.now() };
+    state.askPend[id] = true;
+    save(); closeSheet(); render();
+    toast(navigator.onLine ? "Sent" : "Saved. It sends when you’re online");
+    doSync(true);
+  }
+
   function viewToday() {
     const ph = phase();
     const dayNum = daysBetween(T.start, today());
@@ -395,6 +451,7 @@
         ${panel("Packing", `<div class="who-row inset">${T.members.map(m => packRing(m.id, false)).join("")}</div>
           <p class="note">Progress syncs across everyone’s phones. Bags packed by <b>${h(T.packBy)}</b>.</p>`, ["My list", "#pack"])}
         ${panel("The plan", dayList(), ["Details", "#schedule"])}
+        ${askPanel()}
         ${panel("Quests", `<p class="note top">${T.quests.length} quests, ${totalPts} points. ${h(T.text.questPitch)}</p>
           <div class="rows">${T.quests.filter(q => q.featured).slice(0, 4).map(questRow).join("")}</div>`, ["Browse", "#quests"])}
         ${tipHtml(new Date().getDate())}`;
@@ -405,6 +462,7 @@
       return `
         ${d ? panel("", `${dayHeader(d)}${timeline(d, true)}`) : ""}
         ${dayQuests.length ? panel("Today’s quests", `<div class="rows">${dayQuests.map(questRow).join("")}</div>`, ["All", "#quests"]) : ""}
+        ${askPanel()}
         ${miniBoard()}
         ${tipHtml(dayNum)}
         ${panel(T.text.conditions.replace(/^[^\w]+/, ""), factsHtml().replace('class="facts"', 'class="facts flush"'))}`;
@@ -413,6 +471,7 @@
     return `
       ${panel("Final standings", `<p class="note top">${familyDone.size} of ${T.quests.length} quests completed together.</p>
         ${rows.map((r, i) => rankRow(r, i, rows[0].total || 1)).join("")}`)}
+      ${askPanel()}
       ${tipHtml(0)}`;
   }
 
@@ -623,6 +682,8 @@
     if (!t) return;
     const d = t.dataset;
     if (t.id === "meChip" || d.action === "pick-me") return meSheet();
+    if (d.action === "ask") return askSheet();
+    if (d.action === "ask-send") return sendAsk();
     if ("close" in d) return closeSheet();
     if (d.quest) return questSheet(d.quest);
     if (d.cat) { ui.questCat = d.cat; return render(); }

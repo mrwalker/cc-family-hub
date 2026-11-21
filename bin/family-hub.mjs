@@ -18,6 +18,8 @@
  *   family-hub chore …           The assistant: today's chores, and ticking one
  *   family-hub movie …           The assistant: movies, and marking one wanted or seen
  *   family-hub proposal …        The assistant: changes waiting for an adult's yes
+ *   family-hub inbox …           The assistant: questions asked on the hub, and answering them
+ *   family-hub note set          The assistant: a note on the hub for a trip or home
  *   family-hub log …             The assistant: what it changed, and undoing a change
  *   family-hub doctor            Check the live hub: what's deployed, how fresh its data is
  *   family-hub build             Validate the workspace and assemble the Worker's site
@@ -68,6 +70,8 @@ const COMMANDS = {
   chore:   (...args) => tsx("hub/agent.ts", ["chore", ...args]),
   movie:   (...args) => tsx("hub/agent.ts", ["movie", ...args]),
   proposal: (...args) => tsx("hub/agent.ts", ["proposal", ...args]),
+  inbox:   (...args) => tsx("hub/agent.ts", ["inbox", ...args]),
+  note:    (...args) => tsx("hub/agent.ts", ["note", ...args]),
   doctor:  (...args) => tsx("hub/agent.ts", ["doctor", ...args]),
   build:   () => node("app/build.mjs"),
   run() {
