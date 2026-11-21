@@ -6,9 +6,20 @@
  *   family-hub trip add-idea --text T
  *   family-hub trip add-restaurant --name N [--price '$$'] [--type T] [--note T]
  *   family-hub trip add-activity --name N [--emoji E] [--note T]
+ *   family-hub trip remove-idea --text T | remove-restaurant --name N | remove-activity --name N   (waits for a yes)
+ *   family-hub trip set-dates --start YYYY-MM-DD --end YYYY-MM-DD                                (waits for a yes)
  *   family-hub grocery list
  *   family-hub grocery add --name N [--qty 2] [--store S]
  *   family-hub grocery check --name N
+ *   family-hub grocery remove --name N                                                           (waits for a yes)
+ *   family-hub task list [--days 30]
+ *   family-hub task add --title T [--pet P | --place P] [--kind K] [--due D] [--time HH:MM]
+ *                       [--every N --unit day|week|month|year] [--assignee who] [--provider P] [--phone P] [--notes T]
+ *   family-hub task done --title T [--pet P] [--place P] [--note T]
+ *   family-hub task archive --title T [--pet P] [--place P]                                      (waits for a yes)
+ *   family-hub chore list | chore done --title T [--day YYYY-MM-DD]
+ *   family-hub movie list | movie mark --title T [--mark want|seen|none] [--who member]
+ *   family-hub proposal list | proposal approve <id> | proposal reject <id>                      (ops channel, an adult)
  *   family-hub log list [--limit 20]
  *   family-hub log undo <id>
  *   family-hub doctor [--max-age-hours 26] [--json]
@@ -20,9 +31,9 @@
  * --for-name adds a name for someone the hub doesn't know. A value of - reads that text
  * from stdin, so quotes can't break a command.
  *
- * The last line is "<WHAT> OK: …" or "<WHAT> FAILED: …". Exit codes: 0 done (or nothing to
- * do); 1 refused, don't retry as it is; 2 the command was mistyped; 3 the hub couldn't be
- * reached or isn't set up, try later.
+ * The last line is "<WHAT> OK: …", "<WHAT> PENDING: …" (it waits for an adult's yes) or
+ * "<WHAT> FAILED: …". Exit codes: 0 done, nothing to do, or waiting; 1 refused, don't retry
+ * as it is; 2 the command was mistyped; 3 the hub couldn't be reached or isn't set up, try later.
  */
 
 import { readFileSync } from "fs";
@@ -76,12 +87,20 @@ function need(flags: Flags, name: string, form: string): string {
   return v;
 }
 
-interface OpResult { status: "applied" | "unchanged"; summary: string; logId?: string }
+interface OpResult { status: "applied" | "unchanged" | "pending" | "approved" | "rejected"; summary: string; logId?: string; proposalId?: string; expiresAt?: string }
+
+/** Set when the change waits for a yes, so the last line says PENDING. */
+let pending = false;
 
 /** One change. Prints what happened; the caller prints the last line. */
 async function change(op: string, args: Record<string, unknown>, flags: Flags): Promise<string> {
-  const body = { op, args: { ...args, ...(flags.trip ? { trip: flags.trip } : {}) }, channel: channel(flags), actor: actor(flags), source: "cli" };
+  const clean = Object.fromEntries(Object.entries(args).filter(([, v]) => v !== undefined));
+  const body = { op, args: { ...clean, ...(flags.trip ? { trip: flags.trip } : {}) }, channel: channel(flags), actor: actor(flags), source: "cli" };
   const r = await hubFetch<OpResult>("/api/agent/ops", { token: "agent", method: "POST", body });
+  if (r.status === "pending") {
+    pending = true;
+    return `${r.summary}: waiting for an adult's yes (proposal ${r.proposalId}, until ${r.expiresAt?.slice(0, 10)}). They approve it on the hub's /household/ page under Assistant. Tell the person that; don't run it again`;
+  }
   return r.status === "applied" ? `${r.summary} (log ${r.logId}; undo with: family-hub log undo ${r.logId})` : `nothing to do. ${r.summary}`;
 }
 
@@ -166,7 +185,14 @@ async function trip(verb: string | undefined, flags: Flags): Promise<string> {
   if (verb === "add-activity") {
     return change("trip.add-activity", { name: need(flags, "name", "trip add-activity --name N [--emoji E] [--note T]"), emoji: flags.emoji, note: flags.note }, flags);
   }
-  throw new Usage("Usage: family-hub trip list | show | brief | add-idea | add-restaurant | add-activity");
+  if (verb === "remove-idea") return change("trip.remove-idea", { text: need(flags, "text", "trip remove-idea --text T") }, flags);
+  if (verb === "remove-restaurant") return change("trip.remove-restaurant", { name: need(flags, "name", "trip remove-restaurant --name N") }, flags);
+  if (verb === "remove-activity") return change("trip.remove-activity", { name: need(flags, "name", "trip remove-activity --name N") }, flags);
+  if (verb === "set-dates") {
+    const form = "trip set-dates --start YYYY-MM-DD --end YYYY-MM-DD";
+    return change("trip.set-dates", { start: need(flags, "start", form), end: need(flags, "end", form) }, flags);
+  }
+  throw new Usage("Usage: family-hub trip list | show | brief | add-idea | add-restaurant | add-activity | remove-idea | remove-restaurant | remove-activity | set-dates");
 }
 
 // ─── Groceries, the log, the doctor ───────────────────────────────────────────
@@ -183,7 +209,75 @@ async function grocery(verb: string | undefined, flags: Flags): Promise<string> 
     return change("grocery.add", { name: need(flags, "name", "grocery add --name N [--qty 2] [--store S]"), ...(qty ? { quantity: Number(qty) } : {}), store: flags.store }, flags);
   }
   if (verb === "check") return change("grocery.check", { name: need(flags, "name", "grocery check --name N") }, flags);
-  throw new Usage("Usage: family-hub grocery list | add --name N | check --name N");
+  if (verb === "remove") return change("grocery.remove", { name: need(flags, "name", "grocery remove --name N") }, flags);
+  throw new Usage("Usage: family-hub grocery list | add --name N | check --name N | remove --name N");
+}
+
+// ─── Tasks, chores, movies, proposals ─────────────────────────────────────────
+
+interface Task { title: string; area: string; kind: string; pet: string | null; place: string | null; assignee: string | null; dueDate: string | null; daysUntil: number; overdue: boolean; repeats: string | null; booked: boolean; apptDate: string | null }
+
+async function task(verb: string | undefined, flags: Flags): Promise<string> {
+  if (verb === "list") {
+    const r = await hubFetch<{ today: string; days: number; place: string | null; tasks: Task[]; recent: { title: string; doneOn: string; doneBy: string | null }[] }>(`/api/agent/tasks${query({ channel: channel(flags), days: flags.days })}`, { token: "agent" });
+    out(`due in the next ${r.days} days${r.place ? ` at ${r.place}` : ""} (today is ${r.today}):`);
+    if (!r.tasks.length) out("- nothing");
+    for (const t of r.tasks) {
+      const when = t.overdue ? `OVERDUE since ${t.dueDate}` : t.daysUntil === 0 ? "due today" : `due ${t.dueDate}`;
+      out(`- ${t.title}${t.pet ? ` (${t.pet})` : ""}${t.place && !r.place ? ` at ${t.place}` : ""}: ${when}${t.booked ? `, booked ${t.apptDate ?? ""}` : ""}${t.repeats ? `, ${t.repeats}` : ""}${t.assignee ? `, ${t.assignee}'s` : ""}`);
+    }
+    if (r.recent.length) {
+      out("done lately:");
+      for (const d of r.recent.slice(0, 8)) out(`- ${d.title}, ${d.doneOn}${d.doneBy ? ` by ${d.doneBy}` : ""}`);
+    }
+    return plural(r.tasks.length, "task");
+  }
+  const pick = { pet: flags.pet, place: flags.place };
+  if (verb === "add") {
+    return change("task.add", {
+      title: need(flags, "title", "task add --title T [--pet P | --place P] [--kind K] [--due YYYY-MM-DD] [--time HH:MM] [--every N --unit month] [--notes T]"),
+      ...pick, kind: flags.kind, due: flags.due, time: flags.time, every: flags.every, unit: flags.unit,
+      assignee: flags.assignee, provider: flags.provider, phone: flags.phone, notes: flags.notes,
+    }, flags);
+  }
+  if (verb === "done") return change("task.done", { title: need(flags, "title", "task done --title T [--pet P] [--place P] [--note T]"), ...pick, note: flags.note }, flags);
+  if (verb === "archive") return change("task.archive", { title: need(flags, "title", "task archive --title T [--pet P] [--place P]"), ...pick }, flags);
+  throw new Usage("Usage: family-hub task list | add | done | archive");
+}
+
+async function chore(verb: string | undefined, flags: Flags): Promise<string> {
+  if (verb === "list") {
+    const { chores } = await hubFetch<{ chores: { week: string; jobs: { member: string | null; job: string }[]; today: { person: string; chores: { title: string; when: string | null; status: string }[] }[] } | null }>(`/api/agent/chores${query({ channel: channel(flags) })}`, { token: "agent" });
+    if (!chores) return "no chores set up";
+    out(`jobs this week: ${chores.jobs.map(j => `${j.member ?? "nobody"}: ${j.job}`).join(", ")}`);
+    for (const p of chores.today) if (p.chores.length) out(`- ${p.person}: ${p.chores.map(c => `${c.title}${c.when ? ` (${c.when})` : ""}: ${c.status}`).join("; ")}`);
+    return "today's chores";
+  }
+  if (verb === "done") return change("chore.done", { title: need(flags, "title", "chore done --title T [--day YYYY-MM-DD]"), day: flags.day }, flags);
+  throw new Usage("Usage: family-hub chore list | done --title T");
+}
+
+async function movie(verb: string | undefined, flags: Flags): Promise<string> {
+  if (verb === "list") {
+    const { movies } = await hubFetch<{ movies: { title: string; kind: string; releaseDate: string | null; where: string | null; want: string[]; seen: string[] }[] }>(`/api/agent/movies${query({ channel: channel(flags) })}`, { token: "agent" });
+    for (const m of movies) out(`- ${m.title} (${[m.kind === "show" ? "show" : null, m.releaseDate, m.where].filter(Boolean).join(", ")})${m.want.length ? `; want: ${m.want.join(", ")}` : ""}${m.seen.length ? `; seen: ${m.seen.join(", ")}` : ""}`);
+    return plural(movies.length, "title");
+  }
+  if (verb === "mark") return change("movie.mark", { title: need(flags, "title", "movie mark --title T [--mark want|seen|none] [--who member]"), mark: flags.mark, who: flags.who }, flags);
+  throw new Usage("Usage: family-hub movie list | mark --title T");
+}
+
+async function proposal(verb: string | undefined, id: string | undefined, flags: Flags): Promise<string> {
+  if (verb === "list") {
+    const { proposals } = await hubFetch<{ proposals: { id: string; summary: string; by: string | null; expiresAt: string }[] }>(`/api/agent/proposals${query({ channel: channel(flags) })}`, { token: "agent" });
+    for (const p of proposals) out(`- ${p.id} ${p.summary} (asked by ${p.by ?? "someone"}; until ${p.expiresAt.slice(0, 10)})`);
+    return `${plural(proposals.length, "change")} waiting`;
+  }
+  if ((verb === "approve" || verb === "reject") && id) {
+    const r = await hubFetch<OpResult>(`/api/agent/proposals/${encodeURIComponent(id)}/${verb}`, { token: "agent", method: "POST", body: { channel: channel(flags), actor: actor(flags) } });
+    return r.logId ? `${r.summary} (log ${r.logId})` : r.summary;
+  }
+  throw new Usage("Usage: family-hub proposal list | approve <id> | reject <id>");
 }
 
 async function log(verb: string | undefined, id: string | undefined, flags: Flags): Promise<string> {
@@ -247,9 +341,13 @@ async function main(): Promise<number> {
   const done = what === "trip" ? await trip(words[0], flags)
     : what === "grocery" ? await grocery(words[0], flags)
     : what === "log" ? await log(words[0], words[1], flags)
+    : what === "task" ? await task(words[0], flags)
+    : what === "chore" ? await chore(words[0], flags)
+    : what === "movie" ? await movie(words[0], flags)
+    : what === "proposal" ? await proposal(words[0], words[1], flags)
     : null;
-  if (done == null) throw new Usage("Usage: family-hub trip | grocery | log | doctor …");
-  out(`\n${WHAT} OK: ${done}`);
+  if (done == null) throw new Usage("Usage: family-hub trip | grocery | task | chore | movie | proposal | log | doctor …");
+  out(`\n${WHAT} ${pending ? "PENDING" : "OK"}: ${done}`);
   return 0;
 }
 

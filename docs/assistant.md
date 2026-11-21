@@ -19,7 +19,15 @@ runs. Nothing here depends on which one, or on which chat it's in.
 - **Nothing is shortened to fit.** Text that's too long is refused with a message that
   says so.
 - **Everything is logged and can be undone.** The log records who asked, in which channel,
-  and what reverses the change.
+  and what reverses the change. Adults see it, and undo from it, on `/household/` ›
+  Assistant.
+- **Taking things away waits for an adult.** Removing from a trip or the grocery list,
+  changing a trip's dates and archiving a task are held until an adult approves them on
+  `/household/` › Assistant, or from an `ops` channel. Never from the channel that asked.
+  A waiting change expires after 72 hours, and is checked again when it's approved.
+- **The household's own rules apply.** Tasks, chores and movie marks are made through the
+  household API as the family member who asked, so a child can tick a chore but can't add
+  a task, just as on `/household/`.
 
 One token can't prove which person or channel a request really came from; who asked is
 the assistant's word, by chat id or by name. The scope
@@ -56,11 +64,21 @@ with your other secrets.
          C0EXAMPLE01: { trip: "beach-jul-2027" }   # this channel is that trip
          C0EXAMPLE02: { scope: household }          # groceries; reads trips
          C0EXAMPLE03: { scope: grocery }            # groceries only
-         C0EXAMPLE04: { scope: ops }                # everything, any trip by name
+         C0EXAMPLE04: { scope: ops }                # everything, any trip by name; approvals
+         C0EXAMPLE05: { scope: pets }               # the pets' tasks
+         C0EXAMPLE06: { place: "place-3f9a…" }      # one house's tasks (its id: /household/ › House)
+         C0EXAMPLE07: { scope: movies }             # movie marks
    ```
 
-   `place: <id>` and the scopes `pets` and `movies` are accepted too; their commands
-   come in a later release.
+   | Scope | Can |
+   |---|---|
+   | `trip` | read and change that trip |
+   | `household` | groceries, tasks, chores, movies; read trips |
+   | `grocery` | groceries |
+   | `pets` | the pets' tasks |
+   | `place` | that house's tasks |
+   | `movies` | movie marks |
+   | `ops` | everything, any trip by `--trip`; approve and turn down waiting changes |
 
 4. Tell the hub who's who in the chat, so the log can name them. In each member's
    `members/<id>.yaml`, and for trip guests under `hub.guests`:
@@ -102,6 +120,16 @@ with `--trip <id>`.
 | `family-hub grocery list` | What's left to buy |
 | `family-hub grocery add --name N [--qty 2] [--store S]` | Adds an item |
 | `family-hub grocery check --name N` | Checks an item off |
+| `family-hub trip remove-idea --text T`, `remove-restaurant --name N`, `remove-activity --name N` | Removes one (waits for a yes) |
+| `family-hub trip set-dates --start D --end D` | New dates (waits for a yes) |
+| `family-hub grocery remove --name N` | Takes an item off the list (waits for a yes) |
+| `family-hub task list [--days 30]` | Tasks due soon, and what was done lately |
+| `family-hub task add --title T [--pet P \| --place P] [--kind K] [--due D] [--every N --unit month]` | Adds a task |
+| `family-hub task done --title T` | Marks a task done; a repeating one moves on |
+| `family-hub task archive --title T` | Archives a task (waits for a yes) |
+| `family-hub chore list`, `chore done --title T` | Today's chores, and ticking one |
+| `family-hub movie list`, `movie mark --title T [--mark want\|seen\|none] [--who member]` | Movies, and marks |
+| `family-hub proposal list`, `proposal approve <id>`, `proposal reject <id>` | What's waiting; deciding it (an `ops` channel, an adult) |
 | `family-hub log list [--limit 20]` | What the assistant changed lately |
 | `family-hub log undo <id>` | Reverses one change |
 | `family-hub doctor` | Checks the live hub; needs no channel |
@@ -122,6 +150,7 @@ The last line always says how it went, and the exit code matches:
 |-----------|------|-------|
 | `TRIP OK: Added "Casa Luna" to Beach week's restaurants (log 3f9a2c1b0e; …)` | 0 | Done |
 | `TRIP OK: nothing to do. "Casa Luna" is already in …` | 0 | Already so; safe to repeat |
+| `TRIP PENDING: Remove "Casa Luna" …: waiting for an adult's yes (proposal …)` | 0 | Held for an adult; don't repeat it |
 | `TRIP FAILED: name: no more than 80 characters …` | 1 | Refused. Change the command; don't repeat it |
 | `TRIP FAILED: the command was mistyped (above)` | 2 | The usage line above shows the form |
 | `TRIP FAILED: Couldn't reach the hub …` | 3 | Try again later |
@@ -160,10 +189,16 @@ token, if the hub is behind Cloudflare Access).
 | GET | `/trip?channel=&trip=` | One trip, without its album link |
 | GET | `/facts/trip?channel=&trip=` | The briefing facts |
 | GET | `/grocery?channel=` | The grocery list |
+| GET | `/tasks?channel=&days=` | Tasks due soon in the channel's scope |
+| GET | `/chores?channel=` | Today's chores |
+| GET | `/movies?channel=` | Movies, and who wants or has seen each |
 | GET | `/log?channel=&limit=` | Changes made for this channel's scope (all of them, from `ops`) |
-| POST | `/ops` | `{ op, args, channel, actor: { slack?, name? } }` → `{ status, summary, logId? }` |
+| GET | `/proposals?channel=` | Changes waiting for a yes |
+| POST | `/ops` | `{ op, args, channel, actor: { slack?, name? } }` → `{ status: "applied" \| "unchanged", summary, logId? }`, or `{ status: "pending", proposalId, expiresAt, summary }` |
 | POST | `/log/:id/undo` | `{ channel, actor }`; from the channel the change was made for, or `ops` |
+| POST | `/proposals/:id/approve`, `/reject` | `{ channel, actor }`; from an `ops` channel, by an adult |
 
-The ops are `trip.add-idea`, `trip.add-restaurant`, `trip.add-activity`, `grocery.add` and
-`grocery.check`. Each is defined in `app/worker/agent-ops.js` with the scopes that may ask
+And for the household page, with the viewer's sign-in (adults): `POST /api/household/agent/proposals/:id/approve|reject` and `POST /api/household/agent/log/:id/undo`.
+
+Each op is defined in `app/worker/agent-ops.js` with its tier and the scopes that may ask
 for it.

@@ -74,6 +74,9 @@ function viewerFor(hub, id) {
 
 /** The signed-in member or guest behind `request`, or why there isn't one. */
 export async function identify(request, env, hub, opts = {}) {
+  // The assistant's changes run as the family member who asked (agent.js). Only code in
+  // the Worker can pass opts; nothing in a request can set this.
+  if (opts.actAs) return { viewer: viewerFor(hub, String(opts.actAs)), problem: null };
   // Local development: no Access in front of `wrangler dev`. Requests through
   // Cloudflare's edge always carry CF-Ray, so this can't be used on a live hub.
   if (env.DEV_MEMBER && !request.headers.get("CF-Ray")) {

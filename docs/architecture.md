@@ -281,6 +281,8 @@ never run a migration by hand.
 | POST | `/api/household/trips/import` | Adults | Once: copy the published `trips.yaml` list into the database |
 | GET | `/api/household/image/:kind/:id` | Family | A room's or movie's picture, fetched from its site once and cached |
 | GET | `/api/household/export` | The pipeline (`PUBLISH_TOKEN`) | What's due, overdue and lately done, by name |
+| POST | `/api/household/agent/proposals/:id/approve` | Adults | Approve (or `/reject`) a change the assistant was asked for |
+| POST | `/api/household/agent/log/:id/undo` | Adults | Undo one of the assistant's changes |
 
 Every write is validated in the Worker and answers with the fresh list. A write has to be
 a JSON request, which a form on another website can't send.

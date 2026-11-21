@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { handleAgent } from "../app/worker/agent.js";
+import { handleHousehold } from "../app/worker/household.js";
 import { ensureSchema } from "../app/worker/db/migrations.js";
 import { listGrocery } from "../app/worker/grocery.js";
 import { memoryD1, memoryKV, HUB, NO_SQLITE } from "./helpers.js";
@@ -182,7 +183,7 @@ test("groceries: family adds and checks off from the household channels", D1, as
   assert.deepEqual([milk.name, milk.quantity, milk.store, milk.addedBy, milk.done], ["Oat milk", 2, "Co-op", "alex", false]);
 
   assert.match((await op("grocery.check", { name: "oat" }, HOME)).body.error, /matches several/);
-  assert.match((await op("grocery.check", { name: "eggs" }, HOME)).body.error, /No "eggs" left to buy\. On the list: "Oat milk", "Oatmeal"/);
+  assert.match((await op("grocery.check", { name: "eggs" }, HOME)).body.error, /Nothing called "eggs" among the items left to buy\. There are: "Oat milk", "Oatmeal"/);
   const checked = await op("grocery.check", { name: "Oat milk" }, HOME);
   assert.equal(checked.body.status, "applied");
   assert.deepEqual((await call(`/grocery?channel=${FOOD}`)).body.items.map(i => [i.name, i.done]), [["Oatmeal", false], ["Oat milk", true]]);
@@ -234,4 +235,151 @@ test("health says what's deployed and how fresh the data is, to either token", D
   assert.deepEqual(h.tripApps, [{ trip: "lake-jul-2027", path: "/lake/", known: true }]);
   assert.equal(h.agent.channels, 5);
   assert.equal(h.agent.lastWriteAt, new Date(NOW).toISOString());
+});
+
+// ─── Changes that wait for a yes ──────────────────────────────────────────────
+
+const SAM = { name: "Sam" };
+
+test("removing and re-dating wait for an adult's yes, given from ops or the hub", D1, async () => {
+  const { op, call, lists, db, env } = await setup();
+  const asked = await op("trip.remove-restaurant", { name: "diner" }, LAKE, GRANDMA);
+  assert.equal(asked.status, 200);
+  assert.equal(asked.body.status, "pending");
+  assert.match(asked.body.summary, /Remove "Diner" from Lake week's restaurants/);
+  assert.deepEqual((await lists("lake-jul-2027")).restaurants.map(r => r.name), ["Diner"], "nothing changes yet");
+  assert.match((await op("trip.remove-restaurant", { name: "Nowhere" })).body.error, /Nothing called "Nowhere"/, "a mistake is said at once");
+
+  const pid = asked.body.proposalId;
+  assert.deepEqual((await call(`/proposals?channel=${LAKE}`)).body.proposals.map(p => [p.id, p.by]), [[pid, "Grandma"]]);
+  const fromTrip = await call(`/proposals/${pid}/approve`, { body: { channel: LAKE, actor: ALEX } });
+  assert.equal(fromTrip.status, 403, "not from the channel that asked");
+  assert.equal((await call(`/proposals/${pid}/approve`, { body: { channel: OPS, actor: SAM } })).status, 403, "not by a child");
+
+  const yes = await call(`/proposals/${pid}/approve`, { body: { channel: OPS, actor: ALEX } });
+  assert.equal(yes.body.status, "approved");
+  assert.deepEqual((await lists("lake-jul-2027")).restaurants, []);
+  const [entry] = (await call(`/log?channel=${LAKE}`)).body.log;
+  assert.deepEqual([entry.by, entry.approvedBy], ["Grandma", "alex"]);
+  assert.equal((await call(`/proposals/${pid}/approve`, { body: { channel: OPS, actor: ALEX } })).status, 409, "only once");
+
+  await call(`/log/${entry.id}/undo`, { body: { channel: LAKE, actor: ALEX } });
+  assert.deepEqual((await lists("lake-jul-2027")).restaurants.map(r => r.name), ["Diner"], "undo puts it back");
+
+  // New dates, approved on the household page with a real sign-in.
+  const dates = await op("trip.set-dates", { start: "2027-07-02", end: "2027-07-06" });
+  assert.equal(dates.body.status, "pending");
+  const page = async (path, member = "alex") => {
+    const res = await handleHousehold(new Request(`https://hub.example.com/api/household${path}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" }),
+      { ...env, DEV_MEMBER: member }, hubWith(), path, { now: NOW });
+    return { status: res.status, body: await res.json() };
+  };
+  const snap = await page(`/agent/proposals/${dates.body.proposalId}/approve`, "sam");
+  assert.equal(snap.status, 403, "only adults approve");
+  const ok = await page(`/agent/proposals/${dates.body.proposalId}/approve`);
+  assert.equal(ok.status, 200);
+  assert.match(ok.body.result, /Changed Lake week's dates from 2027-07-01–2027-07-05 to 2027-07-02–2027-07-06/);
+  assert.equal(ok.body.assistant.pending.length, 0);
+  const row = await db.prepare("SELECT start_date, end_date FROM trips WHERE id = 'lake-jul-2027'").first();
+  assert.deepEqual([row.start_date, row.end_date], ["2027-07-02", "2027-07-06"]);
+  const undone = await page(`/agent/log/${ok.body.assistant.log[0].id}/undo`);
+  assert.equal(undone.status, 200);
+  assert.equal((await db.prepare("SELECT start_date FROM trips WHERE id = 'lake-jul-2027'").first()).start_date, "2027-07-01");
+});
+
+test("a waiting change is checked again when approved, and expires", D1, async () => {
+  const { op, call, db } = await setup();
+  const asked = await op("trip.remove-idea", { text: "Kites" }, LAKE);
+  assert.equal(asked.status, 404, "there's no such idea yet");
+  await op("trip.add-idea", { text: "Kites" });
+  const p = (await op("trip.remove-idea", { text: "kites" })).body.proposalId;
+  await db.prepare("UPDATE trips SET details = '{}' WHERE id = 'lake-jul-2027'").run();
+  const stale = await call(`/proposals/${p}/approve`, { body: { channel: OPS, actor: ALEX } });
+  assert.equal(stale.status, 409);
+  assert.match(stale.body.error, /no longer applies/);
+
+  const later = (await op("trip.set-dates", { start: "2027-07-02", end: "2027-07-06" })).body.proposalId;
+  await db.prepare("UPDATE agent_proposals SET expires_at = ? WHERE id = ?").bind(NOW - 1, later).run();
+  assert.match((await call(`/proposals/${later}/approve`, { body: { channel: OPS, actor: ALEX } })).body.error, /expired/);
+  assert.equal((await call(`/proposals/${later}/reject`, { body: { channel: OPS, actor: ALEX } })).status, 409);
+});
+
+test("removing a grocery item waits too, and undo brings it back", D1, async () => {
+  const { op, call, env } = await setup();
+  await op("grocery.add", { name: "Oat milk" }, FOOD);
+  const p = (await op("grocery.remove", { name: "oat milk" }, FOOD)).body;
+  assert.equal(p.status, "pending");
+  assert.equal((await listGrocery(env)).length, 1);
+  const yes = (await call(`/proposals/${p.proposalId}/approve`, { body: { channel: OPS, actor: ALEX } })).body;
+  assert.equal((await listGrocery(env)).length, 0);
+  await call(`/log/${yes.logId}/undo`, { body: { channel: OPS, actor: ALEX } });
+  assert.deepEqual((await listGrocery(env)).map(i => i.name), ["Oat milk"]);
+});
+
+// ─── The household's own records ──────────────────────────────────────────────
+
+test("tasks, by the household's own rules, as the person who asked", D1, async () => {
+  const PETS = "C0PETS0001", HOUSE = "C0HOUSE001";
+  const hub = hubWith();
+  hub.agent.channels[PETS] = { scope: "pets" };
+  hub.agent.channels[HOUSE] = { scope: "place", place: "place-lake01" };
+  const { db, call } = await setup(hub);
+  await db.prepare("INSERT INTO pets (id, name, archived, created_at, updated_at) VALUES ('pet-biscuit1', 'Biscuit', 0, 1, 1)").run();
+  await db.prepare("INSERT INTO places (id, name, archived, created_at, updated_at) VALUES ('place-lake01', 'Lake house', 0, 1, 1)").run();
+  const op = (o, args, channel, actor = ALEX) => call("/ops", { body: { op: o, args, channel, actor } });
+
+  const vet = await op("task.add", { title: "Rabies shot", pet: "biscuit", kind: "vaccination", due: "2027-07-10" }, PETS);
+  assert.equal(vet.body.status, "applied", JSON.stringify(vet.body));
+  const t = await db.prepare("SELECT * FROM tasks WHERE title = 'Rabies shot'").first();
+  assert.deepEqual([t.area, t.kind, t.pet_id, t.due_date, t.updated_by], ["pets", "vaccination", "pet-biscuit1", "2027-07-10", "alex"]);
+
+  assert.equal((await op("task.add", { title: "Mow" }, PETS)).status, 400, "the pets' channel adds pets' tasks");
+  assert.equal((await op("task.add", { title: "Fix the gate" }, HOUSE, SAM)).status, 403, "a child can't add a task, as on /household/");
+  const gate = await op("task.add", { title: "Fix the gate" }, HOUSE);
+  assert.equal((await db.prepare("SELECT place_id, kind FROM tasks WHERE title = 'Fix the gate'").first()).place_id, "place-lake01", "the house's channel picks the house");
+
+  const seen = (await call(`/tasks?channel=${HOUSE}`)).body;
+  assert.equal(seen.place, "Lake house");
+  assert.deepEqual(seen.tasks.map(x => x.title), [], "an undated fix isn't due");
+
+  const done = await op("task.done", { title: "rabies" }, PETS);
+  assert.equal(done.body.status, "applied");
+  assert.equal((await db.prepare("SELECT archived FROM tasks WHERE id = ?").bind(t.id).first()).archived, 1, "a one-off is finished");
+  await call(`/log/${done.body.logId}/undo`, { body: { channel: PETS, actor: ALEX } });
+  assert.equal((await db.prepare("SELECT archived FROM tasks WHERE id = ?").bind(t.id).first()).archived, 0, "undo through the household's own undo");
+
+  const p = (await op("task.archive", { title: "Fix the gate" }, HOUSE)).body;
+  assert.equal(p.status, "pending");
+  await call(`/proposals/${p.proposalId}/approve`, { body: { channel: OPS, actor: ALEX } });
+  assert.equal((await db.prepare("SELECT archived FROM tasks WHERE title = 'Fix the gate'").first()).archived, 1);
+  await call(`/log/${gate.body.logId}/undo`, { body: { channel: OPS, actor: ALEX } });
+});
+
+test("movies: a family member's mark, and undo restores the one before", D1, async () => {
+  const { db, op, call } = await setup();
+  await db.prepare("INSERT INTO movies (id, title, kind, source, archived, created_at, updated_at) VALUES ('movie-pond1', 'The Pond', 'movie', 'agent', 0, 1, 1)").run();
+  assert.equal((await op("movie.mark", { title: "pond" }, LAKE)).status, 403, "not from a trip channel");
+  assert.equal((await op("movie.mark", { title: "pond" }, HOME, GRANDMA)).status, 403, "family only");
+  const want = await op("movie.mark", { title: "pond", who: "Sam" }, HOME);
+  assert.match(want.body.summary, /Marked "The Pond" as wanted by Sam/);
+  await op("movie.mark", { title: "The Pond", mark: "seen" }, HOME, SAM);
+  assert.deepEqual((await call(`/movies?channel=${HOME}`)).body.movies[0].seen, ["Sam"]);
+  const log = (await call(`/log?channel=${HOME}`)).body.log;
+  await call(`/log/${log[0].id}/undo`, { body: { channel: HOME, actor: ALEX } });
+  assert.deepEqual((await call(`/movies?channel=${HOME}`)).body.movies[0].want, ["Sam"]);
+});
+
+test("the trip form can't quietly undo what the assistant added", D1, async () => {
+  const { db, op, env } = await setup();
+  const before = (await db.prepare("SELECT updated_at FROM trips WHERE id = 'lake-jul-2027'").first()).updated_at;
+  await op("trip.add-idea", { text: "Kites" });
+  const save = async updatedAt => handleHousehold(new Request("https://hub.example.com/api/household/trips", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id: "lake-jul-2027", name: "Lake week", startDate: "2027-07-01", endDate: "2027-07-05", ideas: [], updatedAt }),
+  }), { ...env, DEV_MEMBER: "alex" }, hubWith(), "/trips", { now: NOW + 1000 });
+  const stale = await save(before);
+  assert.equal(stale.status, 409);
+  assert.match((await stale.json()).error, /changed since you opened it \(the assistant added to it\)/);
+  const fresh = (await db.prepare("SELECT updated_at FROM trips WHERE id = 'lake-jul-2027'").first()).updated_at;
+  assert.equal((await save(fresh)).status, 200);
 });
