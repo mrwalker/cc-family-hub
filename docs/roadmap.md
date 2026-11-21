@@ -92,6 +92,7 @@ Built so far:
   members' own appointments.
 - **v2.15.2:** the trip apps' Ask panel is nearly solid, so it reads over the trip photo.
   Bump each trip's `sw.js`.
+- **v2.15.3:** the hub page's pop-ups (a day's details, Ask) are solid in dark mode.
 
 The rest ships in steps:
 
