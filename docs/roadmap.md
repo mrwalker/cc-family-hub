@@ -61,6 +61,8 @@ Built so far:
   trip's card, and the hub page opens any trip from a `/#trip:<id>` link.
 - **v2.10.0:** the hub works as a **phone app**: added to the home screen it opens full
   screen with its own icon and name (`hub.shortTitle`), and its clock fits a phone.
+- **v2.10.1:** the home-screen icon is the house the TV apps use, and an album photo that
+  iCloud keeps only as a small original (no medium or full JPEG) now shows.
 
 The rest ships in steps:
 

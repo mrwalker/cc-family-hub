@@ -129,9 +129,12 @@ async function readCloudKitAlbum(key) {
     const m = master?.fields ?? {};
     if (!master || /movie|mpeg|video|quicktime/i.test(m.itemType?.value ?? "")) continue;
     // Edited photos carry their rendered JPEGs on the asset; originals on the master.
-    const pick = ["resJPEGMed", "resJPEGFull"]
-      .flatMap(p => [[a, p], [m, p]])
-      .find(([f, p]) => f[`${p}Res`]?.value?.downloadURL);
+    // iCloud makes no medium or full JPEG for a photo that's already small: then the
+    // original, if it's a JPEG or PNG no bigger than a full one, else the thumbnail.
+    const has = (f, p) => f[`${p}Res`]?.value?.downloadURL;
+    const pick = ["resJPEGMed", "resJPEGFull"].flatMap(p => [[a, p], [m, p]]).find(([f, p]) => has(f, p))
+      ?? [[a, "resOriginal"], [m, "resOriginal"]].find(([f, p]) => has(f, p) && smallWebImage(f, p))
+      ?? [[a, "resJPEGThumb"], [m, "resJPEGThumb"]].find(([f, p]) => has(f, p));
     if (!pick) continue;
     const [f, p] = pick;
     photos.push({
@@ -145,6 +148,13 @@ async function readCloudKitAlbum(key) {
     if (photos.length >= MAX_PHOTOS) break;
   }
   return photos;
+}
+
+/** An original every screen can show as is: a JPEG or PNG at most about 2048 px a side. */
+function smallWebImage(f, p) {
+  const type = String(f[`${p}FileType`]?.value ?? "");
+  const side = Math.max(Number(f[`${p}Width`]?.value) || 0, Number(f[`${p}Height`]?.value) || 0);
+  return /^public\.(jpeg|png)$/.test(type) && side > 0 && side <= 2100;
 }
 
 // ─── Shared streams (www.icloud.com/sharedalbum/#…) ───────────────────────────
