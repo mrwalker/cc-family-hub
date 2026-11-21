@@ -438,6 +438,8 @@ test("the calendar: a trip's channel sees only its trip's days", D1, async () =>
     return [
       ev("Fly to the lake", "2027-07-01T08:30:00-07:00", "2027-07-01T10:00:00-07:00", ["alex", "sam"], { location: "SJC" }),
       ev("Dentist", "2027-06-22T09:00:00-07:00", "2027-06-22T10:00:00-07:00", ["alex"]),
+      ev("Job interview", "2027-07-02T13:00:00-07:00", "2027-07-02T14:00:00-07:00", ["sam"]),
+      ev("Lake week canoe tour", "2027-07-03T09:00:00-07:00", "2027-07-03T11:00:00-07:00", ["alex"], { location: "Dock 4\nNorth shore" }),
       ev("Skipped", "2027-07-02T09:00:00-07:00", "2027-07-02T10:00:00-07:00", ["alex"], { declined: true }),
       { id: "google-calendar:Pack", title: "Pack", startAt: "2027-06-30", endAt: "2027-07-01", allDay: true, memberIds: ["household"] },
     ];
@@ -448,7 +450,10 @@ test("the calendar: a trip's channel sees only its trip's days", D1, async () =>
   };
   const trip = (await get(`/calendar?channel=${LAKE}&from=2027-06-01&to=2027-06-30`)).body;
   assert.deepEqual([trip.from, trip.to], ["2027-06-29", "2027-07-06"], "the trip's days, whatever was asked");
-  assert.deepEqual(trip.events.map(e => [e.day, e.title, e.start, e.who.join("+")]), [["2027-06-30", "Pack", null, "Household"], ["2027-07-01", "Fly to the lake", "8:30 AM", "Alex+Sam"]]);
+  assert.deepEqual(trip.events.map(e => [e.day, e.title, e.start, e.who.join("+")]),
+    [["2027-06-30", "Pack", null, "Household"], ["2027-07-01", "Fly to the lake", "8:30 AM", "Alex+Sam"], ["2027-07-03", "Lake week canoe tour", "9:00 AM", "Alex"]],
+    "the household's, travel, and the trip's own; not someone's job interview");
+  assert.equal(trip.events[2].location, "Dock 4 North shore");
   const home = (await get(`/calendar?channel=${HOME}&days=3`)).body;
   assert.deepEqual([home.from, home.to, home.events.map(e => e.title)], ["2027-06-21", "2027-06-23", ["Dentist"]]);
   assert.equal((await get(`/calendar?channel=${FOOD}`)).status, 403);
