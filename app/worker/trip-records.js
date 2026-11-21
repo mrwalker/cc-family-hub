@@ -155,6 +155,16 @@ export async function tripAlbumLink(env, id) {
   return (await publishedTrips(env)).find(t => t.id === id)?.album ?? null;
 }
 
+/** Every album link among the trips that aren't archived, for warmAlbums (photos.js). */
+export async function tripAlbumLinks(env) {
+  if (env.HUB_DB) await ensureSchema(env.HUB_DB);
+  if (env.HUB_DB && (await tripCount(env.HUB_DB))) {
+    const { results } = await env.HUB_DB.prepare("SELECT album FROM trips WHERE archived = 0 AND album IS NOT NULL").all();
+    return results.map(r => r.album);
+  }
+  return (await publishedTrips(env)).map(t => t.album).filter(Boolean);
+}
+
 /** The published list (trips.yaml), for the import and the fallback. */
 async function publishedTrips(env) {
   const family = env.HUB_DATA ? await env.HUB_DATA.get("data:family", "json") : null;

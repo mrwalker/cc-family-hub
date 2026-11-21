@@ -38,6 +38,8 @@ import { handleDataApi } from "./data-api.js";
 import { handleStream } from "./stream.js";
 import { handleGrocery } from "./grocery.js";
 import { handleHousehold } from "./household.js";
+import { warmAlbums } from "./photos.js";
+import { tripAlbumLinks } from "./trip-records.js";
 import { serviceAccountToken, SCOPES } from "./google.js";
 
 // Widgets refresh often and every phone asks separately; one Google fetch per
@@ -86,10 +88,22 @@ export function createHub(config) {
       groceryEmailUrl: config.groceryEmailUrl ?? null,
     },
   };
-  return { fetch: (request, env) => route(request, env, hub) };
+  return {
+    fetch: (request, env, ectx) => route(request, env, hub, ectx),
+    // The cron trigger (wrangler.jsonc "triggers"): loads the photo albums that take
+    // iCloud too long to list while a screen waits (photos.js warmAlbums).
+    scheduled: (event, env, ectx) => ectx.waitUntil(warmPhotoAlbums(env, hub)),
+  };
 }
 
-async function route(request, env, hub) {
+async function warmPhotoAlbums(env, hub) {
+  const links = [hub.photosAlbum, ...(await tripAlbumLinks(env).catch(() => []))].filter(Boolean);
+  const result = await warmAlbums(env, links);
+  console.log(`Photo albums: ${result.albums} in all, ${result.due} due; loaded ${result.done.length}${result.done.length ? ` (${result.done.join("; ")})` : ""}${result.failed.length ? `; failed: ${result.failed.join("; ")}` : ""}`);
+}
+
+async function route(request, env, hub, ectx = null) {
+  const waitUntil = ectx?.waitUntil ? p => ectx.waitUntil(p) : null;
   const url = new URL(request.url);
 
   if (url.pathname === "/api/events") {
@@ -102,7 +116,7 @@ async function route(request, env, hub) {
     // headers, so the stream answers cross-origin requests. It's read-only, and
     // Cloudflare Access still requires the token.
     if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: STREAM_CORS });
-    const res = await handleStream(request, env, hub, days => cachedEvents(env, hub, days), streamPath[2] ?? "", streamPath[1]);
+    const res = await handleStream(request, env, hub, days => cachedEvents(env, hub, days), streamPath[2] ?? "", streamPath[1], waitUntil);
     const out = new Response(res.body, res);
     for (const [k, v] of Object.entries(STREAM_CORS)) out.headers.set(k, v);
     return out;
