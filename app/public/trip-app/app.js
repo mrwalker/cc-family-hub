@@ -414,7 +414,7 @@
       ${waiting.map(a => `<div class="ask-msg"><b>You:</b> ${h(a.body)}<small>${navigator.onLine ? "Sending…" : "Sends when you’re online"}</small></div>`).join("")}
       ${threads.map(t => `<div class="ask-thread">${t.messages.slice(-3).map(m => `<div class="ask-msg ${m.kind === "reply" ? "reply" : ""}"><b>${h(m.mine ? "You" : m.by)}:</b> ${h(m.body)}</div>`).join("")}
         ${t.messages[t.messages.length - 1].kind === "reply" ? "" : `<small class="ask-wait">${h(name)} is on it…</small>`}</div>`).join("")}
-      <div class="actions"><button class="btn ghost" data-action="ask">Ask a question</button></div>`);
+      <div class="actions"><button class="btn ghost" data-action="ask">Ask a question</button></div>`, null, "ask");
   }
 
   function askSheet() {

@@ -90,6 +90,8 @@ Built so far:
   includes the trip app's departure note and quick facts.
 - **v2.15.1:** a trip's channel sees only the calendar events about the trip, not family
   members' own appointments.
+- **v2.15.2:** the trip apps' Ask panel is nearly solid, so it reads over the trip photo.
+  Bump each trip's `sw.js`.
 
 The rest ships in steps:
 
