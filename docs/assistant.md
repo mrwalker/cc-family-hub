@@ -132,7 +132,7 @@ with `--trip <id>`.
 | `family-hub proposal list`, `proposal approve <id>`, `proposal reject <id>` | What's waiting; deciding it (an `ops` channel, an adult) |
 | `family-hub inbox poll [--json]`, `inbox claim <id>…`, `inbox reply <id> --text T` | Questions from the hub, and answering them (an `ops` channel) |
 | `family-hub note set --text T [--until D]` | A note on the hub for this trip or home |
-| `family-hub calendar [--from D] [--to D \| --days 14]` | The family's calendar. In a trip's channel, only the trip's days (from two days before to the day after), since guests are there |
+| `family-hub calendar [--from D] [--to D \| --days 14]` | The family's calendar. In a trip's channel, since guests are there, only the trip's days (from two days before to the day after) and only events about the trip: on the household calendar, mentioning the destination, or about travel (flights, hotels, check-ins, reservations, tours) |
 | `family-hub log list [--limit 20]` | What the assistant changed lately |
 | `family-hub log undo <id>` | Reverses one change |
 | `family-hub doctor` | Checks the live hub; needs no channel |

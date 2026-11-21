@@ -88,6 +88,8 @@ Built so far:
 - **v2.15.0:** the assistant reads the family's **calendar** (`family-hub calendar`): any
   range from a household channel, only a trip's days from its channel. `trip brief`
   includes the trip app's departure note and quick facts.
+- **v2.15.1:** a trip's channel sees only the calendar events about the trip, not family
+  members' own appointments.
 
 The rest ships in steps:
 
