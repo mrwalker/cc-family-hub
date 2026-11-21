@@ -61,8 +61,13 @@ const strings = v => (Array.isArray(v) ? v.filter(x => typeof x === "string") : 
 // Chat ids, as Slack writes them: a channel is C… (or G…), a person U… (or W…).
 const CHAT_CHANNEL_RE = /^[CG][A-Z0-9]{5,19}$/;
 const CHAT_PERSON_RE = /^[UW][A-Z0-9]{5,19}$/;
-// Chat id → who that is, for the assistant's log (hub.agent).
+// Chat id → who that is, for the assistant's log (hub.agent); and the same by name,
+// for an assistant that only knows what someone is called.
 const chatPeople = {};
+const chatNames = {};
+const chatName = (who, ...names) => {
+  for (const n of names) if (typeof n === "string" && n.trim()) chatNames[n.trim().toLowerCase()] ??= who;
+};
 function chatId(file, at, v, who) {
   if (v == null) return;
   if (typeof v !== "string" || !CHAT_PERSON_RE.test(v)) return fail(file, at, `expected the person's chat member id, like "U0123ABCD", got ${JSON.stringify(v)}`);
@@ -85,7 +90,9 @@ const members = (Array.isArray(family.members) ? family.members : []).map((m, i)
     .map(e => e.toLowerCase());
   // Anyone not marked a child is an adult: adults manage household records.
   const role = m.role === "child" ? "child" : "adult";
-  chatId(`members/${m.id}.yaml`, "slack", profile.slack, { id: m.id, role, name: m.shortName || m.name });
+  const who = { id: m.id, role, name: m.shortName || m.name };
+  chatId(`members/${m.id}.yaml`, "slack", profile.slack, who);
+  chatName(who, m.id, m.shortName, m.name, profile.displayName, profile.name);
   return { id: m.id, name: m.shortName || m.name, color: m.color, role, calendars, emails };
 });
 if (!members.length) fail("family.yaml", "members", "no members listed");
@@ -211,7 +218,9 @@ const guests = Object.entries(hub.guests ?? {}).map(([id, g]) => {
   if (!ID_RE.test(id)) fail("family.yaml", `hub.guests.${id}`, "expected a lowercase id");
   if (memberIds.has(id)) fail("family.yaml", `hub.guests.${id}`, "is also a family member");
   if (g?.email != null && !String(g.email).includes("@")) fail("family.yaml", `hub.guests.${id}.email`, "not an email address");
-  chatId("family.yaml", `hub.guests.${id}.slack`, g?.slack, { id, role: "guest", name: typeof g?.name === "string" ? g.name : id });
+  const who = { id, role: "guest", name: typeof g?.name === "string" ? g.name : id };
+  chatId("family.yaml", `hub.guests.${id}.slack`, g?.slack, who);
+  chatName(who, id, g?.name);
   return { id, email: g?.email ? String(g.email).toLowerCase() : null };
 });
 const guestIds = new Set(guests.map(g => g.id));
@@ -296,7 +305,7 @@ if (hub.agent != null) {
         else channels[id] = { scope: kind, [kind]: c[kind] };
       }
     }
-    agent = { name: typeof hub.agent.name === "string" && hub.agent.name.trim() ? hub.agent.name.trim() : "Assistant", channels, people: chatPeople };
+    agent = { name: typeof hub.agent.name === "string" && hub.agent.name.trim() ? hub.agent.name.trim() : "Assistant", channels, people: chatPeople, names: chatNames };
   }
 }
 

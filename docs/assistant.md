@@ -21,7 +21,8 @@ runs. Nothing here depends on which one, or on which chat it's in.
 - **Everything is logged and can be undone.** The log records who asked, in which channel,
   and what reverses the change.
 
-One token can't prove which person or channel a request really came from. The scope
+One token can't prove which person or channel a request really came from; who asked is
+the assistant's word, by chat id or by name. The scope
 protects against an assistant that's confused, not against a stolen token. Keep the token
 with your other secrets.
 
@@ -85,8 +86,9 @@ with your other secrets.
 
 Every command but `doctor` says where it's working with `--channel <id>` (or the
 `HUB_AGENT_CHANNEL` environment variable). A change also says who asked, with
-`--for <their chat id>` (or `HUB_AGENT_FOR`), and `--for-name "Pat"` for someone the hub
-doesn't know. In a trip's channel the trip is that one; from an `ops` channel, name it
+`--for <their chat id>` (or `HUB_AGENT_FOR`). An assistant that doesn't have the id gives
+their name instead (`--for "Sam"`): a member's or guest's id or name finds them. With a
+chat id, `--for-name "Pat"` adds a name for someone the hub doesn't know. In a trip's channel the trip is that one; from an `ops` channel, name it
 with `--trip <id>`.
 
 | Command | Does |
@@ -159,7 +161,7 @@ token, if the hub is behind Cloudflare Access).
 | GET | `/facts/trip?channel=&trip=` | The briefing facts |
 | GET | `/grocery?channel=` | The grocery list |
 | GET | `/log?channel=&limit=` | Changes made for this channel's scope (all of them, from `ops`) |
-| POST | `/ops` | `{ op, args, channel, actor: { slack, name? } }` → `{ status, summary, logId? }` |
+| POST | `/ops` | `{ op, args, channel, actor: { slack?, name? } }` → `{ status, summary, logId? }` |
 | POST | `/log/:id/undo` | `{ channel, actor }`; from the channel the change was made for, or `ops` |
 
 The ops are `trip.add-idea`, `trip.add-restaurant`, `trip.add-activity`, `grocery.add` and

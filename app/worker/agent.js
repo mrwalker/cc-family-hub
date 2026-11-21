@@ -16,12 +16,12 @@
  *   GET  /api/agent/facts/trip?channel=&trip=    everything a trip briefing needs
  *   GET  /api/agent/grocery?channel=             the grocery list
  *   GET  /api/agent/log?channel=&limit=          what the assistant changed lately
- *   POST /api/agent/ops                          { op, args, channel, actor: { slack, name? }, source? }
+ *   POST /api/agent/ops                          { op, args, channel, actor: { slack?, name? }, source? }
  *                                                → { status: "applied" | "unchanged", logId?, summary }
  *   POST /api/agent/log/:id/undo                 { channel, actor }
  *
- * The acting person is whoever asked, by their chat id; members/<id>.yaml and
- * hub.guests carry `slack:` so the log can name them. One token can't prove which
+ * The acting person is whoever asked, by their chat id (members/<id>.yaml and
+ * hub.guests carry `slack:`) or, when the assistant doesn't have one, by name. One token can't prove which
  * person or channel a request came from: scope guards against a confused assistant,
  * not a stolen token.
  */
@@ -106,16 +106,19 @@ function allow(scope, kinds, what) {
   }
 }
 
-/** Who asked, from their chat id: a family member, a trip guest, or someone the hub doesn't know. */
+/**
+ * Who asked: a family member, a trip guest, or someone the hub doesn't know. By their
+ * chat id when the assistant has it, else by name (a member's or guest's id or name).
+ * Either way it's the assistant's word: the hub can't check it.
+ */
 function whoAsked(hub, actor) {
-  const slack = actor?.slack;
-  if (typeof slack !== "string" || !PERSON_RE.test(slack)) {
-    throw new OpError("actor.slack: the chat id of the person who asked (like U0123ABCD)");
-  }
-  const person = hub.agent.people[slack];
-  const label = typeof actor.name === "string" ? actor.name.replace(/\s+/g, " ").trim().slice(0, 60) : "";
+  const slack = typeof actor?.slack === "string" && actor.slack ? actor.slack : null;
+  const label = typeof actor?.name === "string" ? actor.name.replace(/\s+/g, " ").trim().slice(0, 60) : "";
+  if (slack && !PERSON_RE.test(slack)) throw new OpError("actor.slack: the person's chat id, like U0123ABCD; or give their name instead");
+  if (!slack && !label) throw new OpError("actor: say who asked, by their chat id (like U0123ABCD) or their name");
+  const person = (slack && hub.agent.people[slack]) || (label && hub.agent.names?.[label.toLowerCase()]) || null;
   return {
-    id: person?.id ?? `slack:${slack}`,
+    id: person?.id ?? (slack ? `slack:${slack}` : `name:${label}`),
     role: person?.role ?? "unknown",
     family: person?.role === "adult" || person?.role === "child",
     label: person?.name ?? (label || null),
@@ -267,7 +270,7 @@ async function runOp({ env, db, hub, now, scope, actor, body }) {
   if (!op) throw new OpError(`op: unknown "${body.op}". Known: ${Object.keys(OPS).join(", ")}`);
   allow(scope, op.scopes, `do "${body.op}"`);
   if (op.family && !actor.family) {
-    throw new OpError(`Only a family member can ask for "${body.op}", and the hub doesn't know ${actor.id} as one (members/<id>.yaml → slack)`, 403);
+    throw new OpError(`Only a family member can ask for "${body.op}", and the hub doesn't know ${actor.label ?? actor.id} as one. Give a member's name, or their chat id (members/<id>.yaml → slack)`, 403);
   }
   const args = body.args && typeof body.args === "object" && !Array.isArray(body.args) ? body.args : {};
   const tripId = op.trip ? await tripFor(db, hub, scope, args.trip) : null;
