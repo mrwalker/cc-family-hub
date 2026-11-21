@@ -44,6 +44,7 @@ line, and photo.
 | `house` | glance, links to `/household/` | glance | glance | glance | – |
 | `chores` | full: a column per kid, tap a chore to tick it | glance | glance | glance | – |
 | `pet-portraits` | full: the pet full screen over its photo | full | glance | glance | – |
+| `house-portraits` | full: the house full screen over its photo | full | glance | glance | – |
 | `photos` | full | full | full | full | – |
 | `trips` | full | full | full | full | glance |
 | `past-trips` | full | full | glance | glance | – |

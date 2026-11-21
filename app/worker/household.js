@@ -27,6 +27,7 @@
  *   POST /api/household/undo                 { actionId }  takes back one action (a group's done, a chore's tick)
  *   POST /api/household/tasks/:id/archive    { archived }
  *   POST /api/household/pets/:id/photo       { data: "data:image/jpeg;base64,…", width?, height? }
+ *   POST /api/household/places/:id/photo     the same, for a place (a house)
  *   POST /api/household/photos/:id/remove
  *   GET  /api/household/photo/:id            the photo itself
  *   GET  /api/household/export?days=14       → { enabled, today, days, pets, places, tasks, recent }   for the planner
@@ -111,6 +112,7 @@ const MAX_BATCH = 50;
 const LOG_ROWS = 100;
 const MAX_PHOTO_BYTES = 1_000_000;
 const MAX_PHOTOS_PER_PET = 10;
+const MAX_PHOTOS_PER_PLACE = 10;
 const PHOTO_TYPES = { "image/jpeg": [0xff, 0xd8, 0xff], "image/png": [0x89, 0x50, 0x4e, 0x47], "image/webp": [0x52, 0x49, 0x46, 0x46] };
 
 const isDate = s => typeof s === "string" && DATE_RE.test(s) && !Number.isNaN(Date.parse(`${s}T12:00:00Z`));
@@ -308,10 +310,11 @@ async function getTask(db, id) {
 async function snapshot(env, hub, who, now, calendarProblem = null, choresDay = null) {
   const db = env.HUB_DB;
   const today = ymd(new Date(now), hub.timezone);
-  const [pets, photos, places, tasks, log, chores, rooms, movies, trips] = await Promise.all([
+  const [pets, photos, places, placePhotos, tasks, log, chores, rooms, movies, trips] = await Promise.all([
     db.prepare("SELECT * FROM pets ORDER BY archived, name").all(),
     db.prepare("SELECT id, pet_id, width, height FROM pet_photos ORDER BY created_at DESC").all(),
     db.prepare("SELECT * FROM places ORDER BY archived, name").all(),
+    db.prepare("SELECT id, place_id, width, height FROM place_photos ORDER BY created_at DESC").all(),
     db.prepare(`SELECT ${TASK_COLUMNS} FROM ${TASK_FROM}
                 ORDER BY t.archived, t.due_date IS NULL, t.due_date, t.title LIMIT ${MAX_TASKS}`).all(),
     db.prepare(`SELECT l.id, l.task_id, l.done_on, l.done_by, l.note, l.action_id, t.title, t.area, t.group_id, p.name AS pet_name
@@ -340,7 +343,7 @@ async function snapshot(env, hub, who, now, calendarProblem = null, choresDay = 
     areas: AREAS,
     members: hub.members.map(({ id, name, color, role }) => ({ id, name, color, role: role === "child" ? "child" : "adult" })),
     pets: pets.results.map(r => ({ ...petFromRow(r), photos: photos.results.filter(p => p.pet_id === r.id).map(p => ({ id: p.id, width: p.width, height: p.height })) })),
-    places: places.results.map(placeFromRow),
+    places: places.results.map(r => ({ ...placeFromRow(r), photos: photosOf(placePhotos, "place_id", r.id) })),
     calendar: { on: !!hub.householdCalendar, problem: calendarProblem },
     tasks: tasks.results.map(taskFromRow),
     log: log.results.map(r => ({
@@ -471,7 +474,24 @@ export async function loadPets(env) {
   return pets.results.map(r => ({ ...petFromRow(r), photos: photos.results.filter(p => p.pet_id === r.id).map(p => ({ id: p.id, width: p.width, height: p.height })) }));
 }
 
-/** A pet's photo. Its id never changes what it points to, so it can be kept a long time. */
+/**
+ * The places (the houses) for the house-portraits cards: each one that isn't archived,
+ * with its photos (newest first, without the image data). Null without a household database.
+ */
+export async function loadPlaces(env) {
+  if (!env.HUB_DB) return null;
+  await ensureSchema(env.HUB_DB);
+  const [places, photos] = await Promise.all([
+    env.HUB_DB.prepare("SELECT * FROM places WHERE archived = 0 ORDER BY name").all(),
+    env.HUB_DB.prepare("SELECT id, place_id, width, height FROM place_photos ORDER BY created_at DESC").all(),
+  ]);
+  return places.results.map(r => ({ ...placeFromRow(r), photos: photosOf(photos, "place_id", r.id) }));
+}
+
+/** One pet's or place's photos, from a query's rows, without the image data. */
+const photosOf = (rows, column, id) => rows.results.filter(p => p[column] === id).map(p => ({ id: p.id, width: p.width, height: p.height }));
+
+/** A pet's or a place's photo. Its id never changes what it points to, so it can be kept a long time. */
 export async function photoResponse(env, photoId) {
   if (!env.HUB_DB || !ID_RE.test(photoId || "")) return json({ error: "No such photo" }, 404);
   const cache = typeof caches !== "undefined" ? caches.default : null;
@@ -479,7 +499,8 @@ export async function photoResponse(env, photoId) {
   const hit = cache && (await cache.match(key));
   if (hit) return hit;
   await ensureSchema(env.HUB_DB);
-  const row = await env.HUB_DB.prepare("SELECT mime, data FROM pet_photos WHERE id = ?").bind(photoId).first();
+  const row = await env.HUB_DB.prepare("SELECT mime, data FROM pet_photos WHERE id = ? UNION ALL SELECT mime, data FROM place_photos WHERE id = ?")
+    .bind(photoId, photoId).first();
   if (!row) return json({ error: "No such photo" }, 404);
   const bytes = Uint8Array.from(atob(row.data), c => c.charCodeAt(0));
   const res = new Response(bytes, { headers: { "Content-Type": row.mime, "Cache-Control": "private, max-age=31536000, immutable" } });
@@ -743,7 +764,10 @@ export async function handleHousehold(request, env, hub, path, opts = {}) {
   const removal = path.match(/^\/photos\/([A-Za-z0-9_-]{6,40})\/remove$/);
   if (removal) {
     if (!canManage(viewer)) return forbidden("remove photos");
-    await db.prepare("DELETE FROM pet_photos WHERE id = ?").bind(removal[1]).run();
+    await db.batch([
+      db.prepare("DELETE FROM pet_photos WHERE id = ?").bind(removal[1]),
+      db.prepare("DELETE FROM place_photos WHERE id = ?").bind(removal[1]),
+    ]);
     return answer();
   }
 
@@ -762,6 +786,20 @@ export async function handleHousehold(request, env, hub, path, opts = {}) {
                         notes = excluded.notes, archived = excluded.archived,
                         updated_at = excluded.updated_at, updated_by = excluded.updated_by`)
       .bind(place.id, place.name, place.address, place.notes, place.archived ? 1 : 0, now, now, viewer.id).run();
+    return answer();
+  }
+
+  const placeUpload = path.match(/^\/places\/([A-Za-z0-9_-]{6,40})\/photo$/);
+  if (placeUpload) {
+    if (!canManage(viewer)) return forbidden("add photos");
+    const place = await db.prepare("SELECT id FROM places WHERE id = ?").bind(placeUpload[1]).first();
+    if (!place) return json({ error: "No such place" }, 404);
+    const { photo, error } = cleanPhoto(body);
+    if (error) return json({ error }, 400);
+    const { n } = await db.prepare("SELECT COUNT(*) AS n FROM place_photos WHERE place_id = ?").bind(place.id).first();
+    if (n >= MAX_PHOTOS_PER_PLACE) return json({ error: `No more than ${MAX_PHOTOS_PER_PLACE} photos of one place. Remove one first` }, 400);
+    await db.prepare("INSERT INTO place_photos (id, place_id, mime, data, width, height, bytes, created_at, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
+      .bind(`photo-${crypto.randomUUID().replace(/-/g, "").slice(0, 24)}`, place.id, photo.mime, photo.data, photo.width, photo.height, photo.bytes, now, viewer.id).run();
     return answer();
   }
 

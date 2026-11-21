@@ -293,6 +293,25 @@ export const MIGRATIONS = [
       `ALTER TABLE escape_rooms ADD COLUMN trip_id TEXT`,
     ],
   },
+  {
+    // v2.11: photos of the places (the houses), for the house-portraits cards. Kept
+    // as pet_photos keeps the pets'.
+    version: 10,
+    statements: [
+      `CREATE TABLE IF NOT EXISTS place_photos (
+         id TEXT PRIMARY KEY,
+         place_id TEXT NOT NULL REFERENCES places(id),
+         mime TEXT NOT NULL,
+         data TEXT NOT NULL,
+         width INTEGER,
+         height INTEGER,
+         bytes INTEGER NOT NULL,
+         created_at INTEGER NOT NULL,
+         created_by TEXT
+       )`,
+      `CREATE INDEX IF NOT EXISTS place_photos_place ON place_photos (place_id, created_at)`,
+    ],
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

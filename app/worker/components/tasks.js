@@ -98,6 +98,49 @@ function glanceFor(ctx, entry, kind, days) {
   return { headline: `${task.title} due ${soon(days)}`, detail: parts(who, place, extra, days > 1 ? dayName(date, ctx.today, ctx.locale) : null, at) };
 }
 
+/**
+ * What a portrait card says after a task's title and day: "not booked yet", the time,
+ * who does it, or when a stay ends. The same facts as the task's own card, minus whose
+ * or where it is, which the portrait already says. Null when there's nothing to add.
+ */
+export function taskNote(ctx, task) {
+  const kind = kindOf(task);
+  const date = whenOf(task);
+  const parts = (...xs) => xs.filter(Boolean).join(" · ") || null;
+  if (kind.stay && task.endDate && task.booked && date <= ctx.today && ctx.today <= task.endDate) {
+    return parts(task.endDate === ctx.today ? "home today" : `home ${dayName(task.endDate, ctx.today, ctx.locale)}`, task.provider);
+  }
+  if (kind.bookable && !task.booked) return "not booked yet";
+  const time = (task.booked ? task.apptTime : null) || task.dueTime;
+  return parts(time ? clock(time, ctx.locale) : null, task.provider);
+}
+
+/**
+ * Up to three of one pet's or place's dated tasks, soonest first (overdue ones are
+ * soonest), for its portrait card:
+ *   [{ title, kind, emoji, when, date, overdue, note }]
+ */
+export function upcoming(ctx, tasks, area, belongs) {
+  const kinds = AREAS[area].kinds;
+  return tasks
+    .filter(t => t.area === area && belongs(t) && whenOf(t))
+    .map(t => ({ t, days: daysBetween(ctx.today, whenOf(t)) }))
+    .sort((a, b) => a.days - b.days)
+    .slice(0, 3)
+    .map(({ t, days }) => ({
+      title: t.title, kind: t.kind, emoji: kinds[t.kind]?.emoji ?? (area === "pets" ? "🐾" : "🏠"),
+      date: whenOf(t), overdue: days < 0,
+      when: days < 0 ? `overdue since ${dateLabel(whenOf(t), ctx.locale, { month: "short", day: "numeric" })}` : dayName(whenOf(t), ctx.today, ctx.locale),
+      note: taskNote(ctx, t),
+    }));
+}
+
+/** A portrait's glance detail: its first task ("Rabies shot overdue", "Lawn service tomorrow"). */
+export function firstDetail(first) {
+  if (!first) return null;
+  return `${first.title} ${first.overdue ? "overdue" : first.when === "Today" || first.when === "Tomorrow" ? first.when.toLowerCase() : first.when}`;
+}
+
 /** How far off a task is, if its card shows today; otherwise null. */
 function due(ctx, task) {
   const date = whenOf(task);

@@ -366,7 +366,7 @@
     }
     @media (max-width: 480px) { .cb-grid, .cb-grid.n2, .cb-grid.n3 { grid-template-columns: minmax(0, 1fr); } }
 
-    /* ── Pet portraits: each pet full screen over its photo ─────────── */
+    /* ── Portraits: each pet or house full screen over its photo ────── */
     /* No CSS inset or flex gap: the wall tablet's WebView is old. */
     .portrait {
       position: relative; height: calc(100vh - 230px); min-height: 360px;
@@ -1512,8 +1512,9 @@ const MODULES = [
   // Each kid's chores, ticked off right here (the wall tablet).
   { id: "chores",       component: "chores",       label: "Chores",       build: buildChoreBoard,  onActivate: loadChoreBoard },
   { id: "photos",       component: "photos",       label: "Photos",       build: buildPhotos,      onCard: showPhotoCard, onActivate: nextPhoto },
-  // Named by its cards ("The dogs"), since that depends on the family's pets.
+  // Named by their cards ("Dogs", "Houses"), since that depends on the family's pets and places.
   { id: "pet-portraits", component: "pet-portraits", label: "Pets", labelFromCard: true, build: buildPortraits, onCard: showPortrait, onActivate: () => showPortrait(null) },
+  { id: "house-portraits", component: "house-portraits", label: "Houses", labelFromCard: true, build: buildPortraits, onCard: showHousePortrait, onActivate: () => showHousePortrait(null) },
   { id: "trips",        component: "trips",        label: "Trips",        build: buildTrips,       onCard: c => renderTrips(c.id, c), onActivate: () => renderTrips(null) },
   { id: "past-trips",   component: "past-trips",   label: "Past Trips",   build: buildPastTrips,   onCard: c => renderPastTrips(c.id, c), onActivate: () => renderPastTrips(null) },
   { id: "grocery",      component: "grocery",      label: "Grocery",      build: buildGroceryList, onActivate: loadGrocery },
@@ -1791,55 +1792,63 @@ function buildModules() {
   });
 }
 
-// ── Pet portraits ──────────────────────────────────────────────────
-// One card per pet (the pet-portraits component): its photo, blurred to fill the
-// screen with the whole photo on top, and its name, age and what's next.
-let portraitAt = -1;
+// ── Portraits ──────────────────────────────────────────────────────
+// One card per pet (pet-portraits) or per house (house-portraits): its photo,
+// blurred to fill the screen with the whole photo on top, and its name, a line
+// about it, and what's next.
+const portraitAt = {};   // component → which of its cards the tab showed last
 
 function buildPortraits(container) {
-  container.innerHTML = `<div class="portrait" id="portrait">
-    <img class="portrait-blur" id="portrait-blur" alt="">
-    <img class="portrait-photo" id="portrait-photo" alt="">
+  container.innerHTML = `<div class="portrait">
+    <img class="portrait-blur" alt="">
+    <img class="portrait-photo" alt="">
     <div class="portrait-shade"></div>
     <div class="portrait-text">
-      <div class="portrait-name" id="portrait-name"></div>
-      <div class="portrait-age" id="portrait-age"></div>
-      <div class="portrait-next" id="portrait-next"></div>
+      <div class="portrait-name"></div>
+      <div class="portrait-age"></div>
+      <div class="portrait-next"></div>
     </div>
   </div>`;
 }
 
 /** Fills the screen below the tabs, whatever the header's height on this screen. */
 function fitPortrait() {
-  const frame = document.getElementById("portrait");
-  if (!frame || frame.closest(".mod-hidden")) return;
-  const top = frame.getBoundingClientRect().top + window.pageYOffset;
-  frame.style.height = Math.max(360, window.innerHeight - top - 24) + "px";
+  Array.prototype.forEach.call(document.querySelectorAll(".portrait"), frame => {
+    if (frame.closest(".mod-hidden")) return;
+    const top = frame.getBoundingClientRect().top + window.pageYOffset;
+    frame.style.height = Math.max(360, window.innerHeight - top - 24) + "px";
+  });
 }
 window.addEventListener("resize", fitPortrait);
 
-/** Shows `card`, or (when someone opens the tab) the next pet in the stream. */
-function showPortrait(card) {
-  if (!card) {
-    const all = streamCards.filter(c => c.component === "pet-portraits");
-    if (!all.length) return;
-    portraitAt = (portraitAt + 1) % all.length;
-    card = all[portraitAt];
-  }
-  const d = card.data || {};
-  const pet = d.pet || {}, photo = d.photo;
-  const frame = document.getElementById("portrait");
-  setTimeout(fitPortrait, 30);
-  frame.classList.toggle("no-photo", !photo);
-  if (photo) {
-    document.getElementById("portrait-blur").src = photo.url;
-    document.getElementById("portrait-photo").src = photo.url;
-  }
-  document.getElementById("portrait-name").textContent = pet.name || card.glance.headline;
-  document.getElementById("portrait-age").textContent = [pet.species, pet.age].filter(Boolean).join(" · ");
-  document.getElementById("portrait-next").innerHTML = (d.next || []).map(n =>
-    `<div class="portrait-item${n.overdue ? " overdue" : ""}">${esc(n.emoji)} ${esc(n.title)} <span class="when">· ${esc(n.when)}</span></div>`).join("");
+/** A portrait view's handler: shows `card`, or (when someone opens the tab) the next one. */
+function portraitShower(component) {
+  return card => {
+    if (!card) {
+      const all = streamCards.filter(c => c.component === component);
+      if (!all.length) return;
+      portraitAt[component] = ((portraitAt[component] ?? -1) + 1) % all.length;
+      card = all[portraitAt[component]];
+    }
+    const i = MODULES.findIndex(m => m.component === component);
+    const frame = document.querySelector(`#module-${i} .portrait`);
+    if (!frame) return;
+    const $p = cls => frame.querySelector(`.portrait-${cls}`);
+    const d = card.data || {};
+    const who = d.pet || d.place || {}, photo = d.photo;
+    setTimeout(fitPortrait, 30);
+    frame.classList.toggle("no-photo", !photo);
+    if (photo) { $p("blur").src = photo.url; $p("photo").src = photo.url; }
+    $p("name").textContent = who.name || card.glance.headline;
+    $p("age").textContent = d.pet ? [who.species, who.age].filter(Boolean).join(" · ") : (who.address || "");
+    $p("next").innerHTML = (d.next || []).map(n =>
+      `<div class="portrait-item${n.overdue ? " overdue" : ""}">${esc(n.emoji)} ${esc(n.title)} <span class="when">· ${esc(n.when)}${n.note ? ` · ${esc(n.note)}` : ""}</span></div>`).join("")
+      || (d.place ? `<div class="portrait-item"><span class="when">Nothing due soon</span></div>` : "");
+  };
 }
+// Declared as functions so MODULES, above, can name them before this runs.
+function showPortrait(card) { portraitShower("pet-portraits")(card); }
+function showHousePortrait(card) { portraitShower("house-portraits")(card); }
 
 // ── Chores ─────────────────────────────────────────────────────────
 // A column per kid with today's chores as big tiles. Tap one to tick it done; tap a

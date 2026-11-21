@@ -539,8 +539,8 @@ test("a portrait per pet: its photo, its age, and what's next for it", async () 
   ];
   const cards = await byId["pet-portraits"].cards(ctxWith({ pets, household }));
   assert.deepEqual(cards.map(c => [c.id, c.title, c.glance.headline, c.glance.detail]), [
-    ["pet-portraits:pet-biscuit", "The dogs", "Biscuit", "Bath overdue"],
-    ["pet-portraits:pet-pepper1", "The dogs", "Pepper", "Dog"],
+    ["pet-portraits:pet-biscuit", "Dogs", "Biscuit", "Bath overdue"],
+    ["pet-portraits:pet-pepper1", "Dogs", "Pepper", "Dog"],
   ]);
   const [biscuit, pepper] = cards;
   assert.equal(biscuit.data.pet.age, "4 years old");
@@ -564,4 +564,69 @@ test("a portrait's image comes through the stream's image route", D1, async () =
   assert.equal(res.headers.get("Content-Type"), "image/jpeg");
   const none = await handleStream(new Request("https://hub.example.com/api/stream/image/pet-portraits%3Apet-nobody"), { HUB_DB: db }, HUB, async () => [], "/image/pet-portraits%3Apet-nobody");
   assert.equal(none.status, 404);
+});
+
+test("a portrait's title names the kind of pet", async () => {
+  const { titleFor } = await import("../app/worker/components/pet-portraits.js");
+  assert.equal(titleFor([{ species: "Dog" }, { species: "dog" }]), "Dogs");
+  assert.equal(titleFor([{ species: "Cat" }]), "Cats");
+  assert.equal(titleFor([{ species: "Dog" }, { species: "Cat" }]), "Pets");
+  assert.equal(titleFor([{ species: null }]), "Pets");
+});
+
+test("a portrait's tasks say what the task's own card would", async () => {
+  const pets = [{ id: "pet-biscuit", name: "Biscuit", species: "Dog", photos: [] }];
+  const household = [
+    { id: "t1", area: "pets", kind: "vet-visit", title: "Checkup", petId: "pet-biscuit", dueDate: "2027-06-25", booked: false },
+    { id: "t2", area: "pets", kind: "vet-visit", title: "Dental", petId: "pet-biscuit", dueDate: "2027-06-23", booked: true, apptDate: "2027-06-23", apptTime: "15:30", provider: "Dr. Lee" },
+    { id: "t3", area: "pets", kind: "boarding", title: "Boarding", petId: "pet-biscuit", dueDate: "2027-06-19", booked: true, apptDate: "2027-06-19", endDate: "2027-06-24", provider: "Happy Tails" },
+  ];
+  const [card] = await byId["pet-portraits"].cards(ctxWith({ pets, household }));
+  assert.deepEqual(card.data.next.map(n => [n.title, n.note]), [
+    ["Boarding", "home Thu, Jun 24 · Happy Tails"], ["Dental", "3:30 PM · Dr. Lee"], ["Checkup", "not booked yet"],
+  ]);
+});
+
+// ─── Place photos and house portraits (v2.11) ─────────────────────────────────
+
+test("an adult adds and removes a place's photo; it's served back exactly", D1, async () => {
+  const db = memoryD1();
+  const env = as("alex", db);
+  await post(env, "/places", { id: "place-home1", name: "Home", address: "1 Main St" });
+  assert.equal((await post(as("sam", db), "/places/place-home1/photo", { data: JPEG })).status, 403, "a child can't");
+  assert.equal((await post(env, "/places/place-nobody/photo", { data: JPEG })).status, 404);
+  let body = await (await post(env, "/places/place-home1/photo", { data: JPEG, width: 1600, height: 1200 })).json();
+  const [photo] = body.places[0].photos;
+  assert.deepEqual([photo.width, photo.height], [1600, 1200]);
+  const res = await handleHousehold(new Request(`${BASE}/photo/${photo.id}`), env, HUB, `/photo/${photo.id}`, NOW);
+  assert.equal(res.headers.get("Content-Type"), "image/jpeg");
+  assert.deepEqual(Buffer.from(await res.arrayBuffer()), Buffer.from(JPEG.split(",")[1], "base64"));
+  const { handleStream } = await import("../app/worker/stream.js");
+  const img = await handleStream(new Request(`https://hub.example.com/api/stream/image/house-portraits%3Aplace-home1?v=${photo.id}`), { HUB_DB: db }, HUB, async () => [], "/image/house-portraits%3Aplace-home1");
+  assert.equal(img.status, 200);
+  body = await (await post(env, `/photos/${photo.id}/remove`)).json();
+  assert.deepEqual(body.places[0].photos, []);
+});
+
+test("a portrait per house: its photo and what's next there", async () => {
+  const places = [
+    { id: "place-home1", name: "Home", address: "1 Main St", photos: [{ id: "photo-h", width: 1600, height: 1200 }] },
+    { id: "place-farm1", name: "The farm", address: null, photos: [] },
+  ];
+  const household = [
+    { id: "t1", area: "house", kind: "service", title: "Lawn service", placeId: "place-home1", dueDate: "2027-06-22" },
+    { id: "t2", area: "house", kind: "maintenance", title: "HVAC filter", placeId: "place-home1", dueDate: "2027-06-18" },
+    { id: "t3", area: "house", kind: "maintenance", title: "Smoke alarms", placeId: null, dueDate: "2027-06-20" },
+    { id: "t4", area: "pets", kind: "grooming", title: "Bath", petId: "pet-x", dueDate: "2027-06-20" },
+  ];
+  const cards = await byId["house-portraits"].cards(ctxWith({ places, household }));
+  assert.deepEqual(cards.map(c => [c.id, c.title, c.glance.headline, c.glance.detail]), [
+    ["house-portraits:place-home1", "Houses", "Home", "HVAC filter overdue"],
+    ["house-portraits:place-farm1", "Houses", "The farm", "Nothing due soon"],
+  ]);
+  assert.deepEqual(cards[0].data.next.map(n => n.title), ["HVAC filter", "Lawn service"]);
+  assert.equal(cards[0].data.place.address, "1 Main St");
+  assert.match(cards[0].glance.image, /house-portraits%3Aplace-home1\?v=photo-h$/);
+  assert.equal(cards[1].data.photo, null);
+  assert.equal((await byId["house-portraits"].cards(ctxWith({ places: [places[0]], household })))[0].title, "House");
 });

@@ -316,7 +316,7 @@ function layerFor(card as object) as string
     if c = "photos" then return "photo"
     if c = "trips" or c = "past-trips" then return "trip"
     if c = "grocery" then return "grocery"
-    if c = "pet-portraits" then return "pet"
+    if c = "pet-portraits" or c = "house-portraits" then return "pet"
     return "glance"
 end function
 
@@ -328,7 +328,7 @@ sub renderCard(card as object)
         renderTripScreen(card)
     else if c = "grocery" then
         renderGrocery(card)
-    else if c = "pet-portraits" then
+    else if c = "pet-portraits" or c = "house-portraits" then
         renderPortrait(card)
     else
         renderGlance(card)
@@ -898,7 +898,9 @@ end function
 sub renderPortrait(card as object)
     d = card.data
     if d = invalid then d = {}
+    ' A pet, or a house (house-portraits): the same layout.
     pet = d.pet
+    if pet = invalid then pet = d.place
     if pet = invalid then pet = {}
     path = imagePath(card)
     photo = m.top.findNode("petPhoto")
@@ -923,7 +925,9 @@ sub renderPortrait(card as object)
         if rows >= 3 then exit for
         color = m.TEXT
         if n.overdue = true then color = m.URGENT
-        addLabelTo(nextList, valueOr(n.title, "") + "  ·  " + valueOr(n.when, ""), 0, rows * 60, 40, n.overdue = true, color, 1700)
+        rowText = valueOr(n.title, "") + "  ·  " + valueOr(n.when, "")
+        if valueOr(n.note, "") <> "" then rowText = rowText + "  ·  " + n.note
+        addLabelTo(nextList, rowText, 0, rows * 60, 40, n.overdue = true, color, 1700)
         rows = rows + 1
     end for
 
@@ -935,6 +939,7 @@ sub renderPortrait(card as object)
     about = []
     if valueOr(pet.species, "") <> "" then about.push(pet.species)
     if valueOr(pet.age, "") <> "" then about.push(pet.age)
+    if valueOr(pet.address, "") <> "" then about.push(pet.address)
     age.text = about.Join("  ·  ")
     ageTop = nextTop - 24
     if age.text <> "" then ageTop = nextTop - 70

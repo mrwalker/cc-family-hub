@@ -8,7 +8,7 @@ const card = (component, id, extra = {}) => ({ id: `${component}:${id}`, title: 
 
 test("the default stream is every component, in the documented order", () => {
   assert.deepEqual(resolveConfig(HUB, null).components,
-    ["today", "week", "plan", "pets", "house", "chores", "pet-portraits", "photos", "trips", "past-trips", "grocery", "escape-rooms", "movies", "workouts"]);
+    ["today", "week", "plan", "pets", "house", "chores", "pet-portraits", "house-portraits", "photos", "trips", "past-trips", "grocery", "escape-rooms", "movies", "workouts"]);
   assert.deepEqual(COMPONENT_IDS, resolveConfig(HUB, null).components);
 });
 
@@ -20,7 +20,7 @@ test("an output's settings layer over the family's, after its built-in defaults"
   assert.equal(roku.photosBetween, 3, "the Roku defaults to three photos between cards");
   assert.equal(dwellFor(roku.dwell, "today"), 30);
   assert.equal(dwellFor(roku.dwell, "trips"), 10, "the Roku's default dwell beats the family's");
-  assert.deepEqual(roku.max, { "pet-portraits": 12, movies: 1 }, "a component's own default, then the family's");
+  assert.deepEqual(roku.max, { "pet-portraits": 12, "house-portraits": 12, movies: 1 }, "a component's own default, then the family's");
   assert.equal(dwellFor(resolveConfig(hub, "hub-page").dwell, "trips"), 20);
 });
 

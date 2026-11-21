@@ -38,7 +38,7 @@ const OUTPUT_ID = "phone-widget";
 
 /** Component ids the hub knows today. Used to tell the view from components in the Parameter. */
 const KNOWN_COMPONENTS = [
-  "today", "week", "plan", "pets", "house", "chores", "pet-portraits", "photos", "trips", "past-trips", "grocery", "escape-rooms", "movies", "workouts",
+  "today", "week", "plan", "pets", "house", "chores", "pet-portraits", "house-portraits", "photos", "trips", "past-trips", "grocery", "escape-rooms", "movies", "workouts",
 ];
 /** Older Parameter words: "mix" was the rotating widget, which is now the default. */
 const LEGACY_WORDS = { mix: null, photo: "photos", trip: "trips" };

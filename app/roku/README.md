@@ -90,8 +90,8 @@ to check the rotation without waiting for the screensaver.
 ## Developing
 
 - `components/HubScene.brs`: rotation, a layout for each kind of card, and remote keys.
-  `today`, `photos`, `trips`, `past-trips`, `grocery`, and `pet-portraits` have their own
-  layouts. Any other card is drawn from its glance.
+  `today`, `photos`, `trips`, `past-trips`, `grocery`, `pet-portraits` and `house-portraits`
+  have their own layouts. Any other card is drawn from its glance.
 - `components/FetchTask.brs`: the HTTP requests: `/api/stream?output=roku`, and card images,
   which it downloads to `tmp:/` with the same token.
 - `source/`: entry points for the channel and the screensaver.

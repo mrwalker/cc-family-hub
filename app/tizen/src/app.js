@@ -118,9 +118,9 @@
     return (need ? image(need) : Promise.resolve(null)).then(function (src) {
       var back = document.getElementById(state.front === 0 ? "slide-b" : "slide-a");
       var front = document.getElementById(state.front === 0 ? "slide-a" : "slide-b");
-      // Photos and pet portraits are shown whole (render() draws them); other cards
-      // fill the screen with their image.
-      var whole = card.component === "photos" || card.component === "pet-portraits";
+      // Photos and portraits (pets, houses) are shown whole (render() draws them);
+      // other cards fill the screen with their image.
+      var whole = card.component === "photos" || card.component === "pet-portraits" || card.component === "house-portraits";
       back.style.backgroundImage = src && !whole ? 'url("' + src + '")' : "";
       back.innerHTML = render(card, !!src, src);
       drift(back);
@@ -164,7 +164,8 @@
       case "trips": return trip(card, d, false, hasImage);
       case "past-trips": return trip(card, d, true, hasImage);
       case "grocery": return grocery(card, d);
-      case "pet-portraits": return portrait(card, d, src);
+      case "pet-portraits":
+      case "house-portraits": return portrait(card, d, src);
       default: return glance(card, hasImage);
     }
   }
@@ -235,16 +236,16 @@
 
   /** A pet over its whole photo, with its name, age and what's next for it along the bottom. */
   function portrait(card, d, src) {
-    var pet = d.pet || {};
+    var pet = d.pet || d.place || {};   // a pet, or a house
     var pic = src ? '<div class="backdrop" style="background-image:url(&quot;' + src + '&quot;)"></div>' +
       '<div class="whole full" style="background-image:url(&quot;' + src + '&quot;)"></div>' : '<div class="no-photo"></div>';
     var html = pic + '<div class="shade pet-shade"></div><div class="pet">' +
       '<div class="pet-name">' + esc(pet.name || (card.glance && card.glance.headline)) + "</div>";
-    var about = [pet.species, pet.age].filter(Boolean).join(" · ");
+    var about = d.pet ? [pet.species, pet.age].filter(Boolean).join(" · ") : pet.address || "";
     if (about) html += '<div class="pet-age">' + esc(about) + "</div>";
     (d.next || []).slice(0, 3).forEach(function (n) {
       html += '<div class="pet-next' + (n.overdue ? " overdue" : "") + '">' + esc(n.emoji || "") + " " + esc(n.title) +
-        ' <span class="when">· ' + esc(n.when) + "</span></div>";
+        ' <span class="when">· ' + esc(n.when) + (n.note ? " · " + esc(n.note) : "") + "</span></div>";
     });
     return html + "</div>";
   }
