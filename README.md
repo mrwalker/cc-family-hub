@@ -98,6 +98,7 @@ calendars, deploy the hub, schedule the pipeline, and add screens.
 | [The stream](docs/stream.md) | Components, cards, the stream API, rotation rules |
 | [Inputs](docs/inputs.md) | Every input and how to turn it on |
 | [Outputs](docs/outputs.md) | Every output and what it shows |
+| [The assistant](docs/assistant.md) | An agent in your chat that keeps trips and the grocery list up to date |
 | [Workspace](docs/workspace.md) | `family.yaml` and the rest of your workspace, field by field |
 | [Trip apps](docs/trip-apps.md) | Offline trip companions with quests and a leaderboard |
 | [Wall tablet](docs/wall-tablet.md) | Kiosk setup and the Google sign-in fix |

@@ -312,6 +312,56 @@ export const MIGRATIONS = [
       `CREATE INDEX IF NOT EXISTS place_photos_place ON place_photos (place_id, created_at)`,
     ],
   },
+  {
+    // v2.12: what the family's assistant changed through /api/agent (agent.js): who
+    // asked, in which channel, and what undoes it. agent_proposals holds changes that
+    // wait for an adult's yes.
+    version: 11,
+    statements: [
+      `CREATE TABLE IF NOT EXISTS agent_log (
+         id TEXT PRIMARY KEY,
+         created_at INTEGER NOT NULL,
+         scope TEXT NOT NULL,
+         channel TEXT,
+         op TEXT NOT NULL,
+         target TEXT,
+         summary TEXT NOT NULL,
+         args_json TEXT,
+         undo_json TEXT,
+         actor TEXT,
+         actor_role TEXT,
+         actor_label TEXT,
+         source TEXT,
+         proposal_id TEXT,
+         approved_by TEXT,
+         undone_at INTEGER,
+         undone_by TEXT
+       )`,
+      `CREATE INDEX IF NOT EXISTS agent_log_created ON agent_log (created_at)`,
+      `CREATE TABLE IF NOT EXISTS agent_proposals (
+         id TEXT PRIMARY KEY,
+         created_at INTEGER NOT NULL,
+         expires_at INTEGER NOT NULL,
+         scope TEXT NOT NULL,
+         channel TEXT,
+         op TEXT NOT NULL,
+         args_json TEXT,
+         summary TEXT NOT NULL,
+         tier TEXT NOT NULL,
+         requested_by TEXT,
+         requested_label TEXT,
+         source TEXT,
+         status TEXT NOT NULL DEFAULT 'pending',
+         decided_at INTEGER,
+         decided_by TEXT,
+         decided_via TEXT,
+         log_id TEXT,
+         error TEXT,
+         announced_at INTEGER
+       )`,
+      `CREATE INDEX IF NOT EXISTS agent_proposals_status ON agent_proposals (status, created_at)`,
+    ],
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

@@ -79,6 +79,13 @@ hub:
     grandma: { email: "grandma@example.com" }
     cousin-lee: {}
 
+  # Optional: the family's assistant. Each chat channel it works in, by id, and what
+  # it may touch there. See assistant.md.
+  agent:
+    channels:
+      C0EXAMPLE01: { trip: "beach-jul-2027" }
+      C0EXAMPLE02: { scope: household }
+
   # Trips that have a phone app. See trip-apps.md.
   tripApps:
     - trip: "beach-jul-2027"        # the trip's id (its edit form on /household/ › Trips shows it)
@@ -121,6 +128,7 @@ primaryFocuses: ["Science fair project"]
 calendarIds:
   - "sam@example.com"
   - "abc123@group.calendar.google.com"   # the team calendar
+slack: "U0EXAMPLE01"                # optional: their chat id, so the assistant's log can name them
 ```
 
 `calendarIds` are the calendars that are theirs on the hub. Everything else is context for
@@ -147,7 +155,7 @@ echo 'HUB_SECRETS_DIR=~/.config/family-hub' >> .env
 
 | File | Holds |
 |------|-------|
-| `secrets.yaml` | `hub-api` (your hub's URL, publish token, and the pipeline's Access service token), and any input's credentials |
+| `secrets.yaml` | `hub-api` (your hub's URL, publish token, the pipeline's Access service token, and the assistant's `agentToken` if you have one), and any input's credentials |
 | `google-service-account.json` | The Google service account key |
 
 Without `HUB_SECRETS_DIR`, they're read from `workspace/state/`, which is gitignored.

@@ -75,6 +75,13 @@ hub:
     grandma: { email: "grandma@example.com" }
     cousin-lee: {}
 
+  # A family assistant in your chat (docs/assistant.md): each channel it works in, by
+  # its id, and what it may touch there.
+  # agent:
+  #   channels:
+  #     C0EXAMPLE01: { trip: "beach-jul-2027" }
+  #     C0EXAMPLE02: { scope: household }
+
   # Trips with a phone app (a folder in your hub repo; see docs/trip-apps.md).
   tripApps: []
   #  - trip: "beach-jul-2027"      # the trip's id in trips.yaml

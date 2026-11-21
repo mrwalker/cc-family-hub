@@ -3,9 +3,10 @@
  * Builds a family's hub from its repo (run from that repo's root):
  *
  *   workspace/family.yaml        members (+ color, shortName), inputs, stream, outputs,
- *                                hub.title, hub.shortTitle, hub.guests, hub.tripApps, hub.access, hub.householdCalendar
+ *                                hub.title, hub.shortTitle, hub.guests, hub.tripApps, hub.access, hub.householdCalendar,
+ *                                hub.agent
  *                                (and the older hub.photos and hub.groceryEmailUrl)
- *   workspace/members/<id>.yaml  calendarIds, email
+ *   workspace/members/<id>.yaml  calendarIds, email, slack
  *     → .generated/hub-config.json   imported by the family's worker.js (never served)
  *
  *   cc-family-hub/app/public/    the hub page and the shared trip-app engine
@@ -57,6 +58,17 @@ function load(file) {
 const ID_RE = /^[a-z0-9-]+$/;
 const COLOR_RE = /^#[0-9a-fA-F]{6}$/;
 const strings = v => (Array.isArray(v) ? v.filter(x => typeof x === "string") : []);
+// Chat ids, as Slack writes them: a channel is C… (or G…), a person U… (or W…).
+const CHAT_CHANNEL_RE = /^[CG][A-Z0-9]{5,19}$/;
+const CHAT_PERSON_RE = /^[UW][A-Z0-9]{5,19}$/;
+// Chat id → who that is, for the assistant's log (hub.agent).
+const chatPeople = {};
+function chatId(file, at, v, who) {
+  if (v == null) return;
+  if (typeof v !== "string" || !CHAT_PERSON_RE.test(v)) return fail(file, at, `expected the person's chat member id, like "U0123ABCD", got ${JSON.stringify(v)}`);
+  if (chatPeople[v]) return fail(file, at, `${v} is also ${chatPeople[v].id}'s`);
+  chatPeople[v] = who;
+}
 
 const family = load("family.yaml");
 const hub = family.hub ?? {};
@@ -72,7 +84,9 @@ const members = (Array.isArray(family.members) ? family.members : []).map((m, i)
   const emails = [...new Set([profile.email, ...calendars].filter(e => typeof e === "string" && e.includes("@")))]
     .map(e => e.toLowerCase());
   // Anyone not marked a child is an adult: adults manage household records.
-  return { id: m.id, name: m.shortName || m.name, color: m.color, role: m.role === "child" ? "child" : "adult", calendars, emails };
+  const role = m.role === "child" ? "child" : "adult";
+  chatId(`members/${m.id}.yaml`, "slack", profile.slack, { id: m.id, role, name: m.shortName || m.name });
+  return { id: m.id, name: m.shortName || m.name, color: m.color, role, calendars, emails };
 });
 if (!members.length) fail("family.yaml", "members", "no members listed");
 const inputs = objectAt(family.inputs, "inputs");
@@ -197,6 +211,7 @@ const guests = Object.entries(hub.guests ?? {}).map(([id, g]) => {
   if (!ID_RE.test(id)) fail("family.yaml", `hub.guests.${id}`, "expected a lowercase id");
   if (memberIds.has(id)) fail("family.yaml", `hub.guests.${id}`, "is also a family member");
   if (g?.email != null && !String(g.email).includes("@")) fail("family.yaml", `hub.guests.${id}.email`, "not an email address");
+  chatId("family.yaml", `hub.guests.${id}.slack`, g?.slack, { id, role: "guest", name: typeof g?.name === "string" ? g.name : id });
   return { id, email: g?.email ? String(g.email).toLowerCase() : null };
 });
 const guestIds = new Set(guests.map(g => g.id));
@@ -247,7 +262,42 @@ function tripSummary(path, at) {
       date: str(d.date), title: str(d.title), emoji: str(d.emoji),
       items: (d.items ?? []).map(i => ({ time: str(i.time) ?? str(i.when), emoji: str(i.emoji), title: str(i.title) })),
     })),
+    // For the assistant's briefings (worker/agent.js): what's on each packing list and
+    // for whom, and the plan's "!" tags, which mark something still to book or ask.
+    packing: (T.packing ?? []).flatMap(g => (g.items ?? [])
+      .filter(i => str(i.id))
+      .map(i => ({ id: i.id, ...(Array.isArray(i.who) ? { who: strings(i.who) } : {}) }))),
+    flags: (T.days ?? []).flatMap(d => (d.items ?? []).flatMap(i => strings(i.tags)
+      .filter(t => t.startsWith("!"))
+      .map(t => ({ date: str(d.date), title: str(i.title), flag: t.slice(1).trim() })))),
   };
+}
+
+// hub.agent: the family's assistant (docs/assistant.md). Each chat channel it works in
+// names what it may touch there: one trip, one place, or a part of the household.
+const AGENT_SCOPES = ["household", "ops", "grocery", "pets", "movies"];
+let agent = null;
+if (hub.agent != null) {
+  if (!isObj(hub.agent) || !isObj(hub.agent.channels ?? {})) fail("family.yaml", "hub.agent", "expected a map with channels");
+  else {
+    const channels = {};
+    for (const [id, c] of Object.entries(hub.agent.channels ?? {})) {
+      const at = `hub.agent.channels.${id}`;
+      if (!CHAT_CHANNEL_RE.test(id)) { fail("family.yaml", at, `expected a channel id, like "C0123ABCD" (not the channel's name)`); continue; }
+      const keys = isObj(c) ? Object.keys(c) : [];
+      if (keys.length !== 1 || !["trip", "place", "scope"].includes(keys[0])) {
+        fail("family.yaml", at, `expected one of { trip: <trip id> }, { place: <place id> } or { scope: ${AGENT_SCOPES.join(" | ")} }`);
+      } else if (c.scope != null) {
+        if (!AGENT_SCOPES.includes(c.scope)) fail("family.yaml", `${at}.scope`, `expected one of ${AGENT_SCOPES.join(", ")}, got ${JSON.stringify(c.scope)}`);
+        else channels[id] = { scope: c.scope };
+      } else {
+        const [kind] = keys;
+        if (typeof c[kind] !== "string" || !ID_RE.test(c[kind])) fail("family.yaml", `${at}.${kind}`, `expected the ${kind}'s id (on /household/), got ${JSON.stringify(c[kind])}`);
+        else channels[id] = { scope: kind, [kind]: c[kind] };
+      }
+    }
+    agent = { name: typeof hub.agent.name === "string" && hub.agent.name.trim() ? hub.agent.name.trim() : "Assistant", channels, people: chatPeople };
+  }
 }
 
 // Since v2.9 the hub keeps a family's trips (edited on /household/), and trips.yaml is
@@ -282,7 +332,8 @@ if (process.argv.includes("--check")) {
   Stream:     ${list(stream.components ?? COMPONENT_IDS)}
   Screens:    ${list(SCREENS.map(id => (outputStreams[id] ? `${id} (own stream)` : id)))}
   Pushes:     ${list([...new Set([...Object.keys(outputs).filter(id => !SCREENS.includes(id)), ...legacy.filter(id => PUSHES.includes(id))])])}
-  Trip apps:  ${list(tripApps.map(t => t.path))}`);
+  Trip apps:  ${list(tripApps.map(t => t.path))}
+  Assistant:  ${agent ? `${Object.keys(agent.channels).length} channels, ${Object.keys(agent.people).length} chat ids` : "not set up"}`);
   process.exit(0);
 }
 
@@ -295,6 +346,12 @@ const config = {
   access,
   householdCalendar,
   tripApps,
+  agent,
+  build: {
+    toolkit: JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "package.json"), "utf8")).version,
+    builtAt: new Date().toISOString(),
+    commit: process.env.WORKERS_CI_COMMIT_SHA || null,
+  },
   groceryEmailUrl: groceryEmailUrl || null,
   photos: album ? { icloudAlbum: String(album) } : null,
   stream,
