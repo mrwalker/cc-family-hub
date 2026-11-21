@@ -285,6 +285,11 @@ never run a migration by hand.
 Every write is validated in the Worker and answers with the fresh list. A write has to be
 a JSON request, which a form on another website can't send.
 
+A family's assistant has its own routes under `/api/agent`, with its own token
+(`AGENT_TOKEN`): it reads trips and the grocery list and makes one small, logged change at
+a time, within what its chat channel is mapped to. [assistant.md](assistant.md) has the
+routes and the rules.
+
 ### Who may write
 
 Access decides who reaches the hub. For household writes the Worker also checks the

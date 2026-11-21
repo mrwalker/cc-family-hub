@@ -19,6 +19,7 @@
  *   /api/data…              — published plan/family/strava data (see data-api.js)
  *   /api/grocery            — the shared grocery list (grocery.js)
  *   /api/household…         — household records: pets and their care (household.js)
+ *   /api/agent…             — the family's assistant: scoped, logged changes (agent.js)
  *   /api/trip/:id/…         — trip app check-ins and packing lists
  *   All other paths         — static assets (the hub page, trip apps)
  *
@@ -29,6 +30,7 @@
  *                       /api/config.js, so keep /api/config.js behind your auth (e.g.
  *                       Cloudflare Access) even if /api/events is excluded from it.
  *   PUBLISH_TOKEN     — bearer token the pipeline uses to PUT /api/data/:kind
+ *   AGENT_TOKEN       — bearer token the family's assistant uses on /api/agent (optional)
  *
  * Bindings: ASSETS (static assets), HUB_DATA (KV, published data), TRIP_KV (KV, trip apps),
  *           HUB_DB (D1, household records; optional).
@@ -38,6 +40,7 @@ import { handleDataApi } from "./data-api.js";
 import { handleStream } from "./stream.js";
 import { handleGrocery } from "./grocery.js";
 import { handleHousehold } from "./household.js";
+import { handleAgent } from "./agent.js";
 import { warmAlbums } from "./photos.js";
 import { tripAlbumLinks } from "./trip-records.js";
 import { serviceAccountToken, SCOPES } from "./google.js";
@@ -67,6 +70,10 @@ export function createHub(config) {
     // The Google Calendar that booked household appointments go on (household-calendar.js).
     householdCalendar: config.householdCalendar ?? null,
     photosAlbum: config.photos?.icloudAlbum ?? null,
+    // The family's assistant: which channel may touch what, and who's who there (agent.js).
+    agent: config.agent ?? null,
+    // What was built and when, for the health check.
+    build: config.build ?? null,
     // The stream's settings: the family's default, and each output's overrides.
     stream: config.stream ?? {},
     outputs: config.outputs ?? {},
@@ -129,6 +136,11 @@ async function route(request, env, hub, ectx = null) {
   const household = url.pathname.match(/^\/api\/household(\/.*)?$/);
   if (household) {
     return handleHousehold(request, env, hub, household[1] ?? "");
+  }
+
+  const agent = url.pathname.match(/^\/api\/agent(\/.*)?$/);
+  if (agent) {
+    return handleAgent(request, env, hub, agent[1] ?? "");
   }
 
   if (url.pathname === "/api/config.js") {

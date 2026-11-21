@@ -21,7 +21,7 @@ const KEY = "grocery:list";
 const OLD_PREFIX = "grocery:item:";             // v0.11 and earlier: one key per item
 const PLAN_PREFIX = "grocery:plan:";            // names the planner already added
 const PLAN_MEMORY_SECONDS = 30 * 86_400;        // so a deleted item doesn't come back
-const MAX_ITEMS = 300;
+export const MAX_ITEMS = 300;
 const ID_RE = /^[A-Za-z0-9_-]{6,40}$/;
 
 export async function handleGrocery(request, env, hub) {
@@ -60,7 +60,7 @@ export async function listGrocery(env) {
   return migrateOldItems(env);
 }
 
-async function saveGrocery(env, items) {
+export async function saveGrocery(env, items) {
   await env.HUB_DATA.put(KEY, JSON.stringify({ items }));
 }
 
@@ -135,7 +135,8 @@ export function cleanItem(c, members) {
   return item;
 }
 
-function norm(name) {
+/** A name as the list compares it: "Whole Milk!" and "whole milk" are the same item. */
+export function norm(name) {
   return String(name).toLowerCase().replace(/[^a-z0-9]+/g, " ").trim().slice(0, 60);
 }
 

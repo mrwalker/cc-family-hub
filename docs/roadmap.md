@@ -69,12 +69,19 @@ Built so far:
   portraits instead of the `pets` and `house` lists. Pet portraits are titled "Dogs".
 - **v2.11.1:** a slow iCloud album never holds up the stream: album lists are kept in KV
   and loaded by a cron trigger (add `triggers` to `wrangler.jsonc`, as in the template).
+- **v2.12.0:** **the assistant** ([assistant.md](assistant.md)): an agent in the family's
+  chat adds to a trip's lists and the grocery list with `family-hub trip …` and
+  `grocery …`. Each chat channel is mapped to what it may touch (`hub.agent.channels`),
+  every change is logged and can be undone, `trip brief` gives the facts for a briefing,
+  and `family-hub doctor` checks the live hub.
 
 The rest ships in steps:
 
 | Release | What it adds |
 |---------|--------------|
 | v2.10.0 | **Activities:** completing what the calendar leaves out |
+| v2.13.0 | **The assistant, confirmed changes:** removing and re-dating wait for an adult's yes; tasks, chores and movies from chat; what the assistant did, with undo, on `/household/` |
+| v2.14.0 | **Ask the assistant from the hub:** a box on the hub page whose messages reach the assistant, with its answers shown back |
 
 Activities stay in the calendar, where families already put them. But a practice typed in
 a hurry is often missing its address, a phone number or a link. The hub keeps what it

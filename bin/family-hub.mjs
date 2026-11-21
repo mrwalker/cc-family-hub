@@ -12,6 +12,10 @@
  *   family-hub summary           Print a readable summary of the week
  *   family-hub movies history    Print past movie picks and who wanted or saw each
  *   family-hub movies publish F  Hand the hub this month's movie picks (a JSON file)
+ *   family-hub trip …            The assistant: read a trip, brief on it, add to its lists
+ *   family-hub grocery …         The assistant: read, add to and check off the grocery list
+ *   family-hub log …             The assistant: what it changed, and undoing a change
+ *   family-hub doctor            Check the live hub: what's deployed, how fresh its data is
  *   family-hub build             Validate the workspace and assemble the Worker's site
  *   family-hub setup calendars   Check the Google service account and calendar sharing
  *   family-hub setup strava      Connect a member's Strava account
@@ -30,7 +34,7 @@ const VERSION = JSON.parse(readFileSync(join(PKG, "package.json"), "utf8")).vers
 
 const USAGE = readFileSync(fileURLToPath(import.meta.url), "utf8")
   .match(/\/\*\*\n \* family-hub:[\s\S]*?\*\//)[0]
-  .split("\n").slice(3, 17).map(l => l.replace(/^ \* ?/, "")).join("\n");
+  .split("\n").slice(3).map(l => l.replace(/^ \* ?/, "")).join("\n").split("\n\n")[0];
 
 /** Runs a TypeScript entry point of this package with tsx, in the caller's directory. */
 function tsx(file, args = []) {
@@ -52,6 +56,11 @@ const COMMANDS = {
   publish: () => tsx("hub/index.ts", ["publish"]),
   summary: () => tsx("hub/index.ts", ["summary"]),
   movies: (what, file) => tsx("hub/movies.ts", [what, file].filter(Boolean)),
+  // The assistant's commands (hub/agent.ts, docs/assistant.md).
+  trip:    (...args) => tsx("hub/agent.ts", ["trip", ...args]),
+  grocery: (...args) => tsx("hub/agent.ts", ["grocery", ...args]),
+  log:     (...args) => tsx("hub/agent.ts", ["log", ...args]),
+  doctor:  (...args) => tsx("hub/agent.ts", ["doctor", ...args]),
   build:   () => node("app/build.mjs"),
   run() {
     const synced = tsx("hub/index.ts", ["sync"]);

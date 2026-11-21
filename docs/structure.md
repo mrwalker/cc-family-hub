@@ -22,6 +22,8 @@ cc-family-hub/
 | [`hub/index.ts`](../hub/index.ts) | The commands: `sync`, `render`, `plan`, `publish`, `summary` |
 | [`hub/paths.ts`](../hub/paths.ts) | Where the workspace and secrets are. All code resolves paths through this. |
 | [`hub/context/loader.ts`](../hub/context/loader.ts) | Reads the workspace: config, members, events, notes, the last plan |
+| [`hub/agent.ts`](../hub/agent.ts) | The assistant's commands: `trip`, `grocery`, `log`, `doctor` |
+| [`hub/hub-client.ts`](../hub/hub-client.ts) | Calls the hub's token-protected APIs with the `hub-api` secrets |
 | [`hub/context/builder.ts`](../hub/context/builder.ts) | Assembles the planner's context and renders it as Markdown |
 | [`hub/planner/engine.ts`](../hub/planner/engine.ts) | Calls Claude, with prompt caching on the context |
 | [`hub/planner/prompts/`](../hub/planner/prompts/) | The planning and summary prompts |
@@ -50,6 +52,8 @@ cc-family-hub/
 | [`app/worker/data-api.js`](../app/worker/data-api.js) | Validates and stores what the pipeline publishes |
 | [`app/worker/photos.js`](../app/worker/photos.js) | Reads the iCloud shared album |
 | [`app/worker/household.js`](../app/worker/household.js) | Household records: the API, validation, and who may change what |
+| [`app/worker/agent.js`](../app/worker/agent.js) | The assistant's API: scope by channel, reads, the log and undo |
+| [`app/worker/agent-ops.js`](../app/worker/agent-ops.js) | Each change the assistant can make, and what undoes it |
 | [`app/worker/household-calendar.js`](../app/worker/household-calendar.js) | Keeps the household calendar in step with the records, both ways |
 | [`app/worker/google.js`](../app/worker/google.js) | Google access through the service account |
 | [`app/worker/access.js`](../app/worker/access.js) | Checks a Cloudflare Access sign-in and finds the member behind it |

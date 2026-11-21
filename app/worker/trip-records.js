@@ -35,7 +35,8 @@ export const HIGHLIGHT_COLORS = [
   "linear-gradient(135deg,#16a34a,#84cc16)", "linear-gradient(135deg,#f97316,#db2777)",
   "linear-gradient(135deg,#0d9488,#4f46e5)", "linear-gradient(135deg,#78716c,#44403c)",
 ];
-const LIMITS = { highlights: 12, activities: 40, restaurants: 40, ideas: 40 };
+/** How many of each a trip holds. */
+export const LIMITS = { highlights: 12, activities: 40, restaurants: 40, ideas: 40 };
 const GEOCODER = "https://nominatim.openstreetmap.org/search";
 const GEOCODE_MS = 5000;
 
