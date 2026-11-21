@@ -156,9 +156,10 @@ Each of these adds a component to the stream. Details are in [inputs.md](inputs.
 | To get | Do |
 |--------|-----|
 | Photos | Turn on Public Website for an iCloud shared album, and set `inputs.icloud-album.album` |
-| Trips | Add your trips to `workspace/trips.yaml` |
+| Trips | Add them on `/household/` › Trips |
 | A trip app | Copy a trip folder and register it. See [trip-apps.md](trip-apps.md). |
-| Escape rooms, movies | Edit `workspace/escape-rooms.yaml` and `workspace/movies.yaml` |
+| Escape rooms | Add them on `/household/` › Escape rooms |
+| Movies | Picked monthly by your assistant. See [inputs.md](inputs.md). |
 | Grocery list | Nothing. It's on the hub page. |
 
 Changing `family.yaml` needs a deploy, and changing content files needs a pipeline run. With

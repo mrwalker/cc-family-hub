@@ -79,7 +79,7 @@ export const HUB = {
 };
 
 /** A context at `now` (default: noon Pacific on 2027-06-21) with the given data. */
-export function ctxWith({ data = {}, events = [], trips = [], photos = null, grocery = [], household = null, pets = null, chores = null, rooms = null, movies = null, albums = {}, view = null, now = new Date("2027-06-21T19:00:00Z"), hub = HUB } = {}) {
+export function ctxWith({ data = {}, events = [], trips = [], photos = null, grocery = [], household = null, pets = null, chores = null, rooms = null, movies = null, tripRecords = null, albums = {}, view = null, now = new Date("2027-06-21T19:00:00Z"), hub = HUB } = {}) {
   const env = { HUB_DATA: memoryKV(Object.fromEntries(Object.entries(data).map(([k, v]) => [`data:${k}`, v]))) };
   const ctx = makeContext({ request: new Request("https://hub.example.com/api/stream"), env, hub, loadEvents: async () => events, now, view });
   ctx.trips = async () => trips;
@@ -89,6 +89,7 @@ export function ctxWith({ data = {}, events = [], trips = [], photos = null, gro
   ctx.pets = async () => pets;
   ctx.chores = async () => chores;
   ctx.rooms = async () => rooms;
+  ctx.tripRecords = async () => tripRecords;
   ctx.movies = async () => movies;
   ctx.album = async link => albums[link] ?? null;
   return ctx;

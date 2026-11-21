@@ -257,6 +257,35 @@ export const MIGRATIONS = [
        )`,
     ],
   },
+  {
+    // v2.9: trips, kept by the hub instead of trips.yaml. details holds the lists a trip
+    // shows (highlights, things to do, restaurants, tips) as JSON. map_for is the
+    // destination the map was found for, so a changed destination is looked up again.
+    version: 8,
+    statements: [
+      `CREATE TABLE IF NOT EXISTS trips (
+         id TEXT PRIMARY KEY,
+         name TEXT NOT NULL,
+         destination TEXT,
+         emoji TEXT,
+         start_date TEXT NOT NULL,
+         end_date TEXT NOT NULL,
+         kind TEXT NOT NULL DEFAULT 'family',
+         who TEXT,
+         album TEXT,
+         description TEXT,
+         map_bbox TEXT,
+         map_for TEXT,
+         details TEXT,
+         archived INTEGER NOT NULL DEFAULT 0,
+         created_at INTEGER NOT NULL,
+         created_by TEXT,
+         updated_at INTEGER NOT NULL,
+         updated_by TEXT
+       )`,
+      `CREATE INDEX IF NOT EXISTS trips_start ON trips (archived, start_date)`,
+    ],
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

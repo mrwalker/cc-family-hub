@@ -22,8 +22,8 @@ GET /api/stream?view=family
 | `chores` | 1 for the family, 1 for a kid in their view, and 1 for the new rotation on the week's first day | Whose chores are done today, and what's next; a kid's own chores; who has which job this week | Household records |
 | `pet-portraits` | 1 per pet | The pet over its photo, with its age and what's next for it | Household records |
 | `photos` | 1 per photo | A photo from the family album | iCloud album |
-| `trips` | 1 per upcoming or active trip | Countdown (or "Day 2 of 5"), hero photo, leaderboard, today's schedule | `trips.yaml`, trip apps |
-| `past-trips` | 1 per past trip | Where and when, highlights, final standings | `trips.yaml`, trip apps |
+| `trips` | 1 per upcoming or active trip | Countdown (or "Day 2 of 5"), hero photo, leaderboard, today's schedule | The hub's trips, trip apps |
+| `past-trips` | 1 per past trip | Where and when, highlights, final standings | The hub's trips, trip apps |
 | `grocery` | 1 | The shopping list | The shared list, the planner |
 | `escape-rooms` | 1 | Your record, and one room you've played | `escape-rooms.yaml` |
 | `movies` | 1 per movie you want to watch | Title, release date, format, who's going | `movies.yaml` |

@@ -37,7 +37,7 @@ but stay local to each phone.
    - `img/`
 2. **Register it.** In `family.yaml`, add any new people under `hub.guests`, with an `email`
    for anyone who will sign in. Then add an entry under `hub.tripApps`:
-   - `trip`: its id in `trips.yaml`
+   - `trip`: the trip's id. Add the trip on `/household/` › Trips first; its edit form shows the id.
    - `path`: `/<trip>/`
    - `appId`: the `id` in `trip-data.js`
    - `guests`: who can score besides the family

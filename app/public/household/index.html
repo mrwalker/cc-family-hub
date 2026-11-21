@@ -97,8 +97,8 @@
     .thumb { display: inline-block; vertical-align: top; text-align: center; margin: 0 8px 8px 0; }
     .thumb img { display: block; width: 96px; height: 96px; object-fit: cover; border-radius: 8px; background: var(--border); }
     .thumb button { margin-top: 2px; }
-    label.btn { display: inline-block; line-height: 24px; }
-    label.btn.small { min-height: 34px; padding: 4px 10px; font-size: 14px; }
+    label.btn, a.btn { display: inline-block; line-height: 24px; text-decoration: none; }
+    label.btn.small, a.btn.small { min-height: 34px; padding: 4px 10px; font-size: 14px; }
 
     /* Forms */
     .form { background: var(--accent-light); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; margin: 10px 0 4px; }
@@ -113,8 +113,10 @@
     textarea { min-height: 70px; }
     .row { display: grid; grid-template-columns: 1fr 1fr; grid-gap: 10px; }
     .row3 { display: grid; grid-template-columns: 90px 1fr; grid-gap: 10px; }
+    .row > *, .row3 > * { min-width: 0; }
     .check { display: inline-block; font-size: 15px; margin: 0 14px 6px 0; font-weight: 400; }
     .check input { width: auto; min-height: 0; margin-right: 6px; }
+    .field > label.check { display: inline-block; font-size: 15px; font-weight: 400; margin: 0 14px 6px 0; }
     .form-actions button { margin: 4px 8px 0 0; }
     .hidden { display: none !important; }
 
@@ -159,6 +161,24 @@
     .room .result.failed { color: var(--urgent); }
     .room .room-actions { margin-top: 6px; }
     .room .room-actions button { margin: 0 6px 4px 0; }
+    /* Trips */
+    .trip { border-top: 1px solid var(--border); padding: 12px 0; position: relative; padding-left: 58px; min-height: 64px; }
+    .trip:first-of-type { border-top: 0; }
+    .trip .badge { position: absolute; left: 0; top: 12px; width: 46px; height: 46px; border-radius: 10px; font-size: 24px;
+      line-height: 46px; text-align: center; background: var(--accent-light); }
+    .trip .when { font-size: 13px; font-weight: 700; color: var(--accent); }
+    .trip .tag { display: inline-block; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em;
+      color: var(--muted); border: 1px solid var(--border); border-radius: 6px; padding: 1px 6px; margin-left: 6px; vertical-align: 2px; }
+    .trip .room-actions { margin-top: 6px; }
+    .trip .room-actions button, .trip .room-actions a { margin: 0 6px 4px 0; }
+    .items { border-top: 1px solid var(--border); margin-top: 6px; }
+    .item { border-bottom: 1px solid var(--border); padding: 8px 0; }
+    .item-top { display: grid; grid-template-columns: 56px minmax(0, 1fr) 44px; grid-gap: 8px; margin-bottom: 6px; }
+    .item-top.name { grid-template-columns: minmax(0, 1fr) 44px; }
+    .item-top.pair { grid-template-columns: 96px minmax(0, 1fr); }
+    .item-top input, .item-top select { min-width: 0; }
+    .item-top button { min-height: 42px; padding: 0; }
+    .section-title { font-size: 15px; font-weight: 700; margin: 16px 0 2px; }
     .job-edit { display: grid; grid-template-columns: 1fr 70px 44px; grid-gap: 8px; margin-bottom: 8px; }
   </style>
 </head>
@@ -362,15 +382,15 @@ function render() {
     banner.classList.remove("hidden");
   } else banner.classList.add("hidden");
 
-  const areas = Object.keys(state.areas).concat("chores", "rooms");
-  const label = a => (state.areas[a] ? state.areas[a].label : a === "rooms" ? "Escape rooms" : "Chores");
+  const areas = Object.keys(state.areas).concat("chores", "rooms", "trips");
+  const label = a => (state.areas[a] ? state.areas[a].label : a === "rooms" ? "Escape rooms" : a === "trips" ? "Trips" : "Chores");
   // Kids start on their chores.
   if (!area || areas.indexOf(area) < 0) area = areas.indexOf(location.hash.slice(1)) >= 0 ? location.hash.slice(1) : v && v.role === "child" ? "chores" : areas[0];
   const tabs = $("tabs");
   tabs.classList.toggle("hidden", areas.length < 2);
   tabs.innerHTML = areas.map(a => `<button data-do="area" data-id="${a}" class="${a === area ? "active" : ""}">${esc(label(a))}</button>`).join("");
 
-  main.innerHTML = area === "pets" ? petsView() : area === "house" ? houseView() : area === "chores" ? choresView() : area === "rooms" ? roomsView() : listView(area);
+  main.innerHTML = area === "pets" ? petsView() : area === "house" ? houseView() : area === "chores" ? choresView() : area === "rooms" ? roomsView() : area === "trips" ? tripsView() : listView(area);
   wirePhotoInputs();
   const first = main.querySelector(".form input:not([type=checkbox]), .form select");
   if (first && form && form.fresh) { first.focus(); form.fresh = false; }
@@ -964,6 +984,189 @@ function saveRoom() {
     .then(ok => { if (ok) form = null; render(); });
 }
 
+// ── Trips ──────────────────────────────────────────────────────────
+// The family's trips: what the Trips and Past Trips views and cards show. Adults add
+// and change them; a trip app (family.yaml → hub.tripApps) names its trip by its id.
+const liveTrips = () => (state.trips || []).filter(t => !t.archived);
+const LIST_FIELDS = {
+  highlights: { label: "Highlights", hint: "Big tiles at the top of the trip: its best moments.", empty: { emoji: "", label: "", caption: "", bg: "" }, max: 12 },
+  activities: { label: "Things to do", hint: "", empty: { emoji: "", name: "", note: "" }, max: 40 },
+  restaurants: { label: "Restaurants", hint: "", empty: { name: "", price: "", type: "", note: "" }, max: 40 },
+};
+const HIGHLIGHT_COLORS = [
+  ["Ocean", "linear-gradient(135deg,#0891b2,#1d4ed8)"], ["Dusk", "linear-gradient(135deg,#0284c7,#7c3aed)"],
+  ["Forest", "linear-gradient(135deg,#16a34a,#84cc16)"], ["Sunset", "linear-gradient(135deg,#f97316,#db2777)"],
+  ["Lagoon", "linear-gradient(135deg,#0d9488,#4f46e5)"], ["Stone", "linear-gradient(135deg,#78716c,#44403c)"],
+];
+const MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+
+function tripDates(t) {
+  const sameYear = t.startDate.slice(0, 4) === t.endDate.slice(0, 4);
+  return dateText(t.startDate, { month: "short", day: "numeric", year: sameYear ? undefined : "numeric" }) +
+    " – " + dateText(t.endDate, { month: "short", day: "numeric", year: "numeric" });
+}
+
+function tripWhen(t) {
+  if (t.endDate < state.today) return "";
+  if (t.startDate <= state.today) return "Happening now";
+  const n = daysUntil(t.startDate);
+  return n === 1 ? "Tomorrow" : `In ${plural(n, "day")}`;
+}
+
+/** An id like "lake-jul-2027", not taken by another trip. */
+function newTripId(name, start) {
+  const slug = (name || "trip").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40) || "trip";
+  const base = start ? `${slug}-${MONTHS[Number(start.slice(5, 7)) - 1]}-${start.slice(0, 4)}` : slug;
+  const taken = id => (state.trips || []).some(t => t.id === id);
+  let id = base.length >= 2 ? base : "trip", n = 2;
+  while (taken(id)) id = `${base}-${n++}`;
+  return id;
+}
+
+function tripsView() {
+  const manage = state.can.manage;
+  const trips = liveTrips();
+  let html = "";
+  if (state.canImportTrips && manage) {
+    html += `<div class="card"><h2>Bring in your trips</h2><p class="sub" style="margin-top:6px">This hub has the trips
+      from trips.yaml. Bring them in once, and keep them here from then on.</p>
+      <div class="task-actions" style="margin-top:10px"><button class="primary" data-do="import-trips">Bring them in</button></div></div>`;
+  }
+  const coming = trips.filter(t => t.endDate >= state.today).sort((a, b) => a.startDate.localeCompare(b.startDate));
+  const past = trips.filter(t => t.endDate < state.today).sort((a, b) => b.startDate.localeCompare(a.startDate));
+  const adding = form && form.type === "trip" && !form.id;
+  html += `<div class="card"><h2>Coming up</h2>`;
+  if (adding) html += tripForm();
+  else if (manage) html += `<div class="task-actions" style="margin:8px 0 6px"><button class="primary" data-do="add-trip">+ Add a trip</button></div>`;
+  if (!coming.length && !adding) html += `<div class="empty">No trips coming up.</div>`;
+  coming.forEach(t => { html += tripRow(t); });
+  html += `</div>`;
+  if (past.length) html += `<div class="card"><h2>Past trips</h2>${past.map(tripRow).join("")}</div>`;
+  return html;
+}
+
+function tripRow(t) {
+  if (form && form.type === "trip" && form.id === t.id) return tripForm();
+  const who = (t.who || []).map(memberName).join(", ");
+  const app = state.tripApps && state.tripApps[t.id];
+  const when = tripWhen(t);
+  return `<div class="trip">
+    <span class="badge">${esc(t.emoji || "✈️")}</span>
+    <div class="chore-title">${esc(t.name)}${t.type === "work" ? `<span class="tag">Work</span>` : ""}${app ? `<span class="tag">Trip app</span>` : ""}</div>
+    <div class="sub">${esc([t.destination, tripDates(t)].filter(Boolean).join(" · "))}</div>
+    ${when ? `<div class="when">${esc(when)}</div>` : ""}
+    ${who ? `<div class="sub">${esc(who)}</div>` : ""}
+    ${state.can.manage || app ? `<div class="room-actions">
+      ${state.can.manage ? `<button class="small" data-do="edit-trip" data-id="${esc(t.id)}">Edit</button>` : ""}
+      ${app ? `<a class="btn small" href="${esc(app)}">Open trip app</a>` : ""}</div>` : ""}
+  </div>`;
+}
+
+function itemsField(key, items) {
+  const f = LIST_FIELDS[key];
+  const row = (it, i) => {
+    const attrs = k => `class="ti" data-list="${key}" data-i="${i}" data-k="${k}"`;
+    const input = (k, ph, max) => `<input ${attrs(k)} maxlength="${max}" placeholder="${esc(ph)}" value="${esc(it[k])}">`;
+    const rm = `<button class="small" data-do="trip-item-remove" data-id="${key}:${i}" aria-label="Remove">✕</button>`;
+    if (key === "restaurants") {
+      return `<div class="item"><div class="item-top name">${input("name", "Name", 80)}${rm}</div>
+        <div class="item-top pair"><select ${attrs("price")}>${["", "$", "$$", "$$$", "$$$$"].map(p => opt(p, p || "Price", it.price || "")).join("")}</select>
+        ${input("type", "Seafood, tacos…", 40)}</div>${input("note", "Why go", 400)}</div>`;
+    }
+    if (key === "highlights") {
+      const bg = it.bg || HIGHLIGHT_COLORS[i % HIGHLIGHT_COLORS.length][1];
+      const other = HIGHLIGHT_COLORS.some(c => c[1] === bg) ? "" : opt(bg, "As it was", bg);
+      return `<div class="item"><div class="item-top">${input("emoji", "🤿", 16)}${input("label", "Name", 40)}${rm}</div>
+        <div class="item-top pair"><select ${attrs("bg")}>${HIGHLIGHT_COLORS.map(c => opt(c[1], c[0], bg)).join("")}${other}</select>
+        ${input("caption", "A line about it", 160)}</div></div>`;
+    }
+    return `<div class="item"><div class="item-top">${input("emoji", "🌟", 16)}${input("name", "What", 80)}${rm}</div>${input("note", "A tip about it", 400)}</div>`;
+  };
+  return `<div class="section-title">${esc(f.label)}</div>${f.hint ? `<div class="sub">${esc(f.hint)}</div>` : ""}
+    <div class="items">${items.map(row).join("")}</div>
+    ${items.length < f.max ? `<div class="task-actions" style="margin-top:8px"><button class="small" data-do="trip-item-add" data-id="${key}">+ Add</button></div>` : ""}`;
+}
+
+function tripForm() {
+  const d = form.draft;
+  const old = form.id ? (state.trips || []).find(t => t.id === form.id) : null;
+  const app = old && state.tripApps && state.tripApps[old.id];
+  return `<div class="form" data-form="trip">
+    <h3>${old ? `Edit ${esc(old.name)}` : "Add a trip"}</h3>
+    <div class="row3">
+      <div class="field"><label for="t-emoji">Emoji</label><input id="t-emoji" maxlength="16" placeholder="🏝️" value="${esc(d.emoji)}"></div>
+      <div class="field"><label for="t-name">Name</label><input id="t-name" maxlength="80" placeholder="Lake week" value="${esc(d.name)}"></div>
+    </div>
+    <div class="field"><label for="t-dest">Where</label><input id="t-dest" maxlength="80" placeholder="Lake Tahoe, CA" value="${esc(d.destination)}">
+      <div class="hint">The trip's map is centered here.</div></div>
+    <div class="row">
+      <div class="field"><label for="t-start">From</label><input id="t-start" type="date" value="${esc(d.startDate)}"></div>
+      <div class="field"><label for="t-end">To</label><input id="t-end" type="date" value="${esc(d.endDate)}"></div>
+    </div>
+    <div class="field"><span class="field-label">Who's going</span>${state.members.map(m => `<label class="check"><input type="checkbox" class="t-who" value="${m.id}"${(d.who || []).indexOf(m.id) >= 0 ? " checked" : ""}>${esc(m.name)}</label>`).join("")}
+      <div class="hint">Each person's own screens show only their trips.</div></div>
+    <div class="field"><label class="check"><input type="checkbox" id="t-work"${d.type === "work" ? " checked" : ""}>A work trip (kept here, but no trip card)</label></div>
+    <div class="field"><label for="t-desc">About the trip</label><textarea id="t-desc" maxlength="2000">${esc(d.description)}</textarea></div>
+    <div class="field"><label for="t-album">Photo album</label><input id="t-album" type="url" maxlength="500" placeholder="https://www.icloud.com/sharedalbum/#…" value="${esc(d.album)}">
+      <div class="hint">An iCloud shared album with Public Website on. Its photos show on the trip's card.</div></div>
+    ${itemsField("highlights", d.highlights)}
+    ${itemsField("activities", d.activities)}
+    ${itemsField("restaurants", d.restaurants)}
+    <div class="section-title">Tips</div>
+    <div class="field"><textarea id="t-ideas" style="min-height:110px" placeholder="One per line">${esc((d.ideas || []).join("\n"))}</textarea>
+      <div class="hint">One per line.</div></div>
+    ${old ? `<div class="hint" style="margin-bottom:10px">Its id is <b>${esc(old.id)}</b>${app ? `, and its trip app is at ${esc(app)}` : `. A trip app in family.yaml names its trip by this`}.</div>` : ""}
+    <div class="form-actions"><button class="primary" data-do="save-trip">Save</button><button data-do="cancel">Cancel</button>
+      ${old ? `<button class="danger" data-do="archive-trip" data-id="${esc(old.id)}">Archive</button>` : ""}</div>
+  </div>`;
+}
+
+/** Copies what's typed in the trip form into form.draft, so redrawing it keeps it. */
+function readTripForm() {
+  if (!$("t-name")) return;
+  const d = form.draft;
+  Object.assign(d, {
+    emoji: val("t-emoji"), name: val("t-name"), destination: val("t-dest"), startDate: val("t-start"), endDate: val("t-end"),
+    type: $("t-work").checked ? "work" : "family", description: $("t-desc").value.trim(), album: val("t-album"),
+    who: Array.prototype.filter.call(document.querySelectorAll(".t-who"), c => c.checked).map(c => c.value),
+    ideas: $("t-ideas").value.split("\n").map(s => s.trim()).filter(Boolean),
+  });
+  Array.prototype.forEach.call(document.querySelectorAll(".ti"), el => {
+    const item = d[el.getAttribute("data-list")][Number(el.getAttribute("data-i"))];
+    if (item) item[el.getAttribute("data-k")] = el.value.trim();
+  });
+}
+
+function openTripForm(id) {
+  const old = id ? (state.trips || []).find(t => t.id === id) : null;
+  const copy = JSON.parse(JSON.stringify(old || { who: state.members.map(m => m.id), type: "family", startDate: "", endDate: "" }));
+  ["highlights", "activities", "restaurants", "ideas"].forEach(k => { copy[k] = copy[k] || []; });
+  form = { type: "trip", id: old ? old.id : null, draft: copy, fresh: true };
+  render();
+}
+
+function saveTrip() {
+  readTripForm();
+  const d = form.draft;
+  if (!d.name) { setStatus("Give the trip a name", true); return; }
+  if (!d.startDate || !d.endDate) { setStatus("Give the trip its dates", true); return; }
+  if (d.endDate < d.startDate) { setStatus("The trip ends before it starts", true); return; }
+  const blank = it => !Object.keys(it).some(k => k !== "bg" && k !== "price" && it[k]);
+  const trip = Object.assign({}, d, {
+    id: form.id || newTripId(d.name, d.startDate), isNew: !form.id, album: d.album || null,
+    highlights: d.highlights.filter(it => !blank(it)), activities: d.activities.filter(it => !blank(it)),
+    restaurants: d.restaurants.filter(it => !blank(it)),
+  });
+  // The hub keeps the map while the destination stays the same, and looks it up when it changes.
+  delete trip.mapBbox; delete trip.hasAlbum; delete trip.archived;
+  send("/trips", trip, "Saved").then(ok => {
+    if (!ok) return;
+    const saved = (state.trips || []).find(t => t.id === trip.id);
+    if (d.destination && saved && !saved.mapBbox) setStatus(`Saved. The map couldn't find “${d.destination}”: try a town and state or country.`);
+    form = null; render();
+  });
+}
+
 // ── Forms ──────────────────────────────────────────────────────────
 const opt = (value, label, current) => `<option value="${esc(value)}"${value === current ? " selected" : ""}>${esc(label)}</option>`;
 const val = id => ($(id) ? $(id).value.trim() : "");
@@ -1197,6 +1400,13 @@ document.addEventListener("click", e => {
     case "save-room": saveRoom(); break;
     case "archive-room": if (confirm("Archive this room? It's kept, just not shown.")) send(`/rooms/${id}/archive`, { archived: true }, "Archived").then(closeThen); break;
     case "import-rooms": setStatus("Bringing them in and looking for pictures. This takes a few seconds…"); send("/rooms/import", {}, "Brought in").then(redraw); break;
+    case "add-trip": openTripForm(null); break;
+    case "edit-trip": openTripForm(id); break;
+    case "save-trip": saveTrip(); break;
+    case "trip-item-add": readTripForm(); form.draft[id].push(Object.assign({}, LIST_FIELDS[id].empty)); render(); break;
+    case "trip-item-remove": { readTripForm(); const parts = id.split(":"); form.draft[parts[0]].splice(Number(parts[1]), 1); render(); break; }
+    case "archive-trip": if (confirm("Archive this trip? It's kept, just not shown.")) send(`/trips/${id}/archive`, { archived: true }, "Archived").then(closeThen); break;
+    case "import-trips": setStatus("Bringing them in…"); send("/trips/import", {}, "Brought in").then(redraw); break;
     case "room-pictures": setStatus("Looking for pictures…"); send("/rooms/images", {}, "Done looking").then(redraw); break;
     case "chore-done": send(`/chores/${id}/done`, {}, "Done! It's under Lately if you need to undo it.").then(redraw); break;
     case "chore-undo": send("/undo", { actionId: id }, "Put back").then(redraw); break;

@@ -23,6 +23,7 @@ import { listGrocery } from "./grocery.js";
 import { loadDueTasks, loadPets, photoResponse, roomImage, movieImage } from "./household.js";
 import { loadRooms } from "./rooms.js";
 import { loadMovies } from "./movies.js";
+import { loadTrips } from "./trip-records.js";
 import { ensureSchema } from "./db/migrations.js";
 import { loadChoresToday } from "./chores.js";
 import { ymd, addDays, json } from "./util.js";
@@ -145,7 +146,9 @@ export function makeContext({ request, env, hub, loadEvents, now = new Date(), v
     rooms: once(async () => { if (!env.HUB_DB) return null; await ensureSchema(env.HUB_DB); return loadRooms(env); }),
     // Movies the hub keeps (v2.8); null without a database or before the first picks.
     movies: once(async () => { if (!env.HUB_DB) return null; await ensureSchema(env.HUB_DB); return loadMovies(env); }),
-    // A trip's own shared album (trips.yaml → album), by link.
+    // The trips the hub keeps (v2.9); null without a database or before it has any.
+    tripRecords: once(async () => { if (!env.HUB_DB) return null; await ensureSchema(env.HUB_DB); return loadTrips(env); }),
+    // A trip's own shared album (its album link), by link.
     album: link => (albums[link] ??= albumPhotosFor(link)),
     image: cardId => `${url.origin}${base}/image/${encodeURIComponent(cardId)}`,
   };

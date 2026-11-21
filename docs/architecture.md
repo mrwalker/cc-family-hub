@@ -11,8 +11,8 @@ synced ─────────► pipeline (scheduled, Node)
   Google Calendar   sync ─► plan (Claude) ─► publish ──┐        ┌──► pushes
   Reminders, Strava                                    │        │      Google Calendar notes
                                                        ▼        │      grocery email
-workspace files ─► trips, escape rooms,          hub Worker ────┤
-  movies, notes     published by the pipeline   (Cloudflare)    │
+workspace files ─► notes, published by          hub Worker ────┤
+                    the pipeline                (Cloudflare)    │
                                                  store (KV)     └──► screens (pull the stream)
 live ───────────────────────────────────────►    live inputs           wall tablet / browser
   Google Calendar, iCloud album                  stream composer       iPhone widgets
@@ -39,9 +39,9 @@ An input is one source of family data. Inputs differ in how their data reaches t
 | Mode | How it arrives | Examples |
 |------|----------------|----------|
 | **Synced** | The pipeline pulls it on a schedule | Google Calendar (for planning), Apple Reminders, Strava |
-| **Workspace** | You edit a YAML file in your hub repo, and the pipeline publishes it | Trips, escape rooms, movies, notes |
+| **Workspace** | You edit a YAML file in your hub repo, and the pipeline publishes it | Notes; trips, escape rooms and movies before the hub kept them |
 | **Live** | The Worker reads it when a screen asks, and caches it for a few minutes | Google Calendar (for display), the iCloud album |
-| **Interactive** | People change it on a screen, and the Worker stores it | Trip check-ins and packing lists, the grocery list, household records |
+| **Interactive** | People change it on a screen, and the Worker stores it | Trip check-ins and packing lists, the grocery list, household records, trips, escape rooms |
 
 Google Calendar is both synced and live. The planner needs a snapshot to reason over, and
 the screens need events that are current to within five minutes.
@@ -60,7 +60,7 @@ A Node process that runs on a schedule, does its work, and exits. `family-hub ru
 2. **Plan.** The context builder assembles the family config, member profiles, the next 14
    days of events, notes, household records from the hub, and the previous plan. Claude turns that into a `WeeklyPlan`: a
    summary, notes for each day, action items, flags for conflicts, and shopping items.
-3. **Publish.** The plan and the workspace content (trips, escape rooms, movies) go to the
+3. **Publish.** The plan and any workspace lists still in YAML (trips, escape rooms, movies) go to the
    hub Worker as validated `PUT /api/data/:kind` writes. Push outputs run here too.
 
 Claude can do step 2 in two ways:
@@ -181,6 +181,7 @@ are no household cards, the page says it isn't set up, and nothing else changes.
 | `chore_swaps` | One-week changes to the rotation ("Riley takes the trash this week") |
 | `escape_rooms` | The rooms the family has played: where, when, who, the result, the room's link and its picture's address |
 | `movies`, `movie_marks` | Movies and shows worth seeing, most picked monthly by the assistant, and who wants to see or has seen each |
+| `trips` | The family's trips: where, when, who, the album, a description, the map's area, and the lists a trip shows (highlights, things to do, restaurants, tips) |
 
 A task repeats in one of two ways. A filter is due three months after you change it, so
 its next date counts from the day it was done. A monthly medication is due on the 1st
@@ -274,6 +275,10 @@ never run a migration by hand.
 | POST | `/api/household/movies` | Adults | Add or change a movie by hand |
 | POST | `/api/household/movies/picks` | The pipeline (`PUBLISH_TOKEN`) | The month's picks from the assistant |
 | GET | `/api/household/movies/history` | The pipeline (`PUBLISH_TOKEN`) | Past picks and marks, so the next picks suit the family |
+| GET | `/api/household/trips` | Family | The trips (only adults see album links) |
+| POST | `/api/household/trips` | Adults | Add (`isNew: true`) or change a trip; looks up its map when the destination changes |
+| POST | `/api/household/trips/:id/archive` | Adults | Archive or restore a trip |
+| POST | `/api/household/trips/import` | Adults | Once: copy the published `trips.yaml` list into the database |
 | GET | `/api/household/image/:kind/:id` | Family | A room's or movie's picture, fetched from its site once and cached |
 | GET | `/api/household/export` | The pipeline (`PUBLISH_TOKEN`) | What's due, overdue and lately done, by name |
 

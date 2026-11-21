@@ -33,8 +33,8 @@ Every output shows the same thing: a rotating stream of **cards**. Each card com
 | `chores` | Each kid's chores for today, from jobs that rotate weekly, and who's next | Household records, kept on the hub |
 | `pet-portraits` | Each pet full screen over its photo, with what's next for it | Household records and their photos |
 | `photos` | A photo from the family album | iCloud shared album |
-| `trips` | An upcoming trip: countdown, hero photo, quest leaderboard, today's schedule | `trips.yaml`, trip apps |
-| `past-trips` | A trip you took: highlights and final standings | `trips.yaml`, trip apps |
+| `trips` | An upcoming trip: countdown, hero photo, quest leaderboard, today's schedule | The hub's trips, trip apps |
+| `past-trips` | A trip you took: highlights and final standings | The hub's trips, trip apps |
 | `grocery` | The shopping list | The hub's shared list, the planner |
 | `escape-rooms` | Your escape record and rooms you've played | `escape-rooms.yaml` |
 | `movies` | What you want to watch next | `movies.yaml` |
@@ -58,7 +58,7 @@ your hub repo (private)                      cc-family-hub (this repo, a depende
 ───────────────────────                      ───────────────────────────────────────
 workspace/        your family's config  ──►  the pipeline    sync, plan, publish
   family.yaml       and content         ──►  the hub app     the Worker and its pages
-  members/, trips.yaml, …                    the screens     widget, Mac app, Roku channel
+  members/, notes, …                         the screens     widget, Mac app, Roku channel
 <trip>/           each trip app's content
 worker.js         three lines: createHub(config)
 package.json      pins a cc-family-hub version

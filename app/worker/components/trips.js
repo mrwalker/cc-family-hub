@@ -5,7 +5,7 @@
  *   data: { trip, resort, start, end, dates, status: "upcoming"|"active",
  *           daysUntil, day, days, countdown, leaderboard: [{ id, name, color, points, quests }],
  *           questsDone, questsTotal, today: [{ time, emoji, title }],
- *           album: { count, photos: [image URL…] } | null }   (trips.yaml → album)
+ *           album: { count, photos: [image URL…] } | null }   (the trip's album)
  */
 
 import { familyTrips, heroImage, tripAlbum } from "./trip-info.js";

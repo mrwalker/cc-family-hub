@@ -1,19 +1,15 @@
 # /add-trip
 
-Add a trip to `workspace/trips.yaml`, or update one.
+Help add a trip, or change one.
 
-Ask for anything you can't infer: the name, where, the dates, who's going, and an emoji.
-Then add an entry like the others in `workspace/trips.yaml`:
+The hub keeps the family's trips (since cc-family-hub v2.9). An adult adds or changes one at
+`<hub>/household/#trips`: the name, where, the dates, who's going, an emoji, a description,
+the trip's photo album, and the lists shown under it (highlights, things to do,
+restaurants, tips). Offer to draft those: a description, highlights, things to do,
+restaurants and tips for the destination, ready to paste into the form.
 
-- `id`: kebab-case and unique, e.g. `beach-jul-2027`. Never change an existing trip's id: trip apps refer to it.
-- `startDate`, `endDate`: `YYYY-MM-DD`
-- `who`: member ids from `workspace/family.yaml`
-- `type`: `family` (shown everywhere) or `work` (left out of the stream)
-- optional: `destination`, `emoji`, `description`, `highlights` (`emoji`, `label`, `caption`)
-- optional: `album`, the trip's iCloud shared album link (Public Website on). Add it as soon
-  as the trip's album exists: the trip's card on every screen then shows its photos.
-
-Run `npx family-hub check`. The trip reaches the hub on the next pipeline run, or right
-away with `npx family-hub publish` if a plan has been written.
+If `workspace/trips.yaml` is still here, the hub hasn't brought it in yet: an adult opens the
+Trips tab and chooses **Bring them in**. After that, delete `trips.yaml`.
 
 For a trip app (quests, a leaderboard, packing lists), see cc-family-hub's docs/trip-apps.md.
+Its `trip` in `family.yaml` is the trip's id, shown in the trip's edit form.

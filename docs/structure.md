@@ -92,7 +92,7 @@ A hub repo gets these from `app/template/.claude/commands/`:
 |---------|------|
 | `/daily-plan` | Sync, plan with the assistant as the planner, and publish |
 | `/add-member` | Add or update a member profile |
-| `/add-trip` | Add or update a trip in `trips.yaml` |
+| `/add-trip` | Help add a trip: on `/household/` › Trips, and a trip app if wanted |
 | `/context` | Review and retire notes |
 | `/weekly-summary` | A readable summary of the week |
 

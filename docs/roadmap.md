@@ -55,12 +55,14 @@ Built so far:
   its room's picture, found on its link.
 - **v2.8.0:** **movies** picked monthly by the family's assistant, in theaters and streaming,
   with posters; everyone marks what they want to see and what they've seen.
+- **v2.9.0:** **trips** kept by the hub: added and changed on `/household/`, each with its map
+  found from the destination, so a new trip no longer needs an edit to `trips.yaml`.
 
 The rest ships in steps:
 
 | Release | What it adds |
 |---------|--------------|
-| v2.9.0 | **Activities:** completing what the calendar leaves out |
+| v2.10.0 | **Activities:** completing what the calendar leaves out |
 
 Activities stay in the calendar, where families already put them. But a practice typed in
 a hurry is often missing its address, a phone number or a link. The hub keeps what it

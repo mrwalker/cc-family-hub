@@ -4,7 +4,7 @@
  *
  *   data: { trip, name, destination, start, end, dates, highlights: [{ emoji, label, caption }],
  *           leaderboard: [{ id, name, color, points, quests }],
- *           album: { count, photos: [image URL…] } | null }   (trips.yaml → album)
+ *           album: { count, photos: [image URL…] } | null }   (the trip's album)
  */
 
 import { familyTrips, heroImage, tripAlbum } from "./trip-info.js";

@@ -7,7 +7,7 @@ workspace file they read. Each input feeds one or more [stream components](strea
 |-------|--------|------|-------|
 | [`google-calendar`](#google-calendar) | Each member's Google calendars | Synced and live | `today`, `week`, `plan` |
 | [`icloud-album`](#icloud-album) | An iCloud shared album | Live | `photos` |
-| [`trips`](#trips) | `workspace/trips.yaml` | Workspace | `trips`, `past-trips` |
+| [`trips`](#trips) | The hub's trips, edited on `/household/` (before v2.9, `workspace/trips.yaml`) | Interactive | `trips`, `past-trips` |
 | [`trip-apps`](#trip-apps) | Trip folders in your hub repo, and check-ins | Deploy and interactive | `trips`, `past-trips` |
 | [`grocery`](#grocery) | The hub's shared list | Interactive | `grocery` |
 | [`household`](#household) | The hub's household records | Interactive | `pets`, `house`, `chores`, `pet-portraits`, `plan` |
@@ -64,7 +64,19 @@ within about 15 minutes.
 
 ## trips
 
-`workspace/trips.yaml` lists your trips: upcoming ones, and the ones you've taken.
+The hub keeps your trips, upcoming and past (since v2.9). Adults add and change them on
+`/household/` › Trips: where and when, who's going, the album, a description, and the lists
+the hub page shows under the trip (highlights, things to do, restaurants, tips). The map is
+centered on the destination, which the hub looks up on OpenStreetMap when it changes.
+
+A trip's id (like `beach-jul-2027`) is made from its name and start date when it's added,
+and never changes: a trip app names its trip by it. The Trips tab shows each trip's id in
+its edit form.
+
+**Before v2.9** trips were a list in `workspace/trips.yaml`, published by the pipeline.
+After upgrading, open the Trips tab and choose **Bring them in**: the published list is
+copied into the hub once, ids and maps included. Until then, the hub shows the published
+list. Once they're in, delete `trips.yaml`. The old shape, which the import reads:
 
 ```yaml
 - id: beach-jul-2027
@@ -83,13 +95,13 @@ within about 15 minutes.
 
 A trip is upcoming, active, or past according to its dates.
 
-**Trip albums.** Most trips get a shared photo album. Add its link as `album:` once the
-trip starts (turn on Public Website for the album, as for the family album). Both kinds
+**Trip albums.** Most trips get a shared photo album. Add its link as the trip's photo
+album once the trip starts (turn on Public Website for the album, as for the family album). Both kinds
 of iCloud link work: `https://photos.icloud.com/shared/album/…` and
 `https://www.icloud.com/sharedalbum/#…`. The
 trip's card on every screen shows its photos: a new one each minute, and a slideshow on
-the hub page's spotlight. After the trip, its past-trip card keeps them. The link stays
-on the server, so keep your hub repo private. `family-hub check` makes sure it's an
+the hub page's spotlight. After the trip, its past-trip card keeps them. Only adults
+see the link, and screens get the photos through the hub. The hub makes sure it's an
 album link. Upcoming and active trips make
 `trips` cards, and past ones make `past-trips` cards. `who` decides whose view a trip appears in.
 

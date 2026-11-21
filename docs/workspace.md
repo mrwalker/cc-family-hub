@@ -7,7 +7,7 @@ on each run, and the Worker's build reads it at each deploy.
 workspace/
 ├── family.yaml            the family, its members, and how the hub is set up
 ├── members/<id>.yaml      one profile per member
-├── trips.yaml             trips, upcoming and past
+├── trips.yaml             before v2.9: trips (the hub keeps them now)
 ├── escape-rooms.yaml      optional, before v2.7 (then imported into the hub)
 ├── movies.yaml            no longer read (v2.8)
 ├── context/
@@ -80,7 +80,7 @@ hub:
 
   # Trips that have a phone app. See trip-apps.md.
   tripApps:
-    - trip: "beach-jul-2027"        # the trip's id in trips.yaml
+    - trip: "beach-jul-2027"        # the trip's id (its edit form on /household/ › Trips shows it)
       path: "/beach/"               # the folder in your hub repo, served at this path
       appId: "beach-2027"           # window.TRIP.id in its trip-data.js
       guests: [grandma]             # who can score besides the family
@@ -128,10 +128,11 @@ the planner: the more it knows about a person's week, the better its notes. The
 
 ## Content files
 
-`trips.yaml` (and, before v2.7, `escape-rooms.yaml`) are lists you edit by hand, or ask
-Claude Code to edit ("add the cabin trip, Dec 26 to Jan 2, all of us"). Their shapes are in
-[inputs.md](inputs.md) and `workspace.example/`. A change reaches the screens on the next
-pipeline run.
+The hub keeps trips (since v2.9), escape rooms (v2.7) and movies (v2.8) itself: they're
+edited on `/household/`. Before those releases they were `trips.yaml`, `escape-rooms.yaml`
+and `movies.yaml`, which the hub imports once and which can then be deleted. Their shapes
+are in [inputs.md](inputs.md) and `workspace.example/`. While one is still here, a change to
+it reaches the screens on the next pipeline run.
 
 ## Secrets
 
