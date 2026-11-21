@@ -67,6 +67,8 @@ Built so far:
   `/household/` like a pet's), with what's next there. A portrait's tasks carry what the
   task's own card says (booking, time, provider, a stay's end), so a family can show the
   portraits instead of the `pets` and `house` lists. Pet portraits are titled "Dogs".
+- **v2.11.1:** a slow iCloud album never holds up the stream: album lists are kept in KV
+  and loaded by a cron trigger (add `triggers` to `wrangler.jsonc`, as in the template).
 
 The rest ships in steps:
 

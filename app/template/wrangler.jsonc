@@ -9,6 +9,8 @@
   "compatibility_date": "2026-06-06",
   "compatibility_flags": ["nodejs_compat"],
   "observability": { "enabled": true },
+  // Loads the photo albums iCloud is slow to list, so screens never wait on them.
+  "triggers": { "crons": ["*/10 * * * *"] },
   // Validates workspace/family.yaml and assembles .generated/ before every dev/deploy.
   "build": {
     "command": "node node_modules/cc-family-hub/app/build.mjs",

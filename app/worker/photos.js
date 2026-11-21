@@ -39,48 +39,117 @@ export function albumKey(link) {
   return m ? m[1] : null;
 }
 
-// ─── The album ────────────────────────────────────────────────────────────────
+// ─── The album, kept ──────────────────────────────────────────────────────────
+//
+// Some albums take iCloud a minute to list. So a screen never waits on one: each
+// album's list is kept in HUB_DATA (KV) under album:<key>, with a 5-minute copy in
+// the edge cache in front of it, and a scheduled job (warmAlbums) loads the ones that
+// aren't kept yet and refreshes the rest twice a day. Photos are downloaded only when
+// a screen asks for one (photoFromAlbum).
 
-/** The family album's photos (newest first), or null when no album is set up. Throws if iCloud fails. */
-export async function albumPhotos(hub) {
-  return albumPhotosFor(hub.photosAlbum);
+const KEEP_FRESH_MS = 12 * 3_600_000;   // a kept list older than this is refreshed
+const SOON_MS = 2_000;                  // how long a screen waits on an album that isn't kept
+const KV_PREFIX = "album:";
+const loading = new Map();              // album key → its list being read, in this isolate
+
+/** The family album's photos (newest first) for a screen, or null (see albumSoon). */
+export async function albumPhotos(hub, env, opts) {
+  return albumSoon(env, hub.photosAlbum, opts);
 }
 
-/** Any shared album's photos (a trip's, say), or null for no link. Throws if iCloud fails. */
-export async function albumPhotosFor(link) {
+/**
+ * A shared album's photos (newest first) for a screen, without a long wait: the kept
+ * list; else iCloud's, if it answers within about two seconds; else null for now. A
+ * list still loading goes on with `waitUntil` (about 30 seconds), and warmAlbums
+ * finishes any that take longer. Throws if iCloud answers with an error.
+ */
+export async function albumSoon(env, link, { waitUntil = null, waitMs = SOON_MS } = {}) {
   const key = albumKey(link);
-  return key ? cachedAlbum(key) : null;
+  if (!key) return null;
+  const kept = await keptAlbum(env, key);
+  if (kept) return kept.photos;
+  const reading = refresh(env, key);
+  if (waitUntil) waitUntil(reading.catch(() => {}));
+  let timer;
+  const late = new Promise(r => { timer = setTimeout(() => r(null), waitMs); });
+  try { return await Promise.race([reading, late]); } finally { clearTimeout(timer); }
+}
+
+/** A shared album's photos, waiting for iCloud if they aren't kept. Null for no link. */
+export async function albumPhotosFor(link, env = null) {
+  const key = albumKey(link);
+  if (!key) return null;
+  return (await keptAlbum(env, key))?.photos ?? refresh(env, key);
 }
 
 /** One family album photo as a JPEG response. */
-export async function photoById(hub, id) {
-  return photoFromAlbum(hub.photosAlbum, id);
+export async function photoById(hub, id, env = null) {
+  return photoFromAlbum(hub.photosAlbum, id, env);
 }
 
-/** One photo from any shared album, as a JPEG response. */
-export async function photoFromAlbum(link, id) {
+/**
+ * One photo from any shared album, as a JPEG response. A photo the kept list doesn't
+ * have (it's new), or whose download link has expired, gets the list read again once.
+ */
+export async function photoFromAlbum(link, id, env = null) {
   const key = albumKey(link);
   if (!key) return json({ error: "No photo album is set up." }, 404);
-  const album = await cachedAlbum(key);
-  const photo = album.find(p => p.id === id);
+  const kept = await keptAlbum(env, key);
+  let album = kept?.photos ?? (await refresh(env, key));
+  let photo = album.find(p => p.id === id);
+  if (!photo && kept) { album = await refresh(env, key); photo = album.find(p => p.id === id); }
   if (!photo) return json({ error: "No such photo" }, 404);
-  return photoResponse(key, photo);
+  const res = await photoResponse(key, photo);
+  if (res.status !== 502 || !kept) return res;
+  const again = (await refresh(env, key)).find(p => p.id === id);
+  return again ? photoResponse(key, again) : res;
 }
 
-async function cachedAlbum(key) {
+/**
+ * Loads the albums that aren't kept yet, then the oldest that are due a refresh, up to
+ * `max` of them, a few at a time. Run by the Worker's scheduled handler (index.js).
+ * Returns what it did, for the log.
+ */
+export async function warmAlbums(env, links, { max = 8, concurrency = 4, now = Date.now() } = {}) {
+  const keys = [...new Set(links.map(albumKey).filter(Boolean))];
+  const ages = await Promise.all(keys.map(async key => ({ key, at: (await keptAlbum(env, key))?.fetchedAt ?? 0 })));
+  const due = ages.filter(a => now - a.at > KEEP_FRESH_MS).sort((a, b) => a.at - b.at).slice(0, max);
+  const done = [], failed = [];
+  for (let i = 0; i < due.length; i += concurrency) {
+    await Promise.all(due.slice(i, i + concurrency).map(({ key }) =>
+      refresh(env, key).then(photos => done.push(`${key.slice(0, 12)}… ${photos.length} photos`), e => failed.push(`${key.slice(0, 12)}…: ${e.message}`))));
+  }
+  return { albums: keys.length, due: ages.filter(a => now - a.at > KEEP_FRESH_MS).length, done, failed };
+}
+
+/** The kept list, { fetchedAt, photos }, or null: from the edge cache, else KV. */
+async function keptAlbum(env, key) {
   const cache = typeof caches !== "undefined" ? caches.default : null;
-  const cacheKey = new Request(`https://family-hub.internal/photos/${encodeURIComponent(key)}`);
+  const cacheKey = new Request(`https://family-hub.internal/album/${encodeURIComponent(key)}`);
   const hit = cache && (await cache.match(cacheKey));
   if (hit) return hit.json();
-
-  const album = await readAlbum(key);
-  if (cache) {
-    await cache.put(cacheKey, new Response(JSON.stringify(album), {
-      headers: { "Content-Type": "application/json", "Cache-Control": `max-age=${LIST_CACHE_SECONDS}` },
-    }));
-  }
-  return album;
+  const kept = env?.HUB_DATA ? await env.HUB_DATA.get(KV_PREFIX + key, "json") : null;
+  if (kept && cache) await cache.put(cacheKey, cachedJson(kept));
+  return kept;
 }
+
+/** Reads the album from iCloud and keeps it. One read at a time per album. */
+function refresh(env, key) {
+  if (loading.has(key)) return loading.get(key);
+  const reading = readAlbum(key).then(async photos => {
+    const entry = { fetchedAt: Date.now(), photos };
+    if (env?.HUB_DATA) await env.HUB_DATA.put(KV_PREFIX + key, JSON.stringify(entry));
+    const cache = typeof caches !== "undefined" ? caches.default : null;
+    if (cache) await cache.put(new Request(`https://family-hub.internal/album/${encodeURIComponent(key)}`), cachedJson(entry));
+    return photos;
+  }).finally(() => loading.delete(key));
+  loading.set(key, reading);
+  return reading;
+}
+
+const cachedJson = data => new Response(JSON.stringify(data), {
+  headers: { "Content-Type": "application/json", "Cache-Control": `max-age=${LIST_CACHE_SECONDS}` },
+});
 
 /** Every photo in the album, newest first. */
 async function readAlbum(key) {

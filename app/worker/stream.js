@@ -18,7 +18,7 @@
 
 import { COMPONENT_IDS, byId } from "./components/index.js";
 import { tripSummaries, heroResponse } from "./trips.js";
-import { albumPhotos, albumPhotosFor, photoById, photoFromAlbum } from "./photos.js";
+import { albumPhotos, albumSoon, photoById, photoFromAlbum } from "./photos.js";
 import { listGrocery } from "./grocery.js";
 import { loadDueTasks, loadPets, loadPlaces, photoResponse, roomImage, movieImage } from "./household.js";
 import { loadRooms } from "./rooms.js";
@@ -115,7 +115,7 @@ export function compose({ cfg, cardsBy, photoPool = [], turn = 0 }) {
 }
 
 /** The context components read from. Each source is fetched at most once per request. */
-export function makeContext({ request, env, hub, loadEvents, now = new Date(), view = null, base = "/api/stream" }) {
+export function makeContext({ request, env, hub, loadEvents, now = new Date(), view = null, base = "/api/stream", waitUntil = null }) {
   const url = new URL(request.url);
   const tz = hub.timezone;
   const today = ymd(now, tz);
@@ -134,7 +134,8 @@ export function makeContext({ request, env, hub, loadEvents, now = new Date(), v
     data: kind => (dataCache[kind] ??= env.HUB_DATA ? env.HUB_DATA.get(`data:${kind}`, "json") : Promise.resolve(null)),
     events: once(() => loadEvents(EVENT_DAYS)),
     trips: once(() => tripSummaries(env, hub)),
-    photos: once(() => albumPhotos(hub)),
+    // Albums never hold up the stream: one that isn't kept yet comes on a later request (photos.js).
+    photos: once(() => albumPhotos(hub, env, { waitUntil })),
     grocery: once(() => listGrocery(env)),
     // Household tasks that could have a card today; null without a HUB_DB database.
     household: once(() => loadDueTasks(env, today, { hub, origin: url.origin })),
@@ -151,13 +152,13 @@ export function makeContext({ request, env, hub, loadEvents, now = new Date(), v
     // The trips the hub keeps (v2.9); null without a database or before it has any.
     tripRecords: once(async () => { if (!env.HUB_DB) return null; await ensureSchema(env.HUB_DB); return loadTrips(env); }),
     // A trip's own shared album (its album link), by link.
-    album: link => (albums[link] ??= albumPhotosFor(link)),
+    album: link => (albums[link] ??= albumSoon(env, link, { waitUntil })),
     image: cardId => `${url.origin}${base}/image/${encodeURIComponent(cardId)}`,
   };
   return ctx;
 }
 
-export async function handleStream(request, env, hub, loadEvents, path, base = "/api/stream") {
+export async function handleStream(request, env, hub, loadEvents, path, base = "/api/stream", waitUntil = null) {
   if (request.method !== "GET") return json({ error: "Method not allowed" }, 405);
   const url = new URL(request.url);
 
@@ -182,7 +183,7 @@ export async function handleStream(request, env, hub, loadEvents, path, base = "
     cfg.photosBetween = 0;
     cfg.max = Object.fromEntries(Object.keys(byId).map(c => [c, Infinity]));
   }
-  const ctx = makeContext({ request, env, hub, loadEvents, view, base });
+  const ctx = makeContext({ request, env, hub, loadEvents, view, base, waitUntil });
 
   const wanted = new Set(cfg.components);
   if (cfg.photosBetween > 0) wanted.add("photos");
@@ -225,7 +226,7 @@ async function streamImage(env, hub, cardId, origin, version = null) {
     const photo = place?.photos.find(p => p.id === version) ?? place?.photos[0];
     return photo ? photoResponse(env, photo.id) : json({ error: `No photo of "${id}"` }, 404);
   }
-  if (component === "photos" && id) return photoById(hub, id);
+  if (component === "photos" && id) return photoById(hub, id, env);
   // escape-rooms:<room id> — the room's picture, from its site.
   if (component === "escape-rooms" && id) return roomImage(env, id);
   // movies:<movie id> — its poster, from its site.
@@ -235,7 +236,7 @@ async function streamImage(env, hub, cardId, origin, version = null) {
     const [tripId, ...photo] = id.split(":");
     const album = await tripAlbumLink(env, tripId);
     if (!album || !photo.length) return json({ error: `No album for trip "${tripId}"` }, 404);
-    return photoFromAlbum(album, photo.join(":"));
+    return photoFromAlbum(album, photo.join(":"), env);
   }
   if ((component === "trips" || component === "past-trips") && id) {
     return heroResponse(env, hub.tripApps.find(t => t.trip === id), origin);

@@ -61,6 +61,11 @@ within about 15 minutes.
   on the server; screens get photos through the hub.
 - The Worker reads the album the way icloud.com's own album page does. This isn't a
   documented Apple API, so it may need updating if Apple changes that page.
+- **Albums are kept, and loaded on a schedule.** iCloud can take a minute to list a big
+  album, so screens never wait on one. The hub keeps each album's list (the family album
+  and every trip's) in `HUB_DATA`, and a cron trigger every 10 minutes (`triggers` in
+  `wrangler.jsonc`) loads the ones it doesn't have yet, then refreshes each twice a day. A
+  new album's photos show within a few minutes; until then its trip shows its usual picture.
 
 ## trips
 
