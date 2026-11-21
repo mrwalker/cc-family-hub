@@ -22,6 +22,7 @@
  */
 
 import { albumKey } from "./photos.js";
+import { ensureSchema } from "./db/migrations.js";
 
 const ID_RE = /^[a-z0-9][a-z0-9-]{1,59}$/;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}/;
@@ -139,6 +140,19 @@ export async function loadTrips(env) {
   if (!env.HUB_DB) return null;
   if (!(await tripCount(env.HUB_DB))) return null;
   return listTrips(env.HUB_DB, { archived: false });
+}
+
+/**
+ * A trip's album link, for serving its photos: from the hub's trips, or before it has
+ * any, from the published list. Null when the trip has none.
+ */
+export async function tripAlbumLink(env, id) {
+  if (env.HUB_DB) await ensureSchema(env.HUB_DB);
+  if (env.HUB_DB && (await tripCount(env.HUB_DB))) {
+    const row = await env.HUB_DB.prepare("SELECT album FROM trips WHERE id = ?").bind(id).first();
+    return row?.album ?? null;
+  }
+  return (await publishedTrips(env)).find(t => t.id === id)?.album ?? null;
 }
 
 /** The published list (trips.yaml), for the import and the fallback. */
