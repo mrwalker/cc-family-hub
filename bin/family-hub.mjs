@@ -14,6 +14,10 @@
  *   family-hub movies publish F  Hand the hub this month's movie picks (a JSON file)
  *   family-hub trip …            The assistant: read a trip, brief on it, add to its lists
  *   family-hub grocery …         The assistant: read, add to and check off the grocery list
+ *   family-hub task …            The assistant: household tasks (pets, the houses)
+ *   family-hub chore …           The assistant: today's chores, and ticking one
+ *   family-hub movie …           The assistant: movies, and marking one wanted or seen
+ *   family-hub proposal …        The assistant: changes waiting for an adult's yes
  *   family-hub log …             The assistant: what it changed, and undoing a change
  *   family-hub doctor            Check the live hub: what's deployed, how fresh its data is
  *   family-hub build             Validate the workspace and assemble the Worker's site
@@ -60,6 +64,10 @@ const COMMANDS = {
   trip:    (...args) => tsx("hub/agent.ts", ["trip", ...args]),
   grocery: (...args) => tsx("hub/agent.ts", ["grocery", ...args]),
   log:     (...args) => tsx("hub/agent.ts", ["log", ...args]),
+  task:    (...args) => tsx("hub/agent.ts", ["task", ...args]),
+  chore:   (...args) => tsx("hub/agent.ts", ["chore", ...args]),
+  movie:   (...args) => tsx("hub/agent.ts", ["movie", ...args]),
+  proposal: (...args) => tsx("hub/agent.ts", ["proposal", ...args]),
   doctor:  (...args) => tsx("hub/agent.ts", ["doctor", ...args]),
   build:   () => node("app/build.mjs"),
   run() {

@@ -64,6 +64,7 @@ import { roomsSnapshot, handleRoomWrite } from "./rooms.js";
 import { listMovies, applyPicks, moviesHistory, handleMovieWrite } from "./movies.js";
 import { tripsSnapshot, handleTripWrite } from "./trip-records.js";
 import { imageResponse } from "./link-image.js";
+import { assistantSnapshot, handleAssistantWrite } from "./agent.js";
 
 /**
  * Each area's kinds of task.
@@ -310,7 +311,7 @@ async function getTask(db, id) {
 async function snapshot(env, hub, who, now, calendarProblem = null, choresDay = null) {
   const db = env.HUB_DB;
   const today = ymd(new Date(now), hub.timezone);
-  const [pets, photos, places, placePhotos, tasks, log, chores, rooms, movies, trips] = await Promise.all([
+  const [pets, photos, places, placePhotos, tasks, log, chores, rooms, movies, trips, assistant] = await Promise.all([
     db.prepare("SELECT * FROM pets ORDER BY archived, name").all(),
     db.prepare("SELECT id, pet_id, width, height FROM pet_photos ORDER BY created_at DESC").all(),
     db.prepare("SELECT * FROM places ORDER BY archived, name").all(),
@@ -324,6 +325,7 @@ async function snapshot(env, hub, who, now, calendarProblem = null, choresDay = 
     roomsSnapshot(env),
     listMovies(db),
     tripsSnapshot(env, hub, { manage: canManage(who.viewer) }),
+    assistantSnapshot(db, hub, now),
   ]);
   const family = who.viewer?.role === "adult" || who.viewer?.role === "child";
   return {
@@ -340,6 +342,8 @@ async function snapshot(env, hub, who, now, calendarProblem = null, choresDay = 
     trips: trips.trips,
     canImportTrips: trips.canImport,
     tripApps: trips.tripApps,
+    // The assistant's changes and what waits for an adult's yes (agent.js); null when it isn't set up.
+    assistant,
     areas: AREAS,
     members: hub.members.map(({ id, name, color, role }) => ({ id, name, color, role: role === "child" ? "child" : "adult" })),
     pets: pets.results.map(r => ({ ...petFromRow(r), photos: photos.results.filter(p => p.pet_id === r.id).map(p => ({ id: p.id, width: p.width, height: p.height })) })),
@@ -708,6 +712,14 @@ export async function handleHousehold(request, env, hub, path, opts = {}) {
   if (path === "/movies" || path.startsWith("/movies/")) {
     const reply = await handleMovieWrite({
       db, hub, path, body, viewer, now, json, fetcher: opts.fetcher ?? fetch,
+      answer: async (extra = {}) => json({ ...(await snapshot(env, hub, who, now)), ...extra }),
+    });
+    return reply ?? json({ error: "Not found" }, 404);
+  }
+
+  if (path.startsWith("/agent/")) {
+    const reply = await handleAssistantWrite({
+      env, db, hub, path, viewer, now, origin, opts, json,
       answer: async (extra = {}) => json({ ...(await snapshot(env, hub, who, now)), ...extra }),
     });
     return reply ?? json({ error: "Not found" }, 404);

@@ -124,6 +124,8 @@ export const tripFromRow = r => {
     mapBbox: r.map_bbox ?? null, mapFor: r.map_for ?? null,
     highlights: d.highlights ?? [], activities: d.activities ?? [], restaurants: d.restaurants ?? [], ideas: d.ideas ?? [],
     archived: !!r.archived,
+    // When it last changed, so a form opened before a change can't quietly undo it.
+    updatedAt: r.updated_at,
   };
 };
 
@@ -240,6 +242,9 @@ export async function handleTripWrite({ env, db, hub, path, body, viewer, now, a
     const old = await db.prepare("SELECT * FROM trips WHERE id = ?").bind(trip.id).first();
     if (old && body.isNew) return json({ error: `id: "${trip.id}" is another trip's; pick another` }, 409);
     if (!old && (await tripCount(db)) >= MAX_TRIPS) return json({ error: `No more than ${MAX_TRIPS} trips` }, 400);
+    if (old && body.updatedAt != null && Number(body.updatedAt) !== old.updated_at) {
+      return json({ error: `${old.name} changed since you opened it${old.updated_by === "assistant" ? " (the assistant added to it)" : ""}. Reload the page, then make your change again` }, 409);
+    }
     const before = old ? tripFromRow(old) : null;
     let next = { ...trip, mapFor: trip.mapBbox ? trip.destination : null };
     if (!trip.mapBbox && trip.destination) {

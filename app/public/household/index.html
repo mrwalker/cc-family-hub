@@ -103,6 +103,10 @@
     .empty { color: var(--muted); font-size: 14px; padding: 8px 0 4px; }
     .log-row { font-size: 14px; padding: 8px 0; border-top: 1px solid var(--border); position: relative; padding-right: 76px; }
     .log-row button { position: absolute; right: 0; top: 1px; }
+    .log-row.wide { padding-right: 0; }
+    .log-row .pair { display: block; margin-top: 8px; }
+    .log-row .pair button { position: static; margin-right: 6px; }
+    .log-row.undone strong { text-decoration: line-through; color: var(--muted); }
     .next-list { font-size: 14px; color: var(--muted); margin-top: 4px; }
     .thumbs { margin-top: 10px; }
     .thumb { display: inline-block; vertical-align: top; text-align: center; margin: 0 8px 8px 0; }
@@ -400,15 +404,17 @@ function render() {
     banner.classList.remove("hidden");
   } else banner.classList.add("hidden");
 
-  const areas = Object.keys(state.areas).concat("chores", "rooms", "trips");
-  const label = a => (state.areas[a] ? state.areas[a].label : a === "rooms" ? "Escape rooms" : a === "trips" ? "Trips" : "Chores");
+  const areas = Object.keys(state.areas).concat("chores", "rooms", "trips", state.assistant ? ["assistant"] : []);
+  const waiting = state.assistant ? state.assistant.pending.length : 0;
+  const label = a => (state.areas[a] ? state.areas[a].label : a === "rooms" ? "Escape rooms" : a === "trips" ? "Trips"
+    : a === "assistant" ? state.assistant.name + (waiting ? ` (${waiting})` : "") : "Chores");
   // Kids start on their chores.
   if (!area || areas.indexOf(area) < 0) area = areas.indexOf(location.hash.slice(1)) >= 0 ? location.hash.slice(1) : v && v.role === "child" ? "chores" : areas[0];
   const tabs = $("tabs");
   tabs.classList.toggle("hidden", areas.length < 2);
   tabs.innerHTML = areas.map(a => `<button data-do="area" data-id="${a}" class="${a === area ? "active" : ""}">${esc(label(a))}</button>`).join("");
 
-  main.innerHTML = area === "pets" ? petsView() : area === "house" ? houseView() : area === "chores" ? choresView() : area === "rooms" ? roomsView() : area === "trips" ? tripsView() : listView(area);
+  main.innerHTML = area === "pets" ? petsView() : area === "house" ? houseView() : area === "chores" ? choresView() : area === "rooms" ? roomsView() : area === "trips" ? tripsView() : area === "assistant" ? assistantView() : listView(area);
   wirePhotoInputs();
   const first = main.querySelector(".form input:not([type=checkbox]), .form select");
   if (first && form && form.fresh) { first.focus(); form.fresh = false; }
@@ -580,6 +586,31 @@ function recentView(areaId) {
       ${undoable ? (r.actionId ? `<button class="small" data-do="undo-action" data-id="${r.actionId}">Undo</button>` : `<button class="small" data-do="undo" data-id="${r.taskId}">Undo</button>`) : ""}
     </div>`;
   }).join("") + `</div>`;
+}
+
+/** What the family's assistant changed from chat, and what waits for an adult's yes. */
+function assistantView() {
+  const a = state.assistant, manage = state.can.manage;
+  const when = iso => new Date(iso).toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  const where = scope => {
+    const parts = String(scope).split(":");
+    if (parts[0] === "trip") { const t = (state.trips || []).find(x => x.id === parts[1]); return t ? t.name : parts[1]; }
+    if (parts[0] === "place") { const p = (state.places || []).find(x => x.id === parts[1]); return p ? p.name : "a house"; }
+    return { household: "Household", grocery: "Groceries", pets: "Pets", movies: "Movies", ops: "Ops" }[parts[0]] || parts[0];
+  };
+  let html = `<div class="card"><h2>Waiting for a yes</h2>`;
+  html += a.pending.length ? a.pending.map((p, i) => `<div class="log-row wide" ${i === 0 ? 'style="border-top:0"' : ""}>
+      <strong>${esc(p.summary)}</strong>
+      <div class="sub">${esc(where(p.scope))} · asked by ${esc(p.by || "someone")} · ${esc(when(p.at))}</div>
+      ${manage ? `<span class="pair"><button class="small primary" data-do="agent-approve" data-id="${p.id}">Approve</button><button class="small" data-do="agent-reject" data-id="${p.id}">Turn down</button></span>` : ""}
+    </div>`).join("") : `<div class="empty">Nothing waiting. Removing things and changing dates wait here for an adult.</div>`;
+  html += `</div><div class="section-label">What ${esc(a.name.toLowerCase() === "assistant" ? "the assistant" : a.name)} did</div><div class="card">`;
+  html += a.log.length ? a.log.map((l, i) => `<div class="log-row${l.undone ? " undone" : ""}" ${i === 0 ? 'style="border-top:0"' : ""}>
+      <strong>${esc(l.summary)}</strong>
+      <div class="sub">${esc(where(l.scope))}${l.by ? ` · for ${esc(memberName(l.by))}` : ""}${l.approvedBy ? ` · approved by ${esc(memberName(l.approvedBy))}` : ""} · ${esc(when(l.at))}${l.undone ? " · undone" : ""}</div>
+      ${manage && l.undoable ? `<button class="small" data-do="agent-undo" data-id="${l.id}">Undo</button>` : ""}
+    </div>`).join("") : `<div class="empty">Nothing yet. Ask in a trip's or the household's Slack channel.</div>`;
+  return html + `</div>`;
 }
 
 function archivedView(tasks) {
@@ -1511,6 +1542,9 @@ document.addEventListener("click", e => {
     case "done-all": send(`/tasks/${id}/done`, { group: true }, "Marked done for all. It's under Recently done if you need to undo it.").then(redraw); break;
     case "undo": send(`/tasks/${id}/undo`, {}, "Put back").then(redraw); break;
     case "undo-action": send("/undo", { actionId: id }, "Put back").then(redraw); break;
+    case "agent-approve": send(`/agent/proposals/${id}/approve`, {}, "Approved").then(redraw); break;
+    case "agent-reject": send(`/agent/proposals/${id}/reject`, {}, "Turned down").then(redraw); break;
+    case "agent-undo": if (confirm("Undo this change?")) send(`/agent/log/${id}/undo`, {}, "Undone").then(redraw); break;
     case "restore": send(`/tasks/${id}/archive`, { archived: false }, "Restored").then(redraw); break;
     case "toggle-archived": showArchived = !showArchived; render(); break;
     case "remove-photo": if (confirm("Remove this photo?")) send(`/photos/${id}/remove`, {}, "Photo removed").then(redraw); break;

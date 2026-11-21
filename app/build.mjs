@@ -218,7 +218,7 @@ const guests = Object.entries(hub.guests ?? {}).map(([id, g]) => {
   if (!ID_RE.test(id)) fail("family.yaml", `hub.guests.${id}`, "expected a lowercase id");
   if (memberIds.has(id)) fail("family.yaml", `hub.guests.${id}`, "is also a family member");
   if (g?.email != null && !String(g.email).includes("@")) fail("family.yaml", `hub.guests.${id}.email`, "not an email address");
-  const who = { id, role: "guest", name: typeof g?.name === "string" ? g.name : id };
+  const who = { id, role: "guest", name: typeof g?.name === "string" ? g.name : id.replace(/(^|-)([a-z])/g, (_, s, c) => `${s ? " " : ""}${c.toUpperCase()}`) };
   chatId("family.yaml", `hub.guests.${id}.slack`, g?.slack, who);
   chatName(who, id, g?.name);
   return { id, email: g?.email ? String(g.email).toLowerCase() : null };
