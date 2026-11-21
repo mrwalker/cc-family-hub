@@ -85,6 +85,9 @@ Built so far:
   Ask panel in every trip app (offline-first), whose questions reach the assistant in the
   family's chat and whose answers come back; notes from the assistant on those panels.
   Bump each trip's `sw.js`.
+- **v2.15.0:** the assistant reads the family's **calendar** (`family-hub calendar`): any
+  range from a household channel, only a trip's days from its channel. `trip brief`
+  includes the trip app's departure note and quick facts.
 
 The rest ships in steps:
 

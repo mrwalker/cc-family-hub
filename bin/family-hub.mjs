@@ -20,6 +20,7 @@
  *   family-hub proposal …        The assistant: changes waiting for an adult's yes
  *   family-hub inbox …           The assistant: questions asked on the hub, and answering them
  *   family-hub note set          The assistant: a note on the hub for a trip or home
+ *   family-hub calendar          The assistant: the family's calendar (a trip's days, in its channel)
  *   family-hub log …             The assistant: what it changed, and undoing a change
  *   family-hub doctor            Check the live hub: what's deployed, how fresh its data is
  *   family-hub build             Validate the workspace and assemble the Worker's site
@@ -72,6 +73,7 @@ const COMMANDS = {
   proposal: (...args) => tsx("hub/agent.ts", ["proposal", ...args]),
   inbox:   (...args) => tsx("hub/agent.ts", ["inbox", ...args]),
   note:    (...args) => tsx("hub/agent.ts", ["note", ...args]),
+  calendar: (...args) => tsx("hub/agent.ts", ["calendar", ...args]),
   doctor:  (...args) => tsx("hub/agent.ts", ["doctor", ...args]),
   build:   () => node("app/build.mjs"),
   run() {

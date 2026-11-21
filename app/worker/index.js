@@ -143,7 +143,7 @@ async function route(request, env, hub, ectx = null) {
 
   const agent = url.pathname.match(/^\/api\/agent(\/.*)?$/);
   if (agent) {
-    return handleAgent(request, env, hub, agent[1] ?? "");
+    return handleAgent(request, env, hub, agent[1] ?? "", { loadRange: (from, to) => eventsBetween(env, hub, from, to) });
   }
 
   if (url.pathname === "/api/config.js") {
@@ -230,6 +230,22 @@ async function cachedEvents(env, hub, days) {
 }
 
 // ─── Calendar fetching ────────────────────────────────────────────────────────
+
+/**
+ * Every member's events (and the household calendar's) between two times, for the
+ * assistant (agent.js). An event on several calendars comes once, with everyone's ids.
+ */
+async function eventsBetween(env, hub, timeMin, timeMax) {
+  const token = await serviceAccountToken(env, SCOPES.calendarRead);
+  const sources = hub.householdCalendar ? [...hub.members, { id: "household", calendars: [hub.householdCalendar] }] : hub.members;
+  const byId = new Map();
+  for (const e of await fetchAllEvents(token, sources, timeMin, timeMax)) {
+    const seen = byId.get(e.id);
+    if (seen) { if (!seen.memberIds.includes(e.memberId)) seen.memberIds.push(e.memberId); }
+    else byId.set(e.id, { ...e, memberIds: [e.memberId] });
+  }
+  return [...byId.values()];
+}
 
 async function fetchAllEvents(accessToken, members, timeMin, timeMax) {
   const allEvents = [];

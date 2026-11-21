@@ -22,6 +22,8 @@
  *   family-hub proposal list | proposal approve <id> | proposal reject <id>                      (ops channel, an adult)
  *   family-hub inbox poll [--json] | inbox claim <id>… | inbox reply <id> --text T      (an ops channel)
  *   family-hub note set --text T [--until YYYY-MM-DD]       a note on the hub for this trip or home
+ *   family-hub calendar [--from YYYY-MM-DD] [--to YYYY-MM-DD | --days 14] [--json]
+ *                       the family's calendar; in a trip's channel, that trip's days
  *   family-hub log list [--limit 20]
  *   family-hub log undo <id>
  *   family-hub doctor [--max-age-hours 26] [--json]
@@ -120,6 +122,7 @@ interface PlanDay { date: string; title: string | null; items: { time: string | 
 interface Facts {
   trip: string; name: string; destination: string | null; timezone: string; today: string; start: string; end: string;
   phase: "before" | "during" | "after"; daysUntil: number; day?: number; endedDaysAgo?: number; days: number;
+  departNote: string | null; quickFacts: { label: string; value: string }[];
   datesMismatch: { record: { start: string; end: string }; app: { start: string; end: string } } | null;
   schedule: { asOf: string | null; today: PlanDay | null; tomorrow: PlanDay | null } | null;
   unbooked: { date: string | null; title: string | null; flag: string }[]; empty: string[];
@@ -158,6 +161,8 @@ async function trip(verb: string | undefined, flags: Flags): Promise<string> {
     out(`trip: ${f.name} (${f.trip})${f.destination ? `, ${f.destination}` : ""}`);
     out(`when: ${f.start} to ${f.end} (${plural(f.days, "day")}); ${when}`);
     out(`today there: ${f.today} (${f.timezone})`);
+    if (f.departNote) out(`departure: ${f.start}, ${f.departNote}`);
+    if (f.quickFacts.length) out(`quick facts: ${f.quickFacts.map(q => `${q.label}: ${q.value}`).join("; ")}`);
     const plan = (label: string, d: PlanDay | null) => {
       if (!d) return;
       out(`${label} (${d.date}${d.title ? `, ${d.title}` : ""}):`);
@@ -289,6 +294,21 @@ async function inbox(verb: string | undefined, ids: string[], flags: Flags): Pro
   throw new Usage("Usage: family-hub inbox poll | claim <id>… | reply <id> --text T");
 }
 
+interface CalEvent { day: string; title: string; allDay: boolean; start: string | null; end: string | null; who: string[]; location: string | null }
+
+async function calendar(flags: Flags): Promise<string> {
+  const r = await hubFetch<{ from: string; to: string; timezone: string; events: CalEvent[] }>(`/api/agent/calendar${query({ channel: channel(flags), from: flags.from, to: flags.to, days: flags.days })}`, { token: "agent" });
+  if (flags.json) { out(JSON.stringify(r)); return `${plural(r.events.length, "event")}`; }
+  out(`${r.from} to ${r.to} (times in ${r.timezone}):`);
+  let day = "";
+  for (const e of r.events) {
+    if (e.day !== day) { day = e.day; out(`${new Date(`${day}T12:00:00Z`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" })}:`); }
+    out(`- ${e.allDay ? "all day" : `${e.start}${e.end ? `–${e.end}` : ""}`} ${e.title} (${e.who.join(", ")})${e.location ? ` @ ${e.location}` : ""}`);
+  }
+  if (!r.events.length) out("- nothing on the calendar");
+  return plural(r.events.length, "event");
+}
+
 async function note(verb: string | undefined, flags: Flags): Promise<string> {
   if (verb !== "set") throw new Usage("Usage: family-hub note set --text T [--until YYYY-MM-DD]");
   await hubFetch("/api/agent/notes", { token: "agent", method: "POST", body: { channel: channel(flags), body: need(flags, "text", "note set --text T [--until YYYY-MM-DD]"), until: flags.until } });
@@ -375,8 +395,9 @@ async function main(): Promise<number> {
     : what === "proposal" ? await proposal(words[0], words[1], flags)
     : what === "inbox" ? await inbox(words[0], words.slice(1), flags)
     : what === "note" ? await note(words[0], flags)
+    : what === "calendar" ? await calendar(flags)
     : null;
-  if (done == null) throw new Usage("Usage: family-hub trip | grocery | task | chore | movie | proposal | inbox | note | log | doctor …");
+  if (done == null) throw new Usage("Usage: family-hub trip | grocery | task | chore | movie | proposal | inbox | note | calendar | log | doctor …");
   out(`\n${WHAT} ${pending ? "PENDING" : "OK"}: ${done}`);
   return 0;
 }
