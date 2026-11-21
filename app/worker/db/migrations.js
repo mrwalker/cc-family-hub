@@ -286,6 +286,13 @@ export const MIGRATIONS = [
       `CREATE INDEX IF NOT EXISTS trips_start ON trips (archived, start_date)`,
     ],
   },
+  {
+    // v2.9.2: an escape room played on a trip names the trip.
+    version: 9,
+    statements: [
+      `ALTER TABLE escape_rooms ADD COLUMN trip_id TEXT`,
+    ],
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

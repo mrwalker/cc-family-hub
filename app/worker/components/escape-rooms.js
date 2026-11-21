@@ -5,7 +5,7 @@
  * imports its old list, the published escape-rooms.yaml list is used.
  *
  *   data: { record: { escaped, total },
- *           room: { id, venue, room, city, date, solved, escapeTime, who, url, image } }
+ *           room: { id, venue, room, city, date, solved, escapeTime, who, url, image, trip } }   trip: the trip's id, or null
  */
 
 import { dateLabel } from "../util.js";
@@ -43,7 +43,7 @@ export async function cards(ctx) {
       room: {
         id: r.id ?? null, venue: r.venue ?? null, room: r.room, city: r.city ?? null, date: r.date ?? null,
         solved: !!r.solved, escapeTime: r.escapeTime ?? null, who: Array.isArray(r.who) ? r.who : [],
-        url: r.url ?? null, image,
+        url: r.url ?? null, image, trip: r.trip ?? null,
       },
     },
   }];

@@ -822,6 +822,9 @@
     .er-pic-name { position: absolute; left: 12px; right: 12px; bottom: 10px; color: #fff; font-size: 18px; font-weight: 800; line-height: 1.2; text-shadow: 0 1px 6px rgba(0,0,0,.5); }
     .er-pic-badge { position: absolute; top: 10px; right: 10px; }
     .er-tile-body { padding: 10px 12px 12px; }
+    .er-trip { display: inline-block; margin-top: 8px; font-size: 12px; font-weight: 600; color: var(--accent); text-decoration: none;
+      border: 1px solid var(--border); border-radius: 999px; padding: 3px 10px; }
+    .er-trip:hover { border-color: var(--accent); }
     .er-dots  { display: flex; gap: 3px; margin-top: 8px; flex-wrap: wrap; }
 
     /* ── Movies ─────────────────────────────────────────────────────── */
@@ -1490,6 +1493,8 @@ const FALLBACK_DWELL_MS = 15_000;      // if the stream can't be reached
 let currentModule = 0;
 const rot = { slots: [], i: -1, timer: null, idle: null, paused: false };
 // Trip cards for the Trips and Past Trips views, and the shared grocery list.
+// The trips the escape rooms view links to (the hub's trips).
+const escapeState = { trips: [] };
 const tripsState = { cards: [], records: null, loaded: false, trips: null, past: null, focus: { trips: null, "past-trips": null }, slides: {} };
 const TRIP_SLIDE_MS = 5000;
 const OLD_GROCERY_KEY = 'hub-grocery-list';   // v0.7 and earlier kept a list on each device
@@ -2030,9 +2035,12 @@ async function initRotation() {
     .filter(s => MODULES[s.module].tab !== false);
   buildTabs(stream ? stream.cards : null);
 
-  // A link to #trips (from a widget, say) opens that view, paused.
+  // A link to #trips (from a widget, say) opens that view, paused; #trip:<id> opens
+  // that trip's card, from an escape room or /household/.
   const linked = MODULES.findIndex(m => `#${m.id}` === location.hash);
+  const tripLink = location.hash.match(/^#trip:([a-z0-9-]+)$/);
   if (location.hash) history.replaceState(null, "", location.pathname + location.search);
+  if (tripLink) { openTrip(tripLink[1]); return; }
   if (linked >= 0) { showModule(linked); return; }
   if (!rot.paused) showSlot(0);
 }
@@ -2338,6 +2346,24 @@ function esc(s) {
   return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 
+/**
+ * Opens a trip's card in the spotlight: Past Trips, or Trips while it's coming up or on.
+ * Rotation pauses, as when someone picks a view.
+ */
+function openTrip(tripId) {
+  (tripsState.ready || loadTripCards()).then(() => {
+    const card = tripsState.cards.find(c => c.id === `past-trips:${tripId}` || c.id === `trips:${tripId}`);
+    if (!card) return;
+    const idx = MODULES.findIndex(m => m.component === card.component);
+    pauseRotation();
+    switchTo(idx, () => {
+      if (card.component === "past-trips") renderPastTrips(card.id, card); else renderTrips(card.id, card);
+      markTab(idx, 0);
+      window.scrollTo(0, 0);
+    });
+  });
+}
+
 function loadTripCards() {
   const records = fetch("/api/household/trips", { credentials: "same-origin" })
     .then(r => (r.ok ? r.json() : null))
@@ -2347,7 +2373,7 @@ function loadTripCards() {
     .then(r => (r.ok ? r.json() : Promise.reject(new Error(`/api/stream returned ${r.status}`))))
     .then(d => { tripsState.cards = d.cards || []; })
     .catch(e => console.warn("Trip cards unavailable:", e.message));
-  return Promise.all([records, cards])
+  return tripsState.ready = Promise.all([records, cards])
     .then(() => {
       tripsState.loaded = true;
       renderTrips(tripsState.focus.trips);
@@ -2588,10 +2614,18 @@ function loadEscapeRooms() {
     .then(r => (r.ok ? r.json() : null))
     .then(d => {
       const kept = d && d.enabled && (d.rooms || []).filter(r => !r.archived);
+      escapeState.trips = d && d.enabled ? d.trips || [] : [];
       renderEscapeRooms(kept && kept.length ? kept : family.escapeRooms || [], !!(kept && kept.length));
     })
     .catch(() => renderEscapeRooms(family.escapeRooms || [], false));
 }
+
+document.addEventListener("click", e => {
+  const a = e.target.closest ? e.target.closest("a[data-trip]") : null;
+  if (!a) return;
+  e.preventDefault();
+  openTrip(a.getAttribute("data-trip"));
+});
 
 function renderEscapeRooms(rooms, kept, el) {
   const wrap = el || document.getElementById('er-wrap');
@@ -2628,6 +2662,7 @@ function renderEscapeRooms(rooms, kept, el) {
     }
     const pic = kept && room.imageUrl ? `<img src="/api/household/image/rooms/${encodeURIComponent(room.id)}?v=${encodeURIComponent(room.imageVersion || '')}" alt="" loading="lazy" onerror="this.remove()">` : '';
     const dots = (room.who || []).filter(Boolean).map(id => mdot(id, 20)).join('');
+    const trip = room.trip ? escapeState.trips.find(t => t.id === room.trip && !t.archived) : null;
     html += `<div class="er-tile${isFastest ? ' er-card-fastest' : ''}">
       <div class="er-pic">${pic}<div class="er-pic-shade"></div>
         <div class="er-pic-name">${esc(room.room)}</div>
@@ -2636,6 +2671,7 @@ function renderEscapeRooms(rooms, kept, el) {
         <div class="er-venue-line"><span class="er-venue">${esc(room.venue || '')}</span>${room.city ? `<span class="er-city">· ${esc(room.city)}</span>` : ''}${dateStr ? `<span class="er-city">· ${dateStr}</span>` : ''}
           ${room.url ? `<a class="er-url" href="${esc(room.url)}" target="_blank" rel="noopener">↗</a>` : ''}</div>
         ${room.notes ? `<div class="er-notes">${esc(room.notes)}</div>` : ''}
+        ${trip ? `<a class="er-trip" href="#trip:${esc(trip.id)}" data-trip="${esc(trip.id)}">${esc(trip.emoji || '✈️')} ${esc(trip.name)} →</a>` : ''}
         ${dots ? `<div class="er-dots">${dots}</div>` : ''}
       </div></div>`;
   });

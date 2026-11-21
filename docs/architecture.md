@@ -179,7 +179,7 @@ are no household cards, the page says it isn't set up, and nothing else changes.
 | `chores` | What each job (or a named person) does, and when: its schedule, time, season, and for a chore done on request, when it was asked for |
 | `chore_log` | One row each time a chore is ticked: the day or week it was for, whose chore it was, who ticked it, and the action it was part of |
 | `chore_swaps` | One-week changes to the rotation ("Riley takes the trash this week") |
-| `escape_rooms` | The rooms the family has played: where, when, who, the result, the room's link and its picture's address |
+| `escape_rooms` | The rooms the family has played: where, when, who, the result, the room's link and its picture's address, and the trip it was played on |
 | `movies`, `movie_marks` | Movies and shows worth seeing, most picked monthly by the assistant, and who wants to see or has seen each |
 | `trips` | The family's trips: where, when, who, the album, a description, the map's area, and the lists a trip shows (highlights, things to do, restaurants, tips) |
 
