@@ -1205,6 +1205,9 @@
       --radius: 14px;
       --shadow: none;
     }
+    /* Dark cards are nearly clear glass; a pop-up over the page (a day, Ask) needs to be solid. */
+    [data-theme="dark"] .modal { background: #15171c; border: 1px solid var(--border); }
+    [data-theme="dark"] .modal-overlay { background: rgba(0, 0, 0, .7); }
     [data-theme="dark"] {
       --bg: #08090c;
       --card: rgba(255, 255, 255, .035);
