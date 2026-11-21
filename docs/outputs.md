@@ -70,6 +70,13 @@ on phones and laptops.
 It must keep working on an old Android WebView (Chrome 80 to 86), which is what cheap wall
 tablets ship with. See [wall-tablet.md](wall-tablet.md) for kiosk setup.
 
+**On a phone's home screen** it runs like an app: full screen, with its own icon, and the
+household page opens inside it. In Safari, tap Share, then Add to Home Screen. The build
+writes `manifest.webmanifest` named for the family (`hub.title`, and `hub.shortTitle` for
+the name under the icon) and the icons are in `app/public/icons/`. A family can use its own
+by putting `manifest.webmanifest` or `icons/hub-180.png`, `hub-192.png` and `hub-512.png` in
+its repo's `public/`. A phone picks up a new icon or name only when it's added again.
+
 ## phone-widget
 
 Home-screen and lock-screen widgets, running in [Scriptable](https://scriptable.app), so

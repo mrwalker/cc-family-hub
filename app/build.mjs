@@ -3,7 +3,7 @@
  * Builds a family's hub from its repo (run from that repo's root):
  *
  *   workspace/family.yaml        members (+ color, shortName), inputs, stream, outputs,
- *                                hub.title, hub.guests, hub.tripApps, hub.access, hub.householdCalendar
+ *                                hub.title, hub.shortTitle, hub.guests, hub.tripApps, hub.access, hub.householdCalendar
  *                                (and the older hub.photos and hub.groceryEmailUrl)
  *   workspace/members/<id>.yaml  calendarIds, email
  *     → .generated/hub-config.json   imported by the family's worker.js (never served)
@@ -11,7 +11,8 @@
  *   cc-family-hub/app/public/    the hub page and the shared trip-app engine
  *   <trip dir>/ for each tripApp the family's trip pages
  *   public/ (optional)           extra static files, or overrides of the above
- *     → .generated/site/             the Worker's static assets
+ *     → .generated/site/             the Worker's static assets, with the home-screen
+ *                                    manifest.webmanifest named for the family
  *
  * With --check (family-hub check), it validates and summarizes without writing.
  *
@@ -167,6 +168,11 @@ function objectAt(v, at) {
   return Object.fromEntries(Object.entries(v).map(([k, o]) => [k, o ?? {}]));
 }
 
+// hub.shortTitle: the name under the hub's icon on a phone's home screen.
+if (hub.shortTitle != null && (typeof hub.shortTitle !== "string" || !hub.shortTitle.trim())) {
+  fail("family.yaml", "hub.shortTitle", "expected a short name, like \"Rivera Hub\"");
+}
+
 // hub.access: what the Worker needs to check a Cloudflare Access sign-in itself,
 // before it lets anyone change household records (docs/workspace.md).
 let access = null;
@@ -303,4 +309,41 @@ rmSync(SITE, { recursive: true, force: true });
 cpSync(toolkitPublic, SITE, { recursive: true });
 for (const t of tripApps) cpSync(join(root, t.path), join(SITE, t.path), { recursive: true });
 if (existsSync(join(root, "public"))) cpSync(join(root, "public"), SITE, { recursive: true });
+writeHomeScreen();
 console.log(`Hub site: hub page + ${tripApps.length} trip apps → .generated/site/`);
+
+/**
+ * Makes the hub installable on a phone's home screen (docs/outputs.md): a web app manifest
+ * named for the family, and the family's names in the pages' <title> and iOS app title.
+ * A family's own public/manifest.webmanifest or icons/ win, since public/ was copied last.
+ */
+function writeHomeScreen() {
+  const name = config.title;
+  const shortName = hub.shortTitle?.trim() || name;
+  const manifest = join(SITE, "manifest.webmanifest");
+  if (!existsSync(join(root, "public", "manifest.webmanifest"))) {
+    writeFileSync(manifest, JSON.stringify({
+      name,
+      short_name: shortName,
+      start_url: "/",
+      scope: "/",
+      display: "standalone",
+      background_color: "#08090c",
+      theme_color: "#08090c",
+      icons: [
+        { src: "/icons/hub-192.png", sizes: "192x192", type: "image/png" },
+        { src: "/icons/hub-512.png", sizes: "512x512", type: "image/png" },
+        { src: "/icons/hub-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
+      ],
+    }, null, 2) + "\n");
+  }
+  const attr = s => s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+  for (const page of ["index.html", "household/index.html"]) {
+    const p = join(SITE, page);
+    if (!existsSync(p)) continue;
+    const html = readFileSync(p, "utf8")
+      .replace(/<title>Family Hub<\/title>/, `<title>${attr(name)}</title>`)
+      .replace(/(<meta name="apple-mobile-web-app-title" content=")Family Hub(")/, `$1${attr(shortName)}$2`);
+    writeFileSync(p, html);
+  }
+}

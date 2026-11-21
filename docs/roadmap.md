@@ -59,6 +59,8 @@ Built so far:
   found from the destination, so a new trip no longer needs an edit to `trips.yaml`.
 - **v2.9.2:** an escape room can name the **trip** it was played on; its tile links to that
   trip's card, and the hub page opens any trip from a `/#trip:<id>` link.
+- **v2.10.0:** the hub works as a **phone app**: added to the home screen it opens full
+  screen with its own icon and name (`hub.shortTitle`), and its clock fits a phone.
 
 The rest ships in steps:
 
