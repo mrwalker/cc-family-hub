@@ -426,3 +426,31 @@ test("questions from the hub reach the assistant, and its answers come back", D1
   assert.equal((await call("/notes", { body: { channel: LAKE, body: "10 days to go!", until: "2027-06-22" } })).status, 200);
   assert.deepEqual((await page("/inbox", { member: "grandma" })).body.notes.map(n => n.body), ["10 days to go!"]);
 });
+
+// ─── The calendar ─────────────────────────────────────────────────────────────
+
+test("the calendar: a trip's channel sees only its trip's days", D1, async () => {
+  const { env } = await setup();
+  const asked = [];
+  const ev = (title, startAt, endAt, memberIds, extra = {}) => ({ id: `google-calendar:${title}`, title, startAt, endAt, allDay: false, memberIds, ...extra });
+  const loadRange = async (from, to) => {
+    asked.push([from.slice(0, 10), to.slice(0, 10)]);
+    return [
+      ev("Fly to the lake", "2027-07-01T08:30:00-07:00", "2027-07-01T10:00:00-07:00", ["alex", "sam"], { location: "SJC" }),
+      ev("Dentist", "2027-06-22T09:00:00-07:00", "2027-06-22T10:00:00-07:00", ["alex"]),
+      ev("Skipped", "2027-07-02T09:00:00-07:00", "2027-07-02T10:00:00-07:00", ["alex"], { declined: true }),
+      { id: "google-calendar:Pack", title: "Pack", startAt: "2027-06-30", endAt: "2027-07-01", allDay: true, memberIds: ["household"] },
+    ];
+  };
+  const get = async path => {
+    const res = await handleAgent(new Request(`${BASE}${path}`, { headers: { Authorization: `Bearer ${TOKEN}` } }), env, hubWith(), path.split("?")[0], { now: NOW, loadRange });
+    return { status: res.status, body: await res.json() };
+  };
+  const trip = (await get(`/calendar?channel=${LAKE}&from=2027-06-01&to=2027-06-30`)).body;
+  assert.deepEqual([trip.from, trip.to], ["2027-06-29", "2027-07-06"], "the trip's days, whatever was asked");
+  assert.deepEqual(trip.events.map(e => [e.day, e.title, e.start, e.who.join("+")]), [["2027-06-30", "Pack", null, "Household"], ["2027-07-01", "Fly to the lake", "8:30 AM", "Alex+Sam"]]);
+  const home = (await get(`/calendar?channel=${HOME}&days=3`)).body;
+  assert.deepEqual([home.from, home.to, home.events.map(e => e.title)], ["2027-06-21", "2027-06-23", ["Dentist"]]);
+  assert.equal((await get(`/calendar?channel=${FOOD}`)).status, 403);
+  assert.equal((await get(`/calendar?channel=${HOME}&from=2027-01-01&to=2027-12-31`)).status, 400);
+});

@@ -20,6 +20,8 @@
  *   GET  /api/agent/tasks?channel=&days=         open tasks this channel may touch
  *   GET  /api/agent/chores?channel=              today's chores
  *   GET  /api/agent/movies?channel=              the movies and who wants or has seen each
+ *   GET  /api/agent/calendar?channel=&from=&to=  the family's calendar: a trip's channel sees
+ *                                                only its trip's days (and two before); others any range
  *   GET  /api/agent/log?channel=&limit=          what the assistant changed lately
  *   GET  /api/agent/proposals?channel=           changes waiting for a yes
  *   POST /api/agent/ops                          { op, args, channel, actor: { slack?, name? }, source? }
@@ -103,6 +105,7 @@ export async function handleAgent(request, env, hub, path, opts = {}) {
           seen: Object.entries(m.marks ?? {}).filter(([, v]) => v === "seen").map(([k]) => names[k] ?? k),
         })) });
       }
+      if (path === "/calendar") return json(await readCalendar(hub, db, scope, q, now, opts.loadRange));
       if (path === "/log") return json({ log: await readLog(db, scope, Number(q.get("limit")) || 20) });
       if (path === "/proposals") return json({ proposals: await readProposals(db, scope, now) });
       if (path === "/inbox") {
@@ -243,6 +246,49 @@ async function readTasks(env, hub, db, scope, now, days) {
   return { today: h.today, days: h.days, place, tasks: h.tasks.filter(mine), recent: h.recent.filter(mine).slice(0, 15) };
 }
 
+/**
+ * The family's calendar for a range. A trip's channel has guests in it, so it sees only
+ * the trip's own days, from two days before (getting there) to the day after.
+ */
+async function readCalendar(hub, db, scope, q, now, loadRange) {
+  allow(scope, ["trip", "household", "pets", "place", "ops"], "see the calendar");
+  if (!loadRange) throw new OpError("The hub can't read calendars here", 503);
+  const tz = hub.timezone;
+  const today = ymd(new Date(now), tz);
+  const isDay = v => typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v);
+  let from, to;
+  if (scope.kind === "trip") {
+    const row = await db.prepare("SELECT start_date, end_date FROM trips WHERE id = ?").bind(scope.trip).first();
+    const app = hub.tripApps.find(a => a.trip === scope.trip)?.summary;
+    const start = app?.start ?? row?.start_date, end = app?.end ?? row?.end_date;
+    if (!start) throw new OpError(`The hub has no dates for "${scope.trip}"`, 404);
+    from = addDays(start, -2); to = addDays(end, 1);
+  } else {
+    from = isDay(q.get("from")) ? q.get("from") : today;
+    to = isDay(q.get("to")) ? q.get("to") : addDays(from, Math.min(90, Math.max(1, Number(q.get("days")) || 14)) - 1);
+    if (to < from) throw new OpError("to: on or after from");
+    if (daysBetween(from, to) > 90) throw new OpError("A range of at most 90 days");
+  }
+  // The day's edges in the family's timezone, give or take: a day either side, then trimmed.
+  const events = await loadRange(new Date(Date.parse(`${addDays(from, -1)}T12:00:00Z`)).toISOString(), new Date(Date.parse(`${addDays(to, 1)}T12:00:00Z`)).toISOString());
+  const names = Object.fromEntries([...hub.members.map(m => [m.id, m.name]), ["household", "Household"]]);
+  const dayOf = e => (e.allDay ? e.startAt.slice(0, 10) : ymd(new Date(e.startAt), tz));
+  const fmt = (iso, opts) => new Intl.DateTimeFormat(hub.locale || "en-US", { timeZone: tz, ...opts }).format(new Date(iso));
+  const list = events
+    .filter(e => !e.declined && e.startAt)
+    .map(e => ({ e, day: dayOf(e) }))
+    .filter(({ day }) => day >= from && day <= to)
+    .sort((a, b) => (a.e.startAt < b.e.startAt ? -1 : 1))
+    .map(({ e, day }) => ({
+      day, title: e.title, allDay: e.allDay,
+      start: e.allDay ? null : fmt(e.startAt, { hour: "numeric", minute: "2-digit" }),
+      end: e.allDay || !e.endAt ? null : fmt(e.endAt, { hour: "numeric", minute: "2-digit" }),
+      who: (e.memberIds ?? [e.memberId]).map(id => names[id] ?? id),
+      location: e.location ?? null,
+    }));
+  return { from, to, timezone: tz, events: list };
+}
+
 const logRow = r => ({
   id: r.id, at: new Date(r.created_at).toISOString(), scope: r.scope, op: r.op, summary: r.summary,
   by: r.actor_label ?? r.actor, approvedBy: r.approved_by ?? null, undone: !!r.undone_at,
@@ -296,6 +342,8 @@ export async function tripFacts(env, hub, db, id, now) {
   const facts = {
     trip: id, name: record?.name ?? s.title, destination: record?.destination ?? s?.resort ?? null,
     timezone: tz, today, start, end, phase,
+    departNote: s?.departNote ?? null,
+    quickFacts: s?.quickFacts ?? [],
     daysUntil: phase === "before" ? daysBetween(today, start) : 0,
     ...(phase === "during" ? { day: daysBetween(start, today) + 1 } : {}),
     ...(phase === "after" ? { endedDaysAgo: daysBetween(end, today) } : {}),

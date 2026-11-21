@@ -260,6 +260,9 @@ function tripSummary(path, at) {
   const str = v => (typeof v === "string" ? v : null);
   return {
     title: str(T.title), titleAccent: str(T.titleAccent), resort: str(T.resort),
+    // For the assistant: when the family leaves, and the trip's quick facts.
+    departNote: str(T.departNote),
+    quickFacts: (T.quickFacts ?? []).map(f => ({ label: str(f.label), value: str(f.value) })).filter(f => f.label && f.value),
     start: str(T.start), end: str(T.end), tz: str(T.tz),
     countdown: str(T.text?.countdown), team: str(T.text?.team),
     hero: str(T.photo?.src) ? `${path}${T.photo.src.replace(/^\.?\//, "")}` : null,
