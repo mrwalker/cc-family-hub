@@ -899,6 +899,10 @@ function roomDate(r) {
   return r.approxDate ? "~" + r.date.slice(0, 4) : dateText(r.date, { month: "short", year: "numeric" });
 }
 
+const tripById = id => (state.trips || []).find(t => t.id === id) || null;
+/** The trip whose dates include this day, if one does. */
+const tripOn = day => (day && liveTrips().find(t => t.startDate <= day && day <= t.endDate)) || null;
+
 function roomsView() {
   const tick = state.can.tick, manage = state.can.manage;
   const rooms = liveRooms();
@@ -930,6 +934,7 @@ function roomsView() {
       <div class="sub">${esc([r.venue, r.city].filter(Boolean).join(" · "))}${r.date ? " · " + esc(roomDate(r)) : ""}</div>
       <div class="result${r.solved ? "" : " failed"}">${r.solved ? "Escaped" + (r.escapeTime ? " · " + esc(r.escapeTime) : "") : "Didn't escape" + (r.failNote ? " · " + esc(r.failNote) : "")}</div>
       ${who ? `<div class="sub">${esc(who)}</div>` : ""}
+      ${r.trip && tripById(r.trip) ? `<div class="sub">On <a href="/#trip:${esc(r.trip)}">${esc(tripById(r.trip).name)}</a></div>` : ""}
       ${r.notes ? `<div class="task-more">${esc(r.notes)}</div>` : ""}
       ${tick ? `<div class="room-actions"><button class="small" data-do="edit-room" data-id="${esc(r.id)}">Edit</button>
         ${r.url ? `<a class="small" href="${esc(r.url)}" target="_blank" rel="noopener">Room's page</a>` : ""}</div>` : ""}
@@ -952,6 +957,7 @@ function roomForm(r) {
       <div class="field"><label for="r-date">When</label><input id="r-date" type="date" value="${esc(d.date)}">
         <label class="check" style="margin-top:4px"><input type="checkbox" id="r-approx"${d.approxDate ? " checked" : ""}>Only the year is right</label></div>
     </div>
+    ${roomTripField(d)}
     <div class="field"><span class="field-label">Who played</span>${state.members.map(m => `<label class="check"><input type="checkbox" class="r-who" value="${m.id}"${(d.who || []).indexOf(m.id) >= 0 ? " checked" : ""}>${esc(m.name)}</label>`).join("")}</div>
     <div class="row">
       <div class="field"><label class="check" style="margin-top:28px"><input type="checkbox" id="r-solved"${d.solved ? " checked" : ""}>We escaped</label></div>
@@ -968,12 +974,25 @@ function roomForm(r) {
   </div>`;
 }
 
+/** Which trip the room was played on. A room without one is offered the trip its date falls in. */
+function roomTripField(d) {
+  const trips = liveTrips().slice().sort((a, b) => b.startDate.localeCompare(a.startDate));
+  if (!trips.length) return "";
+  const guess = !d.trip ? tripOn(d.date) : null;
+  const chosen = d.trip || (guess ? guess.id : "");
+  const kept = d.trip && !tripById(d.trip) ? opt(d.trip, d.trip, chosen) : "";
+  return `<div class="field"><label for="r-trip">Played on a trip</label>
+    <select id="r-trip">${opt("", "Not on a trip", chosen)}${trips.map(t => opt(t.id, `${t.name} · ${tripDates(t)}`, chosen)).join("")}${kept}</select>
+    ${guess ? `<div class="hint">Picked because the date falls in ${esc(guess.name)}. Choose “Not on a trip” if it wasn't.</div>` : ""}</div>`;
+}
+
 function saveRoom() {
   const old = form.id ? (state.rooms || []).find(r => r.id === form.id) : null;
   const room = Object.assign({}, old || {}, {
     id: old ? old.id : form.newId, room: val("r-room"), venue: val("r-venue"), city: val("r-city"),
     date: val("r-date") || null, approxDate: $("r-approx").checked, solved: $("r-solved").checked,
     escapeTime: val("r-time"), failNote: val("r-fail"), url: val("r-url") || null, notes: val("r-notes"),
+    trip: $("r-trip") ? val("r-trip") || null : (old ? old.trip || null : null),
     who: Array.prototype.filter.call(document.querySelectorAll(".r-who"), c => c.checked).map(c => c.value),
   });
   if (!room.room) { setStatus("Give the room's name", true); return; }

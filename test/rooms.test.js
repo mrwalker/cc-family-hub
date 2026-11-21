@@ -100,6 +100,17 @@ test("anyone in the family adds a room; its picture comes from its link", D1, as
   assert.equal(after.imageUrl, "https://cdn.example/mine.jpg");
 });
 
+test("a room can name the trip it was played on", D1, async () => {
+  const { as } = setup();
+  let r = (await as("sam")("/rooms", room({ trip: "beach-jul-2027" }))).body.rooms[0];
+  assert.equal(r.trip, "beach-jul-2027");
+  r = (await as("sam")("/rooms", room({ trip: null }))).body.rooms[0];
+  assert.equal(r.trip, null, "and be taken off it");
+  assert.equal((await as("sam")("/rooms", room({ trip: "Beach Trip!" }))).status, 400);
+  const ctx = ctxWith({ rooms: [{ id: "room-a00001", room: "Sunken Temple", solved: true, who: [], trip: "beach-jul-2027" }] });
+  assert.equal((await byId["escape-rooms"].cards(ctx))[0].data.room.trip, "beach-jul-2027");
+});
+
 test("rooms are checked; guests can't add them; only adults archive", D1, async () => {
   const { as } = setup();
   assert.equal((await as("alex")("/rooms", room({ room: "" }))).status, 400);

@@ -57,6 +57,8 @@ Built so far:
   with posters; everyone marks what they want to see and what they've seen.
 - **v2.9.0:** **trips** kept by the hub: added and changed on `/household/`, each with its map
   found from the destination, so a new trip no longer needs an edit to `trips.yaml`.
+- **v2.9.2:** an escape room can name the **trip** it was played on; its tile links to that
+  trip's card, and the hub page opens any trip from a `/#trip:<id>` link.
 
 The rest ships in steps:
 

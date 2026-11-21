@@ -3,7 +3,9 @@
  * household.js; edited on /household/ (the Escape rooms tab).
  *
  *   room: { id, venue?, room, city?, date?, approxDate?, url?, imageUrl?, who[], solved,
- *           escapeTime?, failNote?, difficulty?, rating?, notes?, archived }
+ *           escapeTime?, failNote?, difficulty?, rating?, notes?, trip?, archived }
+ *
+ *   trip: the id of the trip it was played on (trip-records.js), or null.
  *
  *   GET  /api/household/rooms                 → { enabled, can, rooms, canImport }
  *   POST /api/household/rooms                   a room (finds its picture when the link changes)
@@ -22,6 +24,7 @@
 import { findImage, imageVersion } from "./link-image.js";
 
 const ID_RE = /^[A-Za-z0-9_-]{6,40}$/;
+const TRIP_ID_RE = /^[a-z0-9][a-z0-9-]{1,59}$/;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const MAX_ROOMS = 500;
 const RECHECK_MS = 24 * 3_600_000;   // a room with no picture is looked at again after a day
@@ -40,12 +43,14 @@ export function cleanRoom(c, { memberIds }) {
   const url = c.url ? String(c.url).trim() : null;
   if (url && !isWeb(url)) return { error: "url: a web link (https://…)" };
   const who = Array.isArray(c.who) ? [...new Set(c.who.filter(id => memberIds.has(id)))] : [];
+  const trip = c.trip ? String(c.trip) : null;
+  if (trip && !TRIP_ID_RE.test(trip)) return { error: "trip: a trip's id, like beach-jul-2027" };
   return {
     room: {
       id: c.id, room, venue: text(c.venue, 80) || null, city: text(c.city, 60) || null,
       date, approxDate: !!c.approxDate, url, who, solved: !!c.solved,
       escapeTime: text(c.escapeTime, 20) || null, failNote: text(c.failNote, 200) || null,
-      difficulty: oneToFive(c.difficulty), rating: oneToFive(c.rating), notes: text(c.notes, 500) || null,
+      difficulty: oneToFive(c.difficulty), rating: oneToFive(c.rating), notes: text(c.notes, 500) || null, trip,
     },
   };
 }
@@ -55,7 +60,8 @@ export const roomFromRow = r => ({
   approxDate: !!r.approx_date, url: r.url ?? null, imageUrl: r.image_url ?? null, imageCheckedAt: r.image_checked_at ?? null,
   imageVersion: imageVersion(r.image_url),
   who: parse(r.who, []), solved: !!r.solved, escapeTime: r.escape_time ?? null, failNote: r.fail_note ?? null,
-  difficulty: r.difficulty ?? null, rating: r.rating ?? null, notes: r.notes ?? null, archived: !!r.archived,
+  difficulty: r.difficulty ?? null, rating: r.rating ?? null, notes: r.notes ?? null, trip: r.trip_id ?? null,
+  archived: !!r.archived,
 });
 
 /** The rooms, newest first. */
@@ -86,15 +92,15 @@ export async function roomsSnapshot(env) {
 
 function upsert(db, r, viewer, now) {
   return db.prepare(`INSERT INTO escape_rooms (id, venue, room, city, date, approx_date, url, image_url, image_checked_at, who,
-        solved, escape_time, fail_note, difficulty, rating, notes, archived, created_at, created_by, updated_at, updated_by)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)
+        solved, escape_time, fail_note, difficulty, rating, notes, trip_id, archived, created_at, created_by, updated_at, updated_by)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)
       ON CONFLICT (id) DO UPDATE SET venue = excluded.venue, room = excluded.room, city = excluded.city, date = excluded.date,
         approx_date = excluded.approx_date, url = excluded.url, image_url = excluded.image_url,
         image_checked_at = excluded.image_checked_at, who = excluded.who, solved = excluded.solved,
         escape_time = excluded.escape_time, fail_note = excluded.fail_note, difficulty = excluded.difficulty,
-        rating = excluded.rating, notes = excluded.notes, archived = 0, updated_at = excluded.updated_at, updated_by = excluded.updated_by`)
+        rating = excluded.rating, notes = excluded.notes, trip_id = excluded.trip_id, archived = 0, updated_at = excluded.updated_at, updated_by = excluded.updated_by`)
     .bind(r.id, r.venue, r.room, r.city, r.date, r.approxDate ? 1 : 0, r.url, r.imageUrl ?? null, r.imageCheckedAt ?? null,
-          JSON.stringify(r.who), r.solved ? 1 : 0, r.escapeTime, r.failNote, r.difficulty, r.rating, r.notes,
+          JSON.stringify(r.who), r.solved ? 1 : 0, r.escapeTime, r.failNote, r.difficulty, r.rating, r.notes, r.trip ?? null,
           now, viewer.id, now, viewer.id);
 }
 

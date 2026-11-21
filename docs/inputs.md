@@ -156,8 +156,10 @@ off, and nothing else changes.
 **Escape rooms** are the rooms you've played: where, when, who, whether you got out and how
 fast. Anyone in the family adds one on `/household/` after a game, with the room's link. The
 hub finds the room's picture from that link (the page's preview image, or a picture whose
-description names the room) and shows it on the hub page and the TVs. A hub that kept
-`escape-rooms.yaml` imports it once, from the Escape rooms tab.
+description names the room) and shows it on the hub page and the TVs. A room played on a
+trip can name the trip (the form offers the one its date falls in); its tile on the hub page
+then links to that trip's card. A hub that kept `escape-rooms.yaml` imports it once, from the
+Escape rooms tab.
 
 **Movies** are what's coming out that's worth seeing: in theaters, with IMAX and 70mm noted,
 and the big new movies and shows on streaming services. Once a month your assistant picks
