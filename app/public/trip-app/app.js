@@ -40,6 +40,7 @@
     asks: {},        // questions for the assistant written on this device, by id
     askPend: {},     // id → true (not sent yet)
     inbox: null,     // the last { threads, notes, name } from the hub, or null without an assistant
+    photos: null,    // the last { album, photos, error? } from the hub; null without an album
     lastSync: 0,
   });
 
@@ -271,6 +272,19 @@
         if (/HTTP 404/.test(e.message)) state.inbox = null;
       }
 
+      // The trip's shared album. Without a link (or on an older hub) there's no Photos tab.
+      // If it can't be listed just now, keep the photos we already know about.
+      try {
+        const got = await api("/photos");
+        const known = state.photos && state.photos.photos;
+        state.photos = got.album ? { ...got, photos: got.photos || known || null } : null;
+        // A new album can take iCloud a while to list: look again a few times.
+        if (state.photos && !state.photos.photos && !got.error && (ui.photoTries = (ui.photoTries || 0) + 1) <= 4) setTimeout(() => doSync(true), 15000);
+      } catch (e) {
+        if (e.auth) throw e;
+        if (/HTTP 404/.test(e.message)) state.photos = null;
+      }
+
       state.lastSync = Date.now();
       sync.status = "ok";
       save();
@@ -313,14 +327,21 @@
     schedule: '<rect x="3.5" y="5" width="17" height="15.5" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/>',
     quests:   '<circle cx="12" cy="12" r="8.5"/><path d="M15.5 8.5l-2 5-5 2 2-5z"/>',
     board:    '<path d="M5.5 20v-7M12 20V4.5M18.5 20v-10"/>',
+    photos:   '<rect x="3.5" y="5" width="17" height="14" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="M4 17l5-4 3.5 2.5L16 12l4.5 4"/>',
     pack:     '<path d="M6 8.5h12l-1 11.5H7z"/><path d="M9 8.5V7a3 3 0 0 1 6 0v1.5"/>',
   };
   const CHECK = svg('<path d="M5 12.5l4.5 4.5L19 7.5"/>');
-  const TABS = [["today", "Today"], ["schedule", "Plan"], ["quests", "Quests"], ["board", "Scores"], ["pack", "Pack"]];
+  const TABS = [["today", "Today"], ["schedule", "Plan"], ["quests", "Quests"], ["board", "Scores"], ["photos", "Photos"], ["pack", "Pack"]];
   const pad2 = n => String(n).padStart(2, "0");
 
+  const tabs = () => TABS.filter(([id]) => id !== "photos" || state.photos);
+
   function renderTabs() {
-    $("#tabs").innerHTML = TABS.map(([id, label]) =>
+    const shown = tabs();
+    if (renderTabs._n === shown.length) return;
+    renderTabs._n = shown.length;
+    $("#tabs").style.gridTemplateColumns = `repeat(${shown.length}, 1fr)`;
+    $("#tabs").innerHTML = shown.map(([id, label]) =>
       `<a href="#${id}" data-tab="${id}">${svg(ICON[id])}<span>${label}</span></a>`).join("");
   }
 
@@ -356,15 +377,18 @@
 
   function currentTab() {
     const t = (location.hash || "#today").slice(1);
-    return ["today", "schedule", "quests", "board", "pack"].includes(t) ? t : "today";
+    return tabs().some(([id]) => id === t) ? t : "today";
   }
 
   function render(scrollTop = false) {
     renderChrome();
+    renderTabs();
     const tab = currentTab();
     document.querySelectorAll(".tabs a").forEach(a => a.classList.toggle("on", a.dataset.tab === tab));
     const view = $("#view");
-    view.innerHTML = ({ today: viewToday, schedule: viewSchedule, quests: viewQuests, board: viewBoard, pack: viewPack })[tab]();
+    const html = ({ today: viewToday, schedule: viewSchedule, quests: viewQuests, board: viewBoard, photos: viewPhotos, pack: viewPack })[tab]();
+    // Leave an unchanged page alone, so a sync doesn't reload the photos.
+    if (render._html !== html) { view.innerHTML = html; render._html = html; }
     if (scrollTop) window.scrollTo({ top: 0 });
   }
 
@@ -595,6 +619,73 @@
           <span class="pt">${h(i.text)}${i.note ? `<small>${h(i.note)}</small>` : ""}</span></button>`).join("")}</div>`)).join("")}`;
   }
 
+  // ── Photos ─────────────────────────────────────────────────────────────
+  // The trip's shared album, grouped by day. Only shown once the trip has an album link.
+  const photoList = () => (state.photos && state.photos.photos) || [];
+  const photoSrc = (id, thumb) => `${API}/photos/${encodeURIComponent(id)}${thumb ? "?size=thumb" : ""}`;
+
+  function viewPhotos() {
+    const list = photoList();
+    const p = state.photos;
+    if (!list.length) {
+      const msg = p.error ? "The album can’t be opened right now. Check that Public Website is on for it."
+        : p.photos ? "No photos yet. Add some to the shared album and they’ll show up here."
+        : "Loading the album. This can take a minute.";
+      return panel("Photos", `<div class="empty">${msg}</div>`);
+    }
+    const groups = [];
+    list.forEach((ph, i) => {
+      const at = ph.takenAt ? new Date(ph.takenAt) : null;
+      const day = at && !isNaN(at) ? tzParts(at).date : "";
+      if (!groups.length || groups[groups.length - 1].day !== day) groups.push({ day, items: [] });
+      groups[groups.length - 1].items.push([ph, i]);
+    });
+    return groups.map(g => panel(g.day ? fmtDay(g.day) : "Photos", `<div class="photos">${g.items.map(([ph, i]) =>
+      `<button class="photo" data-photo="${i}" aria-label="Open photo ${i + 1} of ${list.length}"><img src="${photoSrc(ph.id, true)}" alt="" loading="lazy"></button>`).join("")}</div>`)).join("");
+  }
+
+  let viewer = null, viewerId = null;
+  function openPhoto(i) {
+    const list = photoList();
+    const n = Math.max(0, Math.min(list.length - 1, i));
+    if (!list[n]) return;
+    if (!viewer) {
+      viewer = document.createElement("div");
+      viewer.className = "viewer";
+      viewer.setAttribute("role", "dialog");
+      viewer.setAttribute("aria-modal", "true");
+      viewer.setAttribute("aria-label", "Photo");
+      viewer.innerHTML = `<img alt=""><button class="vx" data-photo-close aria-label="Close">✕</button>
+        <button class="vp" data-photo-step="-1" aria-label="Previous photo">‹</button>
+        <button class="vn" data-photo-step="1" aria-label="Next photo">›</button><span class="vc label"></span>`;
+      let x0 = null;
+      viewer.addEventListener("touchstart", e => { x0 = e.touches.length === 1 ? e.touches[0].clientX : null; }, { passive: true });
+      viewer.addEventListener("touchend", e => {
+        if (x0 == null) return;
+        const dx = e.changedTouches[0].clientX - x0;
+        x0 = null;
+        if (Math.abs(dx) > 50) stepPhoto(dx < 0 ? 1 : -1);
+      });
+      document.body.appendChild(viewer);
+    }
+    viewerId = list[n].id;
+    viewer.hidden = false;
+    document.body.style.overflow = "hidden";
+    viewer.querySelector("img").src = photoSrc(viewerId);
+    viewer.querySelector(".vc").textContent = `${n + 1} / ${list.length}`;
+    viewer.querySelector(".vp").disabled = n === 0;
+    viewer.querySelector(".vn").disabled = n === list.length - 1;
+    if (list[n + 1]) new Image().src = photoSrc(list[n + 1].id);
+  }
+  // By id, since a sync can add photos while one is open.
+  function stepPhoto(by) { openPhoto(Math.max(0, photoList().findIndex(p => p.id === viewerId)) + by); }
+  function closePhoto() {
+    if (!viewer || viewer.hidden) return;
+    viewer.hidden = true;
+    viewer.querySelector("img").removeAttribute("src");
+    document.body.style.overflow = "";
+  }
+
   // ── Sheets ─────────────────────────────────────────────────────────────
   function openSheet(html) {
     $("#sheet").innerHTML = html;
@@ -678,13 +769,16 @@
 
   // ── Events ─────────────────────────────────────────────────────────────
   document.addEventListener("click", e => {
-    const t = e.target.closest("[data-quest],[data-cat],[data-day],[data-pack],[data-packfor],[data-pick],[data-log],[data-undo],[data-setme],[data-close],[data-action],#meChip");
+    const t = e.target.closest("[data-quest],[data-cat],[data-day],[data-pack],[data-packfor],[data-pick],[data-log],[data-undo],[data-setme],[data-close],[data-action],[data-photo],[data-photo-step],[data-photo-close],#meChip");
     if (!t) return;
     const d = t.dataset;
     if (t.id === "meChip" || d.action === "pick-me") return meSheet();
     if (d.action === "ask") return askSheet();
     if (d.action === "ask-send") return sendAsk();
     if ("close" in d) return closeSheet();
+    if ("photoClose" in d) return closePhoto();
+    if (d.photoStep) return stepPhoto(+d.photoStep);
+    if (d.photo) return openPhoto(+d.photo);
     if (d.quest) return questSheet(d.quest);
     if (d.cat) { ui.questCat = d.cat; return render(); }
     if (d.day) { ui.day = d.day; return render(); }
@@ -706,8 +800,12 @@
       toast(`Playing as ${MEMBER[d.setme].name}`);
     }
   });
-  document.addEventListener("keydown", e => { if (e.key === "Escape") closeSheet(); });
-  addEventListener("hashchange", () => render(true));
+  document.addEventListener("keydown", e => { 
+    if (e.key === "Escape") { closeSheet(); closePhoto(); }
+    if (viewer && !viewer.hidden && e.key === "ArrowLeft") stepPhoto(-1);
+    if (viewer && !viewer.hidden && e.key === "ArrowRight") stepPhoto(1);
+  });
+  addEventListener("hashchange", () => { closePhoto(); render(true); });
   addEventListener("online", () => doSync(true));
   addEventListener("offline", () => { sync.status = "offline"; renderSync(); });
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") { render(); doSync(); } });
@@ -731,7 +829,6 @@
   }
 
   // ── Boot ───────────────────────────────────────────────────────────────
-  renderTabs();
   render();
   renderSync();
   doSync(true);

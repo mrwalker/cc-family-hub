@@ -1183,7 +1183,7 @@ function tripForm() {
     <div class="field"><label class="check"><input type="checkbox" id="t-work"${d.type === "work" ? " checked" : ""}>A work trip (kept here, but no trip card)</label></div>
     <div class="field"><label for="t-desc">About the trip</label><textarea id="t-desc" maxlength="2000">${esc(d.description)}</textarea></div>
     <div class="field"><label for="t-album">Photo album</label><input id="t-album" type="url" maxlength="500" placeholder="https://www.icloud.com/sharedalbum/#…" value="${esc(d.album)}">
-      <div class="hint">An iCloud shared album with Public Website on. Its photos show on the trip's card.</div></div>
+      <div class="hint">An iCloud shared album with Public Website on. Its photos show on the trip's card, and in its app's Photos tab.</div></div>
     ${itemsField("highlights", d.highlights)}
     ${itemsField("activities", d.activities)}
     ${itemsField("restaurants", d.restaurants)}

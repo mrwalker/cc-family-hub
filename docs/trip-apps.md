@@ -58,6 +58,14 @@ trip is in use, don't change it, or phones lose check-ins they haven't synced ye
 - **Schedule items** take a 24-hour `time` (`"08:30"`) or a free-text `when` (`"Morning"`). A
   tag starting with `!` renders as a yellow warning.
 
+## Photos
+
+The app gets a **Photos** tab once its trip has an album: on `/household/` › Trips, edit the
+trip and paste an iCloud shared album link (with Public Website on) into **Photo album**.
+Without a link there's no tab. Phones show it on their next sync, with photos by day, newest
+first. The app asks for the list as it syncs, and the Worker reads the album again when its
+list is over 10 minutes old. Videos are left out, and the album link stays on the server.
+
 ## Design language
 
 The trip apps and the hub page share one look:

@@ -44,8 +44,8 @@ import { handleAgent } from "./agent.js";
 import { pageInbox, postInbox } from "./inbox.js";
 import { identify } from "./access.js";
 import { ensureSchema } from "./db/migrations.js";
-import { warmAlbums } from "./photos.js";
-import { tripAlbumLinks } from "./trip-records.js";
+import { albumSoon, photoFromAlbum, warmAlbums } from "./photos.js";
+import { tripAlbumLink, tripAlbumLinks } from "./trip-records.js";
 import { serviceAccountToken, SCOPES } from "./google.js";
 
 // Widgets refresh often and every phone asks separately; one Google fetch per
@@ -171,6 +171,11 @@ async function route(request, env, hub, ectx = null) {
   const packMatch = url.pathname.match(/^\/api\/trip\/([a-z0-9-]{1,40})\/packing$/);
   if (packMatch) {
     return handleTripPacking(request, env, hub, packMatch[1]);
+  }
+
+  const photosMatch = url.pathname.match(/^\/api\/trip\/([a-z0-9-]{1,40})\/photos(?:\/([^/]+))?$/);
+  if (photosMatch) {
+    return handleTripPhotos(request, env, hub, photosMatch[1], photosMatch[2] ?? null, waitUntil);
   }
 
   // /<trip> → /<trip>/ so relative asset paths and the service worker scope resolve
@@ -435,6 +440,40 @@ async function handleTripInbox(request, env, hub, appId) {
     return new Response("Method not allowed", { status: 405 });
   }
   return jsonResponse(await pageInbox(env.HUB_DB, hub, who.viewer, Date.now(), { only }));
+}
+
+// Photos from the trip's shared album, newest first, for the app's Photos tab. The album
+// link itself stays here. During a trip people keep adding photos, so a list older than
+// TRIP_PHOTOS_AGE_MS is read from iCloud again.
+//   GET /api/trip/:tripId/photos                → { album: false } without an album link, else
+//                                                 { album: true, photos: [{ id, takenAt }] | null }
+//                                                 (null: still loading, or `error`)
+//   GET /api/trip/:tripId/photos/:id[?size=thumb] → the photo
+const TRIP_PHOTOS_AGE_MS = 10 * 60_000;
+
+async function handleTripPhotos(request, env, hub, appId, photoId, waitUntil) {
+  const app = hub.tripApps.find(a => a.appId === appId);
+  if (!app) return jsonResponse({ error: "Unknown trip" }, 404);
+  if (request.method !== "GET") return new Response("Method not allowed", { status: 405 });
+  const link = app.trip ? await tripAlbumLink(env, app.trip) : null;
+  if (photoId) {
+    if (!link) return jsonResponse({ error: "This trip has no album" }, 404);
+    let id;
+    try { id = decodeURIComponent(photoId); } catch { return jsonResponse({ error: "No such photo" }, 404); }
+    try {
+      return await photoFromAlbum(link, id, env, { thumb: new URL(request.url).searchParams.get("size") === "thumb" });
+    } catch (err) {
+      return jsonResponse({ error: err.message }, 502);
+    }
+  }
+  if (!link) return jsonResponse({ album: false });
+  try {
+    const photos = await albumSoon(env, link, { waitUntil, maxAgeMs: TRIP_PHOTOS_AGE_MS });
+    return jsonResponse({ album: true, photos: photos && photos.map(({ id, takenAt }) => ({ id, takenAt })) });
+  } catch (err) {
+    console.error(`Album for ${app.trip}: ${err.message}`);
+    return jsonResponse({ album: true, photos: null, error: "unreadable" });
+  }
 }
 
 function isValidId(id) {
