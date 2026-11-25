@@ -2,7 +2,8 @@
  * The stream: what the brain hands every output (docs/stream.md).
  *
  *   GET /api/stream?view=family|<member id>&output=<output id>[&components=a,b][&all=1]
- *     → { title, view, output, members, hubUrl, generatedAt, cards: [card…], errors? }
+ *     → { title, view, output, members, hubUrl, generatedAt, components: [id…], cards: [card…], errors? }
+ *   components in the answer is the configured order, whatever leads the cards.
  *   components= narrows the stream to those components (in that order); all=1 returns
  *   every card, without taking turns or photos between.
  *   GET /api/stream/image/<card id>   → the card's photo (album photo or trip hero)
@@ -206,6 +207,7 @@ export async function handleStream(request, env, hub, loadEvents, path, base = "
     members: hub.members.map(({ id, name, color }) => ({ id, name, color })),
     hubUrl: ctx.hubUrl,
     generatedAt: ctx.now.toISOString(),
+    components: cfg.components,
     cards,
     ...(errors.length ? { errors } : {}),
   });

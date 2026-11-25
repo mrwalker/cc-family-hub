@@ -1752,14 +1752,20 @@ function applyDateFilter(el, id) {
 }
 
 // ── Tabs ───────────────────────────────────────────────────────────
-// One tab per component in the stream, in rotation order, plus ALWAYS_TABS.
-function buildTabs(cards) {
+// One tab per component in the stream, plus ALWAYS_TABS. Tabs keep the configured order
+// (the stream's `components`): an active trip leads the rotation, but its tab stays put.
+function buildTabs(cards, components) {
   const bar = document.getElementById("tab-bar");
   bar.innerHTML = "";
   const row = document.createElement("div");
   row.className = "tab-row";
   const order = [];
   (cards || []).forEach(c => { if (!order.includes(c.component)) order.push(c.component); });
+  if (components) {
+    // Photos between cards may not be in the list: they go last.
+    const at = c => { const i = components.indexOf(c); return i < 0 ? components.length : i; };
+    order.sort((a, b) => at(a) - at(b));
+  }
   if (!cards) MODULES.forEach(m => { if (!order.includes(m.component)) order.push(m.component); });
   ALWAYS_TABS.forEach(c => { if (!order.includes(c)) order.push(c); });
   order.forEach(component => {
@@ -2109,7 +2115,7 @@ async function initRotation() {
   rot.slots = stream ? slotsFrom(stream.cards) : MODULES
     .map((m, i) => ({ module: i, card: null, ms: FALLBACK_DWELL_MS }))
     .filter(s => MODULES[s.module].tab !== false);
-  buildTabs(stream ? stream.cards : null);
+  buildTabs(stream ? stream.cards : null, stream ? stream.components : null);
 
   // A link to #trips (from a widget, say) opens that view, paused; #trip:<id> opens
   // that trip's card, from an escape room or /household/.
