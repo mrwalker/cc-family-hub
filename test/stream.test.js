@@ -79,6 +79,12 @@ test("components= narrows the stream and all=1 returns every card", async () => 
   assert.match(d.error, /Unknown component "gossip"/);
 });
 
+test("the stream gives the configured component order, which the page's tabs keep", async () => {
+  const { handleStream } = await import("../app/worker/stream.js");
+  const res = await handleStream(new Request("https://hub.example.com/api/stream?components=today,trips,past-trips"), {}, HUB, async () => [], "");
+  assert.deepEqual((await res.json()).components, ["today", "trips", "past-trips"]);
+});
+
 test("the hub page's path gives image links under the same path", async () => {
   const { handleStream } = await import("../app/worker/stream.js");
   const { memoryKV } = await import("./helpers.js");

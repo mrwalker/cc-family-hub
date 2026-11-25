@@ -71,7 +71,8 @@ The Worker applies these when it composes a stream, so every output behaves the 
    together, in its place.
 2. **Empty components are skipped.**
 3. **A trip that's on leads.** While a trip is active, its card moves to the front and
-   carries today's schedule.
+   carries today's schedule. The hub page's tabs stay in the configured order (the stream's
+   `components`).
 4. **Urgent things ride on `today`.** `urgent` flags from the plan appear on the `today`
    card, so they're seen even on a screen that shows only one card.
 5. **Long components take turns.** When a component has more cards than its `max`, each
@@ -106,6 +107,7 @@ Two more parameters are for screens that let someone choose:
   "members": [{ "id": "alex", "name": "Alex", "color": "#2563eb" }],
   "hubUrl": "https://hub.example.com/",
   "generatedAt": "2027-06-21T15:04:00Z",
+  "components": ["today", "trips"],
   "cards": [
     {
       "id": "today",
