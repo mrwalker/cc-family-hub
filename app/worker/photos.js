@@ -61,17 +61,19 @@ export async function albumPhotos(hub, env, opts) {
  * A shared album's photos (newest first) for a screen, without a long wait: the kept
  * list; else iCloud's, if it answers within about two seconds; else null for now. A
  * list still loading goes on with `waitUntil` (about 30 seconds), and warmAlbums
- * finishes any that take longer. Throws if iCloud answers with an error.
+ * finishes any that take longer. A kept list older than `maxAgeMs` is read again the
+ * same way, standing in until that's done. Throws if iCloud answers with an error.
  */
-export async function albumSoon(env, link, { waitUntil = null, waitMs = SOON_MS } = {}) {
+export async function albumSoon(env, link, { waitUntil = null, waitMs = SOON_MS, maxAgeMs = Infinity } = {}) {
   const key = albumKey(link);
   if (!key) return null;
   const kept = await keptAlbum(env, key);
-  if (kept) return kept.photos;
-  const reading = refresh(env, key);
+  if (kept && Date.now() - kept.fetchedAt <= maxAgeMs) return kept.photos;
+  // A kept list that's older than asked for still stands if iCloud is slow or fails.
+  const reading = kept ? refresh(env, key).catch(() => kept.photos) : refresh(env, key);
   if (waitUntil) waitUntil(reading.catch(() => {}));
   let timer;
-  const late = new Promise(r => { timer = setTimeout(() => r(null), waitMs); });
+  const late = new Promise(r => { timer = setTimeout(() => r(kept ? kept.photos : null), waitMs); });
   try { return await Promise.race([reading, late]); } finally { clearTimeout(timer); }
 }
 
@@ -90,8 +92,9 @@ export async function photoById(hub, id, env = null) {
 /**
  * One photo from any shared album, as a JPEG response. A photo the kept list doesn't
  * have (it's new), or whose download link has expired, gets the list read again once.
+ * With `thumb`, a small rendition when iCloud has one.
  */
-export async function photoFromAlbum(link, id, env = null) {
+export async function photoFromAlbum(link, id, env = null, { thumb = false } = {}) {
   const key = albumKey(link);
   if (!key) return json({ error: "No photo album is set up." }, 404);
   const kept = await keptAlbum(env, key);
@@ -99,10 +102,10 @@ export async function photoFromAlbum(link, id, env = null) {
   let photo = album.find(p => p.id === id);
   if (!photo && kept) { album = await refresh(env, key); photo = album.find(p => p.id === id); }
   if (!photo) return json({ error: "No such photo" }, 404);
-  const res = await photoResponse(key, photo);
+  const res = await photoResponse(key, photo, thumb);
   if (res.status !== 502 || !kept) return res;
   const again = (await refresh(env, key)).find(p => p.id === id);
-  return again ? photoResponse(key, again) : res;
+  return again ? photoResponse(key, again, thumb) : res;
 }
 
 /**
@@ -206,6 +209,7 @@ async function readCloudKitAlbum(key) {
       ?? [[a, "resJPEGThumb"], [m, "resJPEGThumb"]].find(([f, p]) => has(f, p));
     if (!pick) continue;
     const [f, p] = pick;
+    const small = [a, m].find(f => has(f, "resJPEGThumb"));
     photos.push({
       id: asset.recordName,
       width: Number(f[`${p}Width`]?.value) || null,
@@ -213,6 +217,7 @@ async function readCloudKitAlbum(key) {
       takenAt: a.assetDate?.value ? new Date(Number(a.assetDate.value)).toISOString() : null,
       fingerprint: f[`${p}Fingerprint`]?.value ?? asset.recordChangeTag ?? "",
       downloadURL: f[`${p}Res`].value.downloadURL,
+      ...(small ? { thumb: { fingerprint: small.resJPEGThumbFingerprint?.value ?? "", downloadURL: small.resJPEGThumbRes.value.downloadURL } } : {}),
     });
     if (photos.length >= MAX_PHOTOS) break;
   }
@@ -258,6 +263,7 @@ async function readStreamsAlbum(token) {
       .sort((a, b) => Number(b.width) * Number(b.height) - Number(a.width) * Number(a.height));
     const d = sizes.find(d => Math.max(Number(d.width), Number(d.height)) <= 2100) ?? sizes[sizes.length - 1];
     if (!d) continue;
+    const small = [...sizes].reverse().find(d => Math.min(Number(d.width), Number(d.height)) >= 200);
     photos.push({
       id: p.photoGuid,
       width: Number(d.width) || null,
@@ -265,6 +271,8 @@ async function readStreamsAlbum(token) {
       takenAt: p.dateCreated ?? p.batchDateCreated ?? null,
       fingerprint: d.checksum,
       host,
+      // The smallest rendition that's still sharp in a grid of photos.
+      ...(small && small !== d ? { thumb: { fingerprint: small.checksum } } : {}),
     });
   }
   photos.sort((a, b) => String(b.takenAt ?? "").localeCompare(String(a.takenAt ?? "")));
@@ -279,10 +287,12 @@ async function streamsDownloadURL(token, photo) {
   return `https://${item.url_location}${item.url_path}`;
 }
 
-async function photoResponse(key, photo) {
+async function photoResponse(key, whole, thumb = false) {
+  const photo = thumb && whole.thumb ? { ...whole, ...whole.thumb } : whole;
+  const size = photo === whole ? "" : "/thumb";
   const cache = typeof caches !== "undefined" ? caches.default : null;
   const cacheKey = new Request(
-    `https://family-hub.internal/photo/${encodeURIComponent(key)}/${encodeURIComponent(photo.id)}/${encodeURIComponent(photo.fingerprint)}`
+    `https://family-hub.internal/photo/${encodeURIComponent(key)}/${encodeURIComponent(photo.id)}/${encodeURIComponent(photo.fingerprint)}${size}`
   );
   let res = cache && (await cache.match(cacheKey));
   if (!res) {

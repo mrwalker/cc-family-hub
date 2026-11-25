@@ -395,3 +395,17 @@ b { font-weight: 600; color: var(--text); }
   .sheet, .sheet-scrim { animation: none; }
   * { transition: none !important; }
 }
+
+/* ── Photos ────────────────────────────────────────────────────── */
+.photos { display: grid; grid-template-columns: repeat(3, 1fr); grid-gap: 4px; padding: 4px; }
+.photo { position: relative; display: block; width: 100%; padding-top: 100%; overflow: hidden; border-radius: 6px; background: var(--hair-2); }
+.photo img { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; }
+.viewer { position: fixed; top: 0; right: 0; bottom: 0; left: 0; z-index: 60; background: rgba(0, 0, 0, .94); touch-action: pan-y pinch-zoom; }
+.viewer[hidden] { display: none; }
+.viewer img { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: contain; }
+.viewer button { position: absolute; width: 48px; height: 48px; text-align: center; font-size: 26px; line-height: 48px; color: #fff; border-radius: 50%; background: rgba(9, 12, 17, .5); }
+.viewer button:disabled { opacity: 0; pointer-events: none; }
+.viewer .vx { top: calc(var(--safe-t) + 12px); right: 12px; font-size: 18px; }
+.viewer .vp { left: 8px; top: calc(50% - 24px); }
+.viewer .vn { right: 8px; top: calc(50% - 24px); }
+.viewer .vc { position: absolute; left: 0; right: 0; bottom: calc(var(--safe-b) + 18px); text-align: center; color: #fff; pointer-events: none; }

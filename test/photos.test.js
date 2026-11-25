@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { albumKey, albumPhotosFor, albumSoon, warmAlbums } from "../app/worker/photos.js";
-import { memoryKV } from "./helpers.js";
+import { memoryKV, HUB } from "./helpers.js";
 
 test("both kinds of iCloud shared-album link are recognised", () => {
   assert.equal(albumKey("https://photos.icloud.com/shared/album/B0abcdefghijKLMN"), "B0abcdefghijKLMN");
@@ -113,4 +113,44 @@ test("warmAlbums loads albums that aren't kept first, then stale ones, and leave
 test("albumPhotosFor still waits for an album that isn't kept", async () => {
   const icloud = fakeICloud({ WaitAlbum0001: 100 });
   try { assert.equal((await albumPhotosFor(link("WaitAlbum0001"))).length, 1); } finally { icloud.restore(); }
+});
+
+// ─── The trip apps' Photos tab (v2.16) ───────────────────────────────────────
+
+test("an older kept list is read again when asked for a newer one, and stands in if iCloud is slow", async () => {
+  const icloud = fakeICloud({ SlowTrip00001: 300 });
+  const kept = { fetchedAt: Date.now() - 3_600_000, photos: [{ id: "old" }] };
+  const env = { HUB_DATA: memoryKV({ "album:QuickTrip0001": JSON.stringify(kept), "album:SlowTrip00001": JSON.stringify(kept) }) };
+  const ids = async (key, opts) => (await albumSoon(env, link(key), opts)).map(p => p.id);
+  try {
+    assert.deepEqual(await ids("QuickTrip0001"), ["old"], "any age will do by default");
+    assert.deepEqual(await ids("QuickTrip0001", { maxAgeMs: 600_000 }), ["A-QuickTrip0001"]);
+    assert.deepEqual(await ids("SlowTrip00001", { maxAgeMs: 600_000, waitMs: 20 }), ["old"]);
+    await new Promise(r => setTimeout(r, 400));
+    globalThis.fetch = async () => new Response("", { status: 500 });
+    assert.deepEqual(await ids("SlowTrip00001", { maxAgeMs: -1 }), ["A-SlowTrip00001"], "iCloud failing leaves the kept list");
+  } finally { icloud.restore(); }
+});
+
+test("a trip app's photos: none without an album link, else the list without the link", async () => {
+  const { createHub } = await import("../app/worker/index.js");
+  const app = { trip: "beach", appId: "beach-app", path: "/beach/", players: [] };
+  const hub = createHub({ ...HUB, guests: [], tripApps: [app] });
+  const trips = album => JSON.stringify({ trips: [{ id: "beach", ...(album ? { album } : {}) }] });
+  const get = async (env, path) => hub.fetch(new Request(`https://hub.example.com/api/trip/${path}`), env);
+  const none = { HUB_DATA: memoryKV({ "data:family": trips() }) };
+  assert.deepEqual(await (await get(none, "beach-app/photos")).json(), { album: false });
+  assert.equal((await get(none, "beach-app/photos/x")).status, 404);
+  assert.equal((await get(none, "other/photos")).status, 404);
+
+  const kept = { fetchedAt: Date.now(), photos: [{ id: "p1", takenAt: "2027-06-21T10:00:00Z", fingerprint: "f", downloadURL: "https://cvws.example/full",
+    thumb: { fingerprint: "t", downloadURL: "https://cvws.example/thumb" } }] };
+  const env = { HUB_DATA: memoryKV({ "data:family": trips(link("BeachAlbum001")), "album:BeachAlbum001": JSON.stringify(kept) }) };
+  assert.deepEqual(await (await get(env, "beach-app/photos")).json(), { album: true, photos: [{ id: "p1", takenAt: "2027-06-21T10:00:00Z" }] });
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async url => new Response(String(url));
+  try {
+    assert.equal(await (await get(env, "beach-app/photos/p1?size=thumb")).text(), "https://cvws.example/thumb");
+    assert.equal(await (await get(env, "beach-app/photos/p1")).text(), "https://cvws.example/full");
+  } finally { globalThis.fetch = realFetch; }
 });

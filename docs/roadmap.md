@@ -94,6 +94,7 @@ Built so far:
   Bump each trip's `sw.js`.
 - **v2.15.3:** the hub page's pop-ups (a day's details, Ask) are solid in dark mode.
 - **v2.15.4:** the hub page's tabs keep their order while a trip is on.
+- **v2.16.0:** trip apps have a **Photos** tab once their trip has a shared album.
 
 The rest ships in steps:
 
